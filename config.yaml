@@ -73,7 +73,7 @@ local_mcp_fun: # 本地MCP功能配置
 selected_module:
   ASR: DoubaoASR
   TTS: EdgeTTS
-  LLM: OllamaLLM
+  LLM: DeepSeekR1  # 使用 DeepSeek R1 作为主要LLM
   VLLLM: ChatGLMVLLM
 
 # ASR配置
@@ -128,6 +128,14 @@ LLM:
       model_name: glm-4-flash
       url: https://open.bigmodel.cn/api/paas/v4/
       api_key: 你的api_key
+    DeepSeekR1:
+      type: openai
+      model_name: deepseek-r1  
+      url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
+      api_key: 你的dashscope_api_key
+      temperature: 0.7
+      max_tokens: 4096
+      top_p: 0.9
     OllamaLLM:
       # 定义LLM API类型
       type: ollama
