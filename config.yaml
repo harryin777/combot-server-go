@@ -80,8 +80,8 @@ selected_module:
 ASR:
   DoubaoASR:
     type: doubao
-    appid: "你的appid"
-    access_token: 你的access_token
+    appid: "2845669693"
+    access_token: AAlTWK3VjQ0nHKJVEPGQtCnKztfqCTgG
     output_dir: tmp/
 
   GoSherpaASR:
