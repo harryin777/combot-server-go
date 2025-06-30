@@ -17,6 +17,8 @@ import (
 	"xiaozhi-server-go/src/core/providers/asr"
 	"xiaozhi-server-go/src/core/utils"
 
+	"github.com/sirupsen/logrus"
+
 	"github.com/gorilla/websocket"
 )
 
@@ -134,28 +136,28 @@ func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Pr
 
 // 读取根目录下的mp3文件，测试Transcribe方法
 func (p *Provider) TestTranscribe() (string, error) {
-	fmt.Println("TestTranscribe called")
+	logrus.Debug("TestTranscribe called")
 	// 读取音频文件
 	audioFile := "700.mp3" // 替换为实际的音频文件路径
 
 	pcmData, err := utils.MP3ToPCMData(audioFile)
 	if err != nil {
-		fmt.Println("MP3转PCM失败: ", err.Error())
+		logrus.WithError(err).Error("MP3转PCM失败")
 	}
 	monoPcmDataBytes := []byte{}
 	if len(pcmData) > 0 {
 		monoPcmDataBytes = pcmData[0] // 提取第一个切片
-		fmt.Printf("提取的单声道PCM数据长度: %d 字节\n", len(monoPcmDataBytes))
+		logrus.WithField("length", len(monoPcmDataBytes)).Debug("提取的单声道PCM数据长度")
 
 	} else {
-		fmt.Println("没有PCM数据可提取")
+		logrus.Debug("没有PCM数据可提取")
 	}
 
 	result, err := p.Transcribe(context.Background(), monoPcmDataBytes)
 	if err != nil {
-		fmt.Println("转录失败: ", err.Error())
+		logrus.WithError(err).Error("转录失败")
 	} else {
-		fmt.Print("result is ", result, "\n")
+		logrus.WithField("result", result).Debug("转录结果")
 	}
 
 	return result, nil
@@ -405,8 +407,12 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 		if i < maxRetries {
 			backoffTime := time.Duration(500*(i+1)) * time.Millisecond
-			fmt.Printf("WebSocket连接失败(尝试%d/%d): %v, 将在%v后重试\n",
-				i+1, maxRetries+1, err, backoffTime)
+			logrus.WithFields(logrus.Fields{
+				"attempt":     i + 1,
+				"maxRetries":  maxRetries + 1,
+				"error":       err,
+				"backoffTime": backoffTime,
+			}).Warn("WebSocket连接失败，将重试")
 			time.Sleep(backoffTime)
 		}
 	}

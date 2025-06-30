@@ -3,9 +3,9 @@ package types
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/sirupsen/logrus"
 )
 
 // ToolType represents the type of tool operation.
@@ -73,11 +73,11 @@ func (m *Message) Print() {
 	//转为json字符串
 	jsonStr, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
-		fmt.Println("json marshal error:", err)
+		logrus.WithError(err).Error("json marshal error")
 		return
 	}
-	//fmt.Println("Message:")
-	fmt.Println(string(jsonStr))
+	//logrus.Debug("Message:")
+	logrus.Debug(string(jsonStr))
 }
 
 // ToolCall 工具调用结构

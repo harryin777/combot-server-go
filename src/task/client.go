@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // ClientManager manages client contexts and resources
@@ -111,7 +113,7 @@ func (rq *ResourceQuota) CheckAndResetDailyQuota() {
 	if rq.LastResetDate.Before(today) {
 		rq.TotalUsedQuota = 0
 		rq.LastResetDate = today
-		fmt.Printf("每日配额已重置，客户端时间: %s\n", today.Format("2006-01-02"))
+		logrus.WithField("date", today.Format("2006-01-02")).Info("每日配额已重置")
 	}
 }
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // TaskManager manages async tasks and their execution
@@ -164,7 +166,7 @@ func (st *ScheduledTasks) processScheduledTasks() {
 				go func(t *Task) {
 					defer func() {
 						if r := recover(); r != nil {
-							fmt.Printf("Scheduled task panic: %v\n", r)
+							logrus.WithField("panic", r).Error("Scheduled task panic")
 						}
 					}()
 					t.Execute()

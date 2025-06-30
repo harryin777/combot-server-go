@@ -8,6 +8,8 @@ import (
 
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/utils"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Config TTS配置结构
@@ -87,7 +89,7 @@ func (p *BaseProvider) SetVoice(voice string) error {
 	}
 
 	p.Config().Voice = voice
-	fmt.Printf("已设置声音为: %s\n", voice)
+	logrus.WithField("voice", voice).Info("已设置声音")
 	return nil
 }
 

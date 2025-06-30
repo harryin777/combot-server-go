@@ -3,12 +3,13 @@ package database
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"strings"
 	"time"
 
 	"xiaozhi-server-go/src/models"
+
+	"github.com/sirupsen/logrus"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -113,7 +114,8 @@ func InitDB(logger *xiaozhi_utils.Logger) (*gorm.DB, string, error) {
 
 	// 插入默认配置
 	if err := InsertDefaultConfigIfNeeded(db); err != nil {
-		log.Printf("⚠️ 插入默认配置失败: %v", err)
+		// 使用 logrus 替代标准库 log
+		logrus.WithError(err).Warn("插入默认配置失败")
 	}
 
 	DB = db

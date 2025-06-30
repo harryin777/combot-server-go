@@ -9,6 +9,7 @@ import (
 	"xiaozhi-server-go/src/core/providers/tts"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // Provider Sherpa TTS提供者实现
@@ -60,7 +61,7 @@ func (p *Provider) ToTTS(text string) (string, error) {
 	}
 
 	ttsDuration := time.Since(SherpaTTSStartTime)
-	fmt.Println(fmt.Sprintf("go-sherpa-tts 语音合成完成，耗时: %s", ttsDuration))
+	logrus.WithField("duration", ttsDuration).Info("go-sherpa-tts 语音合成完成")
 
 	// 将音频数据写入临时文件
 	err = os.WriteFile(tempFile, bytes, 0644)

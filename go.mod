@@ -12,6 +12,7 @@ require (
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/qrtc/opus-go v0.0.1
 	github.com/sashabaranov/go-openai v1.40.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/wujunwei928/edge-tts-go v0.0.0-20250315123430-d4675babeb96
 	golang.org/x/image v0.27.0
 	golang.org/x/sync v0.14.0

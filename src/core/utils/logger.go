@@ -1,9 +1,8 @@
 package utils
 
 import (
-	"context"
 	"fmt"
-	"log/slog"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -11,6 +10,8 @@ import (
 	"time"
 
 	"xiaozhi-server-go/src/configs"
+
+	"github.com/sirupsen/logrus"
 )
 
 // LogLevel 日志级别
@@ -30,8 +31,7 @@ const (
 // Logger 日志接口实现
 type Logger struct {
 	config      *configs.Config
-	jsonLogger  *slog.Logger // 文件JSON输出
-	textLogger  *slog.Logger // 控制台文本输出
+	logger      *logrus.Logger // 主要logger实例
 	logFile     *os.File
 	currentDate string        // 当前日期 YYYY-MM-DD
 	mu          sync.RWMutex  // 读写锁保护
@@ -39,19 +39,19 @@ type Logger struct {
 	stopCh      chan struct{} // 停止信号
 }
 
-// configLogLevelToSlogLevel 将配置中的日志级别转换为slog.Level
-func configLogLevelToSlogLevel(configLevel string) slog.Level {
+// configLogLevelToLogrusLevel 将配置中的日志级别转换为logrus.Level
+func configLogLevelToLogrusLevel(configLevel string) logrus.Level {
 	switch configLevel {
 	case "DEBUG":
-		return slog.LevelDebug
+		return logrus.DebugLevel
 	case "INFO":
-		return slog.LevelInfo
+		return logrus.InfoLevel
 	case "WARN":
-		return slog.LevelWarn
+		return logrus.WarnLevel
 	case "ERROR":
-		return slog.LevelError
+		return logrus.ErrorLevel
 	default:
-		return slog.LevelInfo
+		return logrus.InfoLevel
 	}
 }
 
@@ -69,36 +69,33 @@ func NewLogger(config *configs.Config) (*Logger, error) {
 		return nil, fmt.Errorf("打开日志文件失败: %v", err)
 	}
 
-	// 设置slog级别
-	slogLevel := configLogLevelToSlogLevel(config.Log.LogLevel)
+	// 创建logrus实例
+	logger := logrus.New()
 
-	// 创建JSON处理器（用于文件输出）
-	jsonHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
-		Level: slogLevel,
+	// 设置日志级别
+	logger.SetLevel(configLogLevelToLogrusLevel(config.Log.LogLevel))
+
+	// 设置JSON格式化器用于文件输出
+	logger.SetFormatter(&logrus.JSONFormatter{
+		TimestampFormat: time.RFC3339,
 	})
 
-	// 创建文本处理器（用于控制台输出）
-	textHandler := slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slogLevel,
-	})
+	// 设置输出到文件和控制台（同时输出）
+	multiWriter := io.MultiWriter(file, os.Stdout)
+	logger.SetOutput(multiWriter)
 
-	// 创建logger实例
-	jsonLogger := slog.New(jsonHandler)
-	textLogger := slog.New(textHandler)
-
-	logger := &Logger{
+	loggerInstance := &Logger{
 		config:      config,
-		jsonLogger:  jsonLogger,
-		textLogger:  textLogger,
+		logger:      logger,
 		logFile:     file,
 		currentDate: time.Now().Format("2006-01-02"),
 		stopCh:      make(chan struct{}),
 	}
 
 	// 启动日志轮转检查器
-	logger.startRotationChecker()
+	loggerInstance.startRotationChecker()
 
-	return logger, nil
+	return loggerInstance, nil
 }
 
 // startRotationChecker 启动定时检查器
@@ -148,14 +145,14 @@ func (l *Logger) rotateLogFile(newDate string) {
 	if _, err := os.Stat(currentLogPath); err == nil {
 		if err := os.Rename(currentLogPath, archivedLogPath); err != nil {
 			// 如果重命名失败，记录到控制台
-			l.textLogger.Error("重命名日志文件失败", slog.String("error", err.Error()))
+			l.logger.WithError(err).Error("重命名日志文件失败")
 		}
 	}
 
 	// 创建新的日志文件
 	file, err := os.OpenFile(currentLogPath, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
-		l.textLogger.Error("创建新日志文件失败", slog.String("error", err.Error()))
+		l.logger.WithError(err).Error("创建新日志文件失败")
 		return
 	}
 
@@ -163,15 +160,12 @@ func (l *Logger) rotateLogFile(newDate string) {
 	l.logFile = file
 	l.currentDate = newDate
 
-	// 重新创建JSON处理器
-	slogLevel := configLogLevelToSlogLevel(l.config.Log.LogLevel)
-	jsonHandler := slog.NewJSONHandler(file, &slog.HandlerOptions{
-		Level: slogLevel,
-	})
-	l.jsonLogger = slog.New(jsonHandler)
+	// 重新设置多输出（文件 + 控制台）
+	multiWriter := io.MultiWriter(file, os.Stdout)
+	l.logger.SetOutput(multiWriter)
 
 	// 记录轮转信息
-	l.textLogger.Info("日志文件已轮转", slog.String("new_date", newDate))
+	l.logger.WithField("new_date", newDate).Info("日志文件已轮转")
 }
 
 // cleanOldLogs 清理旧日志文件
@@ -181,7 +175,7 @@ func (l *Logger) cleanOldLogs() {
 	// 读取日志目录
 	entries, err := os.ReadDir(logDir)
 	if err != nil {
-		l.textLogger.Error("读取日志目录失败", slog.String("error", err.Error()))
+		l.logger.WithError(err).Error("读取日志目录失败")
 		return
 	}
 
@@ -212,11 +206,12 @@ func (l *Logger) cleanOldLogs() {
 			if fileDate.Before(cutoffDate) {
 				filePath := filepath.Join(logDir, fileName)
 				if err := os.Remove(filePath); err != nil {
-					l.textLogger.Error("删除旧日志文件失败",
-						slog.String("file", fileName),
-						slog.String("error", err.Error()))
+					l.logger.WithFields(logrus.Fields{
+						"file":  fileName,
+						"error": err.Error(),
+					}).Error("删除旧日志文件失败")
 				} else {
-					l.textLogger.Info("已删除旧日志文件", slog.String("file", fileName))
+					l.logger.WithField("file", fileName).Info("已删除旧日志文件")
 				}
 			}
 		}
@@ -241,29 +236,33 @@ func (l *Logger) Close() error {
 }
 
 // log 通用日志记录函数（内部使用）
-func (l *Logger) log(level slog.Level, msg string, fields ...interface{}) {
+func (l *Logger) log(level logrus.Level, msg string, fields ...interface{}) {
 	// 使用读锁保护并发访问
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	// 构建slog属性
-	var attrs []slog.Attr
+	entry := l.logger.WithField("time", time.Now())
+
+	// 处理fields参数
 	if len(fields) > 0 && fields[0] != nil {
-		// 处理fields参数
 		if fieldsMap, ok := fields[0].(map[string]interface{}); ok {
-			for k, v := range fieldsMap {
-				attrs = append(attrs, slog.Any(k, v))
-			}
+			entry = entry.WithFields(logrus.Fields(fieldsMap))
 		} else {
-			// 如果不是map，直接作为fields字段
-			attrs = append(attrs, slog.Any("fields", fields[0]))
+			entry = entry.WithField("fields", fields[0])
 		}
 	}
 
-	// 同时写入文件（JSON）和控制台（文本）
-	ctx := context.Background()
-	l.jsonLogger.LogAttrs(ctx, level, msg, attrs...)
-	l.textLogger.LogAttrs(ctx, level, msg, attrs...)
+	// 记录日志
+	switch level {
+	case logrus.DebugLevel:
+		entry.Debug(msg)
+	case logrus.InfoLevel:
+		entry.Info(msg)
+	case logrus.WarnLevel:
+		entry.Warn(msg)
+	case logrus.ErrorLevel:
+		entry.Error(msg)
+	}
 }
 
 // Debug 记录调试级别日志
@@ -271,9 +270,9 @@ func (l *Logger) Debug(msg string, args ...interface{}) {
 	if l.config.Log.LogLevel == "DEBUG" {
 		if len(args) > 0 && containsFormatPlaceholders(msg) {
 			formattedMsg := fmt.Sprintf(msg, args...)
-			l.log(slog.LevelDebug, formattedMsg)
+			l.log(logrus.DebugLevel, formattedMsg)
 		} else {
-			l.log(slog.LevelDebug, msg, args...)
+			l.log(logrus.DebugLevel, msg, args...)
 		}
 	}
 }
@@ -288,10 +287,10 @@ func (l *Logger) Info(msg string, args ...interface{}) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		// 格式化模式：类似 Info
 		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(slog.LevelInfo, formattedMsg)
+		l.log(logrus.InfoLevel, formattedMsg)
 	} else {
 		// 结构化模式：原有方式
-		l.log(slog.LevelInfo, msg, args...)
+		l.log(logrus.InfoLevel, msg, args...)
 	}
 }
 
@@ -299,9 +298,9 @@ func (l *Logger) Info(msg string, args ...interface{}) {
 func (l *Logger) Warn(msg string, args ...interface{}) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(slog.LevelWarn, formattedMsg)
+		l.log(logrus.WarnLevel, formattedMsg)
 	} else {
-		l.log(slog.LevelWarn, msg, args...)
+		l.log(logrus.WarnLevel, msg, args...)
 	}
 }
 
@@ -309,8 +308,8 @@ func (l *Logger) Warn(msg string, args ...interface{}) {
 func (l *Logger) Error(msg string, args ...interface{}) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
 		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(slog.LevelError, formattedMsg)
+		l.log(logrus.ErrorLevel, formattedMsg)
 	} else {
-		l.log(slog.LevelError, msg, args...)
+		l.log(logrus.ErrorLevel, msg, args...)
 	}
 }

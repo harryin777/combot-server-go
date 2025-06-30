@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/sirupsen/logrus"
 )
 
 type AuthToken struct {
@@ -15,7 +16,7 @@ type AuthToken struct {
 func NewAuthToken(secretKey string) *AuthToken {
 	// 添加验证，确保密钥不为空
 	if secretKey == "" {
-		fmt.Println("Error! secret key cannot be empty")
+		logrus.Error("secret key cannot be empty")
 	}
 	return &AuthToken{
 		secretKey: []byte(secretKey),

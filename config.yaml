@@ -131,8 +131,8 @@ LLM:
     DeepSeekR1:
       type: openai
       model_name: deepseek-r1  
-      url: https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions
-      api_key: 你的dashscope_api_key
+      url: https://dashscope.aliyuncs.com/compatible-mode/v1
+      api_key: sk-79effd41278c47849da2666fb3aa8af7
       temperature: 0.7
       max_tokens: 4096
       top_p: 0.9

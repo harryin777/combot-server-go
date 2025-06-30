@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"sync"
 	"time"
+
+	"github.com/sirupsen/logrus"
 )
 
 // WorkerPool manages a pool of workers for executing tasks
@@ -155,7 +157,7 @@ func (wp *WorkerPool) workerFinished(worker *Worker) {
 		// 工作者重新加入空闲队列
 	default:
 		// 这种情况不应该发生，但为了安全起见
-		fmt.Printf("Warning: Failed to return worker %s to idle pool\n", worker.id)
+		logrus.WithField("workerID", worker.id).Warn("Failed to return worker to idle pool")
 	}
 }
 
@@ -251,6 +253,6 @@ func (w *Worker) assignTask(task *Task) {
 		// 任务成功分配
 	default:
 		// 这种情况不应该发生，因为 taskChan 有缓冲
-		fmt.Printf("Warning: Failed to assign task to worker %s\n", w.id)
+		logrus.WithField("workerID", w.id).Warn("Failed to assign task to worker")
 	}
 }

@@ -9,6 +9,8 @@ import (
 	"xiaozhi-server-go/src/core/types"
 	"xiaozhi-server-go/src/core/utils"
 
+	"github.com/sirupsen/logrus"
+
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/sashabaranov/go-openai"
@@ -68,7 +70,7 @@ func NewClient(config *Config, logger *utils.Logger) (*Client, error) {
 		c.stdioClient = stdioClient
 		c.useStdioClient = true
 	} else {
-		fmt.Println("Unsupported MCP client type, only stdio client is supported")
+		logrus.Warn("Unsupported MCP client type, only stdio client is supported")
 	}
 
 	return c, nil

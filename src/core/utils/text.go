@@ -2,10 +2,11 @@ package utils
 
 import (
 	"encoding/json"
-	"fmt"
 	"math/rand"
 	"regexp"
 	"strings"
+
+	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -71,7 +72,7 @@ func Extract_json_from_string(input string) map[string]interface{} {
 	// 提取最外层的{}
 	start := strings.Index(input, "{")
 	if start == -1 {
-		fmt.Println("没有找到JSON起始符号")
+		logrus.Debug("没有找到JSON起始符号")
 		return nil
 	}
 	bracketCount := 0
@@ -90,13 +91,13 @@ outer:
 		}
 	}
 	if end == -1 {
-		fmt.Println("没有找到完整的JSON结构")
+		logrus.Debug("没有找到完整的JSON结构")
 		return nil
 	}
 	jsonStr := input[start : end+1]
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
-		fmt.Println("JSON解析错误:", err)
+		logrus.WithError(err).Debug("JSON解析错误")
 		return nil
 	}
 	return jsonData

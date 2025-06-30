@@ -66,10 +66,33 @@ func (p *Provider) Response(ctx context.Context, sessionID string, messages []ty
 		// 转换消息格式
 		chatMessages := make([]openai.ChatCompletionMessage, len(messages))
 		for i, msg := range messages {
-			chatMessages[i] = openai.ChatCompletionMessage{
+			chatMessage := openai.ChatCompletionMessage{
 				Role:    msg.Role,
 				Content: msg.Content,
 			}
+
+			// 处理tool_call_id字段（tool消息必需）
+			if msg.ToolCallID != "" {
+				chatMessage.ToolCallID = msg.ToolCallID
+			}
+
+			// 处理tool_calls字段（assistant消息中的工具调用）
+			if len(msg.ToolCalls) > 0 {
+				openaiToolCalls := make([]openai.ToolCall, len(msg.ToolCalls))
+				for j, tc := range msg.ToolCalls {
+					openaiToolCalls[j] = openai.ToolCall{
+						ID:   tc.ID,
+						Type: openai.ToolType(tc.Type),
+						Function: openai.FunctionCall{
+							Name:      tc.Function.Name,
+							Arguments: tc.Function.Arguments,
+						},
+					}
+				}
+				chatMessage.ToolCalls = openaiToolCalls
+			}
+
+			chatMessages[i] = chatMessage
 		}
 
 		stream, err := p.client.CreateChatCompletionStream(
