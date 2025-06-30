@@ -12,6 +12,7 @@ require (
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/qrtc/opus-go v0.0.1
 	github.com/sashabaranov/go-openai v1.40.0
+	github.com/sirupsen/logrus v1.9.3
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.4
