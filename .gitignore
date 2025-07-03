@@ -10,6 +10,7 @@ wake_replay
 /uploads
 .env
 config.db
+/ota_bin
 .idea
 /ota_bin
 .idea
