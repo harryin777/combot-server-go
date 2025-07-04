@@ -39,7 +39,20 @@
 
 ## 🚀 快速开始
 
+<<<<<<< HEAD
 ### 1. 下载 Release 版
+=======
+* [x] 支持PCM格式的语音对话
+* [x] 支持Opus格式的语音对话
+* [x] 支持的模型 ASR(豆包流式）LLM（OpenAi API，ollama）TTS（EdgeTTS，豆包TTS）
+* [x] 识图解说（智谱)
+* [x] OTA功能
+* [x] 支持服务端mcp
+* [x] 支持小智客户端mcp调用
+* [x] 支持服务端本地mcp调用
+* [x] 支持mqtt连接【仅在商务版本实现】
+* [x] 管理后台
+>>>>>>> 2cb25b5 (Update README.md)
 
 > 推荐直接下载 Release 版本，无需配置开发环境：
 
@@ -161,7 +174,12 @@ swag init -g main.go
 
 > 文档见：[Centos 8 安装指南](Centos_Guide.md)
 
+<<<<<<< HEAD
 ---
+=======
+<img src="https://github.com/user-attachments/assets/f93b7e94-2e1b-49dc-87f3-98ec2a020873" width="450" alt="微信群二维码">
+
+>>>>>>> 2cb25b5 (Update README.md)
 
 ## 💬 社区支持
 
@@ -175,8 +193,15 @@ swag init -g main.go
 
 我们接受各种定制化开发项目，如果您有特定需求，欢迎通过微信联系洽谈。
 
+<<<<<<< HEAD
 ---
 
 ## 📄 License
 
 本仓库遵循 `Xiaozhi-server-go Open Source License`（基于 Apache 2.0 增强版）
+=======
+<img src="https://github.com/user-attachments/assets/e2639bc3-a58a-472f-9e72-b9363f9e79a3" width="450" alt="群主二维码">
+
+# 执照
+本仓库遵循Xiaozhi-server-go Open Source License 协议开源，该许可证本质上是Apache 2.0，但有一些额外的限制。
+>>>>>>> 2cb25b5 (Update README.md)
