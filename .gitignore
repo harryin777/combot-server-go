@@ -13,5 +13,4 @@ config.db
 /ota_bin
 .idea
 /ota_bin
-.idea
 go.sum
