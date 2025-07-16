@@ -3,6 +3,7 @@ module xiaozhi-server-go
 go 1.24
 
 require (
+	github.com/coze-dev/coze-go v0.0.0-20250626063826-a17604b061c0
 	github.com/gin-gonic/gin v1.10.1
 	github.com/golang-jwt/jwt/v5 v5.2.2
 	github.com/google/uuid v1.6.0
@@ -12,14 +13,10 @@ require (
 	github.com/mark3labs/mcp-go v0.29.0
 	github.com/qrtc/opus-go v0.0.1
 	github.com/sashabaranov/go-openai v1.40.0
-	github.com/swaggo/files v1.0.1
-	github.com/swaggo/gin-swagger v1.6.0
-	github.com/swaggo/swag v1.16.4
 	github.com/sirupsen/logrus v1.9.3
 	github.com/swaggo/files v1.0.1
 	github.com/swaggo/gin-swagger v1.6.0
 	github.com/swaggo/swag v1.16.4
-	github.com/sirupsen/logrus v1.9.3
 	github.com/wujunwei928/edge-tts-go v0.0.0-20250315123430-d4675babeb96
 	golang.org/x/image v0.27.0
 	golang.org/x/sync v0.14.0
@@ -39,7 +36,6 @@ require (
 	github.com/bytedance/sonic v1.13.2 // indirect
 	github.com/bytedance/sonic/loader v0.2.4 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
-	github.com/coze-dev/coze-go v0.0.0-20250626063826-a17604b061c0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.9 // indirect
 	github.com/gin-contrib/sse v1.1.0 // indirect
 	github.com/go-openapi/jsonpointer v0.19.5 // indirect
