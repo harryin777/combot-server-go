@@ -16,44 +16,40 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	xiaozhi_utils "xiaozhi-server-go/src/core/utils"
-
 	gorm_logger "gorm.io/gorm/logger"
 )
 
 type DBLogger struct {
-	logger *xiaozhi_utils.Logger
+	// 移除logger字段，直接使用logrus
 }
 
 func (l *DBLogger) LogMode(level gorm_logger.LogLevel) gorm_logger.Interface {
-	return &DBLogger{
-		logger: l.logger,
-	}
+	return &DBLogger{}
 }
 
 func (l *DBLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Info(msg, data...)
+	logrus.Infof(msg, data...)
 }
 
 func (l *DBLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Warn(msg, data...)
+	logrus.Warnf(msg, data...)
 }
 
 func (l *DBLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	l.logger.Error(msg, data...)
+	logrus.Errorf(msg, data...)
 }
 func (l *DBLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	sql, rows := fc()
 	elapsed := time.Since(begin)
 	if err != nil {
-		l.logger.Error("SQL Trace Error", map[string]interface{}{
+		logrus.Error("SQL Trace Error", map[string]interface{}{
 			"sql":     sql,
 			"rows":    rows,
 			"elapsed": elapsed,
 			"err":     err,
 		})
 	} else {
-		l.logger.Debug("SQL Trace", map[string]interface{}{
+		logrus.Debug("SQL Trace", map[string]interface{}{
 			"sql":     sql,
 			"rows":    rows,
 			"elapsed": elapsed,
@@ -64,7 +60,7 @@ func (l *DBLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql st
 var DB *gorm.DB
 
 // InitDB 根据 DATABASE_URL 自动识别数据库类型并连接
-func InitDB(logger *xiaozhi_utils.Logger) (*gorm.DB, string, error) {
+func InitDB(logger interface{}) (*gorm.DB, string, error) {
 	dsn := os.Getenv("DATABASE_URL")
 	if dsn == "" {
 		return nil, "", fmt.Errorf("环境变量 DATABASE_URL 未设置")
@@ -76,7 +72,7 @@ func InitDB(logger *xiaozhi_utils.Logger) (*gorm.DB, string, error) {
 		dbType string
 		lg     DBLogger
 	)
-	lg.logger = logger
+	// 移除了 lg.logger = logger 因为不再需要
 
 	switch {
 	case strings.HasPrefix(dsn, "mysql://"):
@@ -125,17 +121,17 @@ func InitDB(logger *xiaozhi_utils.Logger) (*gorm.DB, string, error) {
 	case "mysql":
 		var version string
 		db.Raw("SELECT VERSION()").Scan(&version)
-		logger.Info("MySQL 数据库连接成功，版本: %s", version)
+		logrus.Infof("MySQL 数据库连接成功，版本: %s", version)
 	case "postgres":
 		var version string
 		db.Raw("SELECT version()").Scan(&version)
-		logger.Info("PostgreSQL 数据库连接成功，版本: %s", version)
+		logrus.Infof("PostgreSQL 数据库连接成功，版本: %s", version)
 	case "sqlite":
 		var version string
 		db.Raw("SELECT sqlite_version()").Scan(&version)
-		logger.Info("SQLite 数据库连接成功，版本: %s", version)
+		logrus.Infof("SQLite 数据库连接成功，版本: %s", version)
 	default:
-		logger.Info("数据库连接成功，未识别的数据库类型")
+		logrus.Info("数据库连接成功，未识别的数据库类型")
 	}
 	return db, dbType, nil
 }

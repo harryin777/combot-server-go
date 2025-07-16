@@ -17,9 +17,8 @@ import (
 	"xiaozhi-server-go/src/core/providers/asr"
 	"xiaozhi-server-go/src/core/utils"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // Protocol constants
@@ -62,7 +61,6 @@ type Provider struct {
 	wsURL         string
 	chunkDuration int
 	connectID     string
-	logger        *utils.Logger // 添加日志记录器
 
 	// 配置
 	modelName     string
@@ -83,7 +81,7 @@ type Provider struct {
 }
 
 // NewProvider 创建豆包ASR提供者实例
-func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Provider, error) {
+func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
 	// 从config.Data中获取配置
@@ -118,7 +116,6 @@ func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Pr
 		wsURL:         "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream",
 		chunkDuration: 200, // 固定使用200ms分片
 		connectID:     connectID,
-		logger:        logger, // 使用简单的logger
 
 		// 默认配置
 		modelName:     "bigmodel",
@@ -314,7 +311,7 @@ func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
 			if err := json.Unmarshal(payloadMsg, &jsonData); err != nil {
 				return nil, fmt.Errorf("解析JSON响应失败: %v", err)
 			}
-			p.logger.Debug("[DEBUG] parseResponse: JSON解析成功, 数据=%v", jsonData)
+			logrus.WithField("jsonData", jsonData).Debug("[DEBUG] parseResponse: JSON解析成功")
 			result["payload_msg"] = jsonData
 		} else if serializationMethod != noSerialization {
 			result["payload_msg"] = string(payloadMsg)
@@ -352,7 +349,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 		} else {
 			p.sendDataCnt += 1
 			if p.sendDataCnt%20 == 0 {
-				p.logger.Debug("发送音频数据成功, 长度: %d 字节", len(data))
+				logrus.WithField("length", len(data)).Debug("发送音频数据成功")
 			}
 		}
 	}
@@ -361,7 +358,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 }
 
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	p.logger.Info("----开始流式识别----")
+	logrus.Info("----开始流式识别----")
 	p.ResetStartListenTime()
 	// 加锁保护连接初始化
 	p.connMutex.Lock()
@@ -461,7 +458,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("读取响应失败: %v", err)
 	} else {
-		p.logger.Debug("[DEBUG] 流式识别: 收到WebSocket消息长度=%d", len(response))
+		logrus.WithField("length", len(response)).Debug("[DEBUG] 流式识别: 收到WebSocket消息")
 	}
 
 	initialResult, err := p.parseResponse(response)
@@ -478,7 +475,10 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	}
 
 	p.isStreaming = true
-	p.logger.Debug("[DEBUG] 流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
+	logrus.WithFields(logrus.Fields{
+		"connectID": p.connectID,
+		"reqID":     p.reqID,
+	}).Debug("[DEBUG] 流式识别初始化成功")
 	// 开启一个协程来处理响应，读取最后的结果，读取完成后关闭协程
 	go func() {
 		p.ReadMessage()
@@ -487,10 +487,10 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 }
 
 func (p *Provider) ReadMessage() {
-	p.logger.Info("doubao流式识别协程已启动")
+	logrus.Info("doubao流式识别协程已启动")
 	defer func() {
 		if r := recover(); r != nil {
-			p.logger.Error("流式识别协程发生错误: %v", r)
+			logrus.WithField("error", r).Error("流式识别协程发生错误")
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false // 标记流式识别结束
@@ -498,7 +498,7 @@ func (p *Provider) ReadMessage() {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		p.logger.Info("doubao流式识别协程已结束")
+		logrus.Info("doubao流式识别协程已结束")
 	}()
 
 	for {
@@ -506,7 +506,7 @@ func (p *Provider) ReadMessage() {
 		p.connMutex.Lock()
 		if !p.isStreaming || p.conn == nil {
 			p.connMutex.Unlock()
-			p.logger.Info("流式识别已结束或连接已关闭，退出读取循环")
+			logrus.Info("流式识别已结束或连接已关闭，退出读取循环")
 			return
 		}
 		conn := p.conn
@@ -527,7 +527,7 @@ func (p *Provider) ReadMessage() {
 		}
 
 		if code, hasCode := result["code"]; hasCode {
-			p.logger.Info("检测到code字段: 解析结果=%v", result)
+			logrus.WithField("result", result).Info("检测到code字段: 解析结果")
 			codeValue := code.(uint32)
 			if codeValue != 0 {
 				p.setErrorAndStop(fmt.Errorf("ASR服务端错误: Code=%d", codeValue))
@@ -545,7 +545,7 @@ func (p *Provider) ReadMessage() {
 					text = textData
 				}
 
-				p.logger.Debug("[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
+				logrus.WithField("text", text).Debug("[DEBUG] 流式识别: 识别成功")
 
 				p.connMutex.Lock()
 				p.result = text
@@ -578,9 +578,15 @@ func (p *Provider) setErrorAndStop(err error) {
 	p.isStreaming = false
 	errMsg := err.Error()
 	if strings.Contains(errMsg, "use of closed network connection") {
-		p.logger.Debug("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logrus.WithFields(logrus.Fields{
+			"error":       err,
+			"sendDataCnt": p.sendDataCnt,
+		}).Debug("setErrorAndStop")
 	} else {
-		p.logger.Error("setErrorAndStop: %v, sendDataCnt=%d", err, p.sendDataCnt)
+		logrus.WithFields(logrus.Fields{
+			"error":       err,
+			"sendDataCnt": p.sendDataCnt,
+		}).Error("setErrorAndStop")
 	}
 
 	if p.conn != nil {
@@ -592,7 +598,7 @@ func (p *Provider) closeConnection() {
 	defer func() {
 		if r := recover(); r != nil {
 			// 静默处理panic，避免程序崩溃
-			p.logger.Error("关闭连接时发生错误: %v", r)
+			logrus.WithField("error", r).Error("关闭连接时发生错误")
 		}
 	}()
 
@@ -605,7 +611,11 @@ func (p *Provider) closeConnection() {
 
 // sendAudioData 直接发送音频数据，替代之前的sendCurrentBuffer
 func (p *Provider) sendAudioData(data []byte, isLast bool) error {
-	p.logger.Debug("[DEBUG] sendAudioData: 数据长度=%d, isLast=%t, sendDataCnt=%d", len(data), isLast, p.sendDataCnt)
+	logrus.WithFields(logrus.Fields{
+		"length":      len(data),
+		"isLast":      isLast,
+		"sendDataCnt": p.sendDataCnt,
+	}).Debug("[DEBUG] sendAudioData")
 	// 如果没有数据且不是最后一帧，不发送
 	if len(data) == 0 && !isLast {
 		return nil
@@ -613,7 +623,7 @@ func (p *Provider) sendAudioData(data []byte, isLast bool) error {
 	defer func() {
 		if r := recover(); r != nil {
 			// 捕获WebSocket写入时的panic，避免程序崩溃
-			p.logger.Error("发送音频数据时发生panic: %v", r)
+			logrus.WithField("error", r).Error("发送音频数据时发生panic")
 		}
 	}()
 
@@ -665,7 +675,7 @@ func (p *Provider) Reset() error {
 	// 重置音频处理
 	p.InitAudioProcessing()
 
-	p.logger.Info("ASR状态已重置")
+	logrus.Info("ASR状态已重置")
 
 	return nil
 }
@@ -688,14 +698,14 @@ func (p *Provider) Cleanup() error {
 	// 确保WebSocket连接关闭
 	p.closeConnection()
 
-	p.logger.Info("ASR资源已清理")
+	logrus.Info("ASR资源已清理")
 
 	return nil
 }
 
 func init() {
 	// 注册豆包ASR提供者
-	asr.Register("doubao", func(config *asr.Config, deleteFile bool, logger *utils.Logger) (asr.Provider, error) {
-		return NewProvider(config, deleteFile, logger)
+	asr.Register("doubao", func(config *asr.Config, deleteFile bool) (asr.Provider, error) {
+		return NewProvider(config, deleteFile)
 	})
 }

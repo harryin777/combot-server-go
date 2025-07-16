@@ -13,6 +13,7 @@ import (
 	"xiaozhi-server-go/src/task"
 
 	"github.com/gorilla/websocket"
+	"github.com/sirupsen/logrus"
 )
 
 // WebSocketServer WebSocket服务器结构
@@ -20,7 +21,6 @@ type WebSocketServer struct {
 	config            *configs.Config
 	server            *http.Server
 	upgrader          Upgrader
-	logger            *utils.Logger
 	taskMgr           *task.TaskManager
 	poolManager       *pool.PoolManager // 替换providers
 	activeConnections sync.Map          // 存储 clientID -> *ConnectionContext
@@ -32,10 +32,9 @@ type Upgrader interface {
 }
 
 // NewWebSocketServer 创建新的WebSocket服务器
-func NewWebSocketServer(config *configs.Config, logger *utils.Logger) (*WebSocketServer, error) {
+func NewWebSocketServer(config *configs.Config) (*WebSocketServer, error) {
 	ws := &WebSocketServer{
 		config:   config,
-		logger:   logger,
 		upgrader: NewDefaultUpgrader(),
 		taskMgr: func() *task.TaskManager {
 			tm := task.NewTaskManager(task.ResourceConfig{
@@ -47,9 +46,9 @@ func NewWebSocketServer(config *configs.Config, logger *utils.Logger) (*WebSocke
 		}(),
 	}
 	// 初始化资源池管理器
-	poolManager, err := pool.NewPoolManager(config, logger)
+	poolManager, err := pool.NewPoolManager(config)
 	if err != nil {
-		logger.Error(fmt.Sprintf("初始化资源池管理器失败: %v", err))
+		logrus.Errorf("初始化资源池管理器失败: %v", err)
 		return nil, fmt.Errorf("初始化资源池管理器失败: %v", err)
 	}
 	ws.poolManager = poolManager
@@ -60,7 +59,7 @@ func NewWebSocketServer(config *configs.Config, logger *utils.Logger) (*WebSocke
 func (ws *WebSocketServer) Start(ctx context.Context) error {
 	// 检查资源池是否正常
 	if ws.poolManager == nil {
-		ws.logger.Error("资源池管理器未初始化")
+		logrus.Error("资源池管理器未初始化")
 		return fmt.Errorf("资源池管理器未初始化")
 	}
 
@@ -74,15 +73,15 @@ func (ws *WebSocketServer) Start(ctx context.Context) error {
 		Handler: mux,
 	}
 
-	ws.logger.Info(fmt.Sprintf("启动WebSocket服务器 ws://%s...", addr))
+	logrus.Infof("启动WebSocket服务器 ws://%s...", addr)
 
 	// 启动服务器
 	if err := ws.server.ListenAndServe(); err != nil {
 		if err == http.ErrServerClosed {
-			ws.logger.Info("服务器已正常关闭")
+			logrus.Info("服务器已正常关闭")
 			return nil
 		}
-		ws.logger.Error(fmt.Sprintf("服务器启动失败: %v", err))
+		logrus.Errorf("服务器启动失败: %v", err)
 		return fmt.Errorf("服务器启动失败: %v", err)
 	}
 
@@ -125,13 +124,13 @@ func (u *defaultUpgrader) Upgrade(w http.ResponseWriter, r *http.Request) (Conne
 // Stop 停止WebSocket服务器
 func (ws *WebSocketServer) Stop() error {
 	if ws.server != nil {
-		ws.logger.Info("正在关闭WebSocket服务器...")
+		logrus.Info("正在关闭WebSocket服务器...")
 
 		// 关闭所有活动连接并归还资源
 		ws.activeConnections.Range(func(key, value interface{}) bool {
 			if ctx, ok := value.(*ConnectionContext); ok {
 				if err := ctx.Close(); err != nil {
-					ws.logger.Error(fmt.Sprintf("关闭连接上下文失败: %v", err))
+					logrus.Errorf("关闭连接上下文失败: %v", err)
 				}
 			} else if conn, ok := value.(Connection); ok {
 				// 向后兼容：直接关闭连接（如果存储的是旧格式）
@@ -158,7 +157,7 @@ func (ws *WebSocketServer) Stop() error {
 func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := ws.upgrader.Upgrade(w, r)
 	if err != nil {
-		ws.logger.Error(fmt.Sprintf("WebSocket升级失败: %v", err))
+		logrus.Errorf("WebSocket升级失败: %v", err)
 		return
 	}
 
@@ -167,16 +166,18 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	// 从资源池获取提供者集合
 	providerSet, err := ws.poolManager.GetProviderSet()
 	if err != nil {
-		ws.logger.Error(fmt.Sprintf("获取提供者集合失败: %v", err))
+		logrus.Errorf("获取提供者集合失败: %v", err)
 		conn.Close()
 		return
 	}
 
 	connCtx, connCancel := context.WithCancel(context.Background())
 	// 创建新的连接处理器
-	handler := NewConnectionHandler(ws.config, providerSet, ws.logger, r, connCtx)
+	// 创建临时的 utils.Logger 实例
+	tempLogger := &utils.Logger{}
+	handler := NewConnectionHandler(ws.config, providerSet, tempLogger, r, connCtx)
 
-	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, ws.logger, conn, connCtx, connCancel)
+	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, tempLogger, conn, connCtx, connCancel)
 
 	// 设置TaskManager的回调（使用安全回调）
 	handler.taskMgr = ws.taskMgr
@@ -185,7 +186,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	// 存储连接上下文
 	ws.activeConnections.Store(clientID, connContext)
 
-	ws.logger.Info(fmt.Sprintf("客户端 %s 连接已建立，资源已分配", clientID))
+	logrus.Infof("客户端 %s 连接已建立，资源已分配", clientID)
 
 	// 启动连接处理，并在结束时清理资源
 	go func() {
@@ -193,7 +194,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 			// 连接结束时清理
 			ws.activeConnections.Delete(clientID)
 			if err := connContext.Close(); err != nil {
-				ws.logger.Error(fmt.Sprintf("清理连接上下文失败: %v", err))
+				logrus.Errorf("清理连接上下文失败: %v", err)
 			}
 		}()
 

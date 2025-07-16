@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // Config ASR配置结构
@@ -108,7 +107,7 @@ func (p *BaseProvider) Cleanup() error {
 }
 
 // Factory ASR工厂函数类型
-type Factory func(config *Config, deleteFile bool, logger *utils.Logger) (Provider, error)
+type Factory func(config *Config, deleteFile bool) (Provider, error)
 
 var (
 	factories = make(map[string]Factory)
@@ -120,13 +119,13 @@ func Register(name string, factory Factory) {
 }
 
 // Create 创建ASR提供者实例
-func Create(name string, config *Config, deleteFile bool, logger *utils.Logger) (Provider, error) {
+func Create(name string, config *Config, deleteFile bool) (Provider, error) {
 	factory, ok := factories[name]
 	if !ok {
 		return nil, fmt.Errorf("未知的ASR提供者: %s", name)
 	}
 
-	provider, err := factory(config, deleteFile, logger)
+	provider, err := factory(config, deleteFile)
 	if err != nil {
 		return nil, fmt.Errorf("创建ASR提供者失败: %v", err)
 	}

@@ -8,26 +8,24 @@ import (
 	"strings"
 
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
 
 	_ "image/gif"  // 注册GIF解码器
 	_ "image/jpeg" // 注册JPEG解码器
 	_ "image/png"  // 注册PNG解码器
 
+	"github.com/sirupsen/logrus"
 	_ "golang.org/x/image/webp" // 注册WEBP解码器
 )
 
 // ImageSecurityValidator 图片安全验证器
 type ImageSecurityValidator struct {
 	config *configs.SecurityConfig
-	logger *utils.Logger
 }
 
 // NewImageSecurityValidator 创建新的图片安全验证器
-func NewImageSecurityValidator(config *configs.SecurityConfig, logger *utils.Logger) *ImageSecurityValidator {
+func NewImageSecurityValidator(config *configs.SecurityConfig) *ImageSecurityValidator {
 	return &ImageSecurityValidator{
 		config: config,
-		logger: logger,
 	}
 }
 
@@ -74,11 +72,11 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 	if int64(len(data)) > v.config.MaxFileSize {
 		result.Error = fmt.Errorf("文件大小超限: %d bytes，最大允许: %d bytes", len(data), v.config.MaxFileSize)
 		result.SecurityRisk = "文件过大，可能是DoS攻击"
-		v.logger.Warn("检测到超大文件", map[string]interface{}{
+		logrus.WithFields(logrus.Fields{
 			"size":     len(data),
 			"max_size": v.config.MaxFileSize,
 			"format":   declaredFormat,
-		})
+		}).Warn("检测到超大文件")
 		return result
 	}
 
@@ -93,10 +91,10 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 	if v.config.EnableDeepScan && v.scanForMaliciousContent(data) {
 		result.Error = fmt.Errorf("检测到潜在恶意内容")
 		result.SecurityRisk = "可能包含恶意载荷"
-		v.logger.Warn("检测到可疑内容", map[string]interface{}{
+		logrus.WithFields(logrus.Fields{
 			"format": declaredFormat,
 			"size":   len(data),
-		})
+		}).Warn("检测到可疑内容")
 		return result
 	}
 
@@ -106,10 +104,10 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 		// 图片解码失败，再检查文件头是否匹配
 		if declaredFormat != "" && !v.validateFileSignature(data, declaredFormat) {
 			// 记录警告但不直接失败，有些图片可能格式稍有不同但仍是有效的
-			v.logger.Warn("文件头验证失败，但继续尝试解码", map[string]interface{}{
+			logrus.WithFields(logrus.Fields{
 				"declared_format": declaredFormat,
 				"actual_header":   fmt.Sprintf("%x", data[:min(len(data), 16)]),
-			})
+			}).Warn("文件头验证失败，但继续尝试解码")
 		}
 		return decodeResult
 	}
@@ -162,12 +160,12 @@ func (v *ImageSecurityValidator) scanForMaliciousContent(data []byte) bool {
 	// 如果能够正常解码为图片，那么即使包含一些可疑字节序列，也很可能是安全的
 	reader := bytes.NewReader(data)
 	if _, _, err := image.DecodeConfig(reader); err == nil {
-		v.logger.Debug("文件能够正常解码为图片，跳过大部分恶意内容检测")
+		logrus.Debug("文件能够正常解码为图片，跳过大部分恶意内容检测")
 		// 对于能正常解码的图片，只进行最基本的检查
 		return v.basicSecurityCheck(data)
 	}
 
-	v.logger.Info("文件无法解码为标准图片格式，进行完整的安全检测")
+	logrus.Info("文件无法解码为标准图片格式，进行完整的安全检测")
 	return v.fullSecurityCheck(data)
 }
 
@@ -183,10 +181,10 @@ func (v *ImageSecurityValidator) basicSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到可执行文件签名", map[string]interface{}{
+			logrus.WithFields(logrus.Fields{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
-			})
+			}).Warn("文件开头检测到可执行文件签名")
 			return true
 		}
 	}
@@ -197,7 +195,7 @@ func (v *ImageSecurityValidator) basicSecurityCheck(data []byte) bool {
 		return v.checkSVGScripts(dataStr)
 	}
 
-	v.logger.Debug("基本安全检查通过")
+	logrus.Debug("基本安全检查通过")
 	return false
 }
 
@@ -214,10 +212,10 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到可执行文件签名", map[string]interface{}{
+			logrus.WithFields(logrus.Fields{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
-			})
+			}).Warn("文件开头检测到可执行文件签名")
 			return true
 		}
 	}
@@ -232,10 +230,10 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range compressionSignatures {
 		if bytes.HasPrefix(data, signature) {
-			v.logger.Warn("文件开头检测到压缩文件签名", map[string]interface{}{
+			logrus.WithFields(logrus.Fields{
 				"signature_type": compressionNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
-			})
+			}).Warn("文件开头检测到压缩文件签名")
 			return true
 		}
 	}
@@ -246,7 +244,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 		return v.checkSVGScripts(dataStr)
 	}
 
-	v.logger.Info("完整安全检查通过")
+	logrus.Info("完整安全检查通过")
 	return false
 }
 
@@ -269,9 +267,9 @@ func (v *ImageSecurityValidator) checkSVGScripts(dataStr string) bool {
 	dataStrLower := strings.ToLower(dataStr)
 	for _, suspicious := range suspiciousStrings {
 		if strings.Contains(dataStrLower, suspicious) {
-			v.logger.Warn("在SVG中检测到可疑脚本内容", map[string]interface{}{
+			logrus.WithFields(logrus.Fields{
 				"suspicious_content": suspicious,
-			})
+			}).Warn("在SVG中检测到可疑脚本内容")
 			return true
 		}
 	}
@@ -319,12 +317,12 @@ func (v *ImageSecurityValidator) validateImageDecoding(data []byte, format strin
 	result.Height = config.Height
 	result.FileSize = int64(len(data))
 
-	v.logger.Debug("图片验证成功 %v", map[string]interface{}{
+	logrus.WithFields(logrus.Fields{
 		"format": result.Format,
 		"width":  result.Width,
 		"height": result.Height,
 		"size":   result.FileSize,
-	})
+	}).Debug("图片验证成功")
 
 	return result
 }

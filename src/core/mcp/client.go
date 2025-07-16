@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"xiaozhi-server-go/src/core/types"
-	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
 
@@ -40,20 +39,19 @@ type Client struct {
 	ready          bool
 	mu             sync.RWMutex
 	useStdioClient bool
-	logger         *utils.Logger
 }
 
 // NewClient 创建一个新的MCP客户端实例
-func NewClient(config *Config, logger *utils.Logger) (*Client, error) {
+func NewClient(config *Config) (*Client, error) {
 	if !config.Enabled {
 		return nil, fmt.Errorf("MCP client is disabled in config")
 	}
 
 	c := &Client{
-		config: config,
-		tools:  make([]Tool, 0),
-		ready:  false,
-		logger: logger,
+		config:         config,
+		tools:          make([]Tool, 0),
+		ready:          false,
+		useStdioClient: false,
 	}
 
 	// 根据配置选择适当的客户端类型
@@ -99,10 +97,11 @@ func (c *Client) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize stdio MCP client: %w", err)
 		}
 		c.name = initResult.ServerInfo.Name
-		c.logger.Info("Initialized server: %s %s with conmmand: %s",
-			initResult.ServerInfo.Name,
-			initResult.ServerInfo.Version,
-			c.config.Command)
+		logrus.WithFields(logrus.Fields{
+			"name":    initResult.ServerInfo.Name,
+			"version": initResult.ServerInfo.Version,
+			"command": c.config.Command,
+		}).Info("Initialized server")
 
 		// 获取工具列表
 		err = c.fetchTools(ctx)
@@ -154,7 +153,10 @@ func (c *Client) fetchTools(ctx context.Context) error {
 			toolNames += fmt.Sprintf("%s, ", tool.Name)
 			//log.Printf("Added tool: %s - %s %v; %v; %v", tool.Name, tool.Description, tool.InputSchema, tool.RawInputSchema, tool.Annotations)
 		}
-		c.logger.Info("Fetching %s available tools %s", c.name, toolNames)
+		logrus.WithFields(logrus.Fields{
+			"name":      c.name,
+			"toolNames": toolNames,
+		}).Info("Fetching available tools")
 		return nil
 	} else {
 		// 原有方式的实现保持不变
@@ -167,12 +169,12 @@ func (c *Client) fetchTools(ctx context.Context) error {
 func (c *Client) Stop() {
 	if c.useStdioClient {
 		if c.stdioClient != nil {
-			c.logger.Info("Stopping MCP stdio client")
+			logrus.Info("Stopping MCP stdio client")
 			c.stdioClient.Close()
 		}
 	} else {
 		if c.client != nil {
-			c.logger.Info("Stopping MCP client")
+			logrus.Info("Stopping MCP client")
 			c.client.Close()
 		}
 	}

@@ -9,7 +9,6 @@ import (
 	"xiaozhi-server-go/src/core/providers/llm"
 	"xiaozhi-server-go/src/core/providers/tts"
 	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 /*
@@ -23,7 +22,6 @@ import (
 type ProviderFactory struct {
 	providerType string
 	config       interface{}
-	logger       *utils.Logger
 	params       map[string]interface{} // 可选参数
 }
 
@@ -52,7 +50,7 @@ func (f *ProviderFactory) createProvider() (interface{}, error) {
 		params := f.params
 		delete_audio, _ := params["delete_audio"].(bool)
 		asrType, _ := params["type"].(string)
-		return asr.Create(asrType, cfg, delete_audio, f.logger)
+		return asr.Create(asrType, cfg, delete_audio)
 	case "llm":
 		cfg := f.config.(*llm.Config)
 		return llm.Create(cfg.Type, cfg)
@@ -63,18 +61,17 @@ func (f *ProviderFactory) createProvider() (interface{}, error) {
 		return tts.Create(cfg.Type, cfg, delete_audio)
 	case "vlllm":
 		cfg := f.config.(*configs.VLLMConfig)
-		return vlllm.Create(cfg.Type, cfg, f.logger)
+		return vlllm.Create(cfg.Type, cfg)
 	case "mcp":
 		cfg := f.config.(*configs.Config)
-		logger := f.logger
-		return mcp.NewManagerForPool(logger, cfg), nil
+		return mcp.NewManagerForPool(cfg), nil
 	default:
 		return nil, fmt.Errorf("未知的提供者类型: %s", f.providerType)
 	}
 }
 
 // 创建各类型工厂的便利函数
-func NewASRFactory(asrType string, config *configs.Config, logger *utils.Logger) ResourceFactory {
+func NewASRFactory(asrType string, config *configs.Config) ResourceFactory {
 	if asrCfg, ok := config.ASR[asrType]; ok {
 		return &ProviderFactory{
 			providerType: "asr",
@@ -82,7 +79,6 @@ func NewASRFactory(asrType string, config *configs.Config, logger *utils.Logger)
 				Type: asrType,
 				Data: asrCfg,
 			},
-			logger: logger,
 			params: map[string]interface{}{
 				"type":         asrCfg["type"],
 				"delete_audio": config.DeleteAudio,
@@ -92,7 +88,7 @@ func NewASRFactory(asrType string, config *configs.Config, logger *utils.Logger)
 	return nil
 }
 
-func NewLLMFactory(llmType string, config *configs.Config, logger *utils.Logger) ResourceFactory {
+func NewLLMFactory(llmType string, config *configs.Config) ResourceFactory {
 	if llmCfg, ok := config.LLM[llmType]; ok {
 		return &ProviderFactory{
 			providerType: "llm",
@@ -106,13 +102,12 @@ func NewLLMFactory(llmType string, config *configs.Config, logger *utils.Logger)
 				TopP:        llmCfg.TopP,
 				Extra:       llmCfg.Extra,
 			},
-			logger: logger,
 		}
 	}
 	return nil
 }
 
-func NewTTSFactory(ttsType string, config *configs.Config, logger *utils.Logger) ResourceFactory {
+func NewTTSFactory(ttsType string, config *configs.Config) ResourceFactory {
 	if ttsCfg, ok := config.TTS[ttsType]; ok {
 		return &ProviderFactory{
 			providerType: "tts",
@@ -126,7 +121,6 @@ func NewTTSFactory(ttsType string, config *configs.Config, logger *utils.Logger)
 				Cluster:         ttsCfg.Cluster,
 				SurportedVoices: ttsCfg.SurportedVoices,
 			},
-			logger: logger,
 			params: map[string]interface{}{
 				"type":         ttsCfg.Type,
 				"delete_audio": config.DeleteAudio,
@@ -136,22 +130,20 @@ func NewTTSFactory(ttsType string, config *configs.Config, logger *utils.Logger)
 	return nil
 }
 
-func NewVLLLMFactory(vlllmType string, config *configs.Config, logger *utils.Logger) ResourceFactory {
+func NewVLLLMFactory(vlllmType string, config *configs.Config) ResourceFactory {
 	if vlllmCfg, ok := config.VLLLM[vlllmType]; ok {
 		return &ProviderFactory{
 			providerType: "vlllm",
 			config:       &vlllmCfg,
-			logger:       logger,
 		}
 	}
 	return nil
 }
 
-func NewMCPFactory(config *configs.Config, logger *utils.Logger) ResourceFactory {
+func NewMCPFactory(config *configs.Config) ResourceFactory {
 	return &ProviderFactory{
 		providerType: "mcp",
 		config:       config,
-		logger:       logger,
 		params:       map[string]interface{}{},
 	}
 }

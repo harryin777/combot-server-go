@@ -13,6 +13,7 @@ import (
 	"xiaozhi-server-go/src/core/utils"
 
 	go_openai "github.com/sashabaranov/go-openai"
+	"github.com/sirupsen/logrus"
 )
 
 // Conn 是与连接相关的接口，用于发送消息
@@ -22,7 +23,6 @@ type Conn interface {
 
 // Manager MCP服务管理器
 type Manager struct {
-	logger                *utils.Logger
 	conn                  Conn
 	funcHandler           types.FunctionRegistryInterface
 	configPath            string
@@ -37,7 +37,7 @@ type Manager struct {
 }
 
 // NewManagerForPool 创建用于资源池的MCP管理器
-func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
+func NewManagerForPool(cfg *configs.Config) *Manager {
 	projectDir := utils.GetProjectDir()
 	configPath := filepath.Join(projectDir, ".mcp_server_settings.json")
 
@@ -46,7 +46,6 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 	}
 
 	mgr := &Manager{
-		logger:                lg,
 		funcHandler:           nil, // 将在绑定连接时设置
 		conn:                  nil, // 将在绑定连接时设置
 		configPath:            configPath,
@@ -57,7 +56,7 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(); err != nil {
-		lg.Error("预初始化MCP服务器失败: %v", err)
+		logrus.WithError(err).Error("预初始化MCP服务器失败")
 	}
 
 	return mgr
@@ -66,7 +65,7 @@ func NewManagerForPool(lg *utils.Logger, cfg *configs.Config) *Manager {
 // preInitializeServers 预初始化不依赖连接的MCP服务器
 func (m *Manager) preInitializeServers() error {
 
-	m.localClient, _ = NewLocalClient(m.logger, m.systemCfg)
+	m.localClient, _ = NewLocalClient(m.systemCfg)
 	m.localClient.Start(context.Background())
 	m.clients["local"] = m.localClient
 
@@ -80,25 +79,34 @@ func (m *Manager) preInitializeServers() error {
 		srvConfigMap, ok := srvConfig.(map[string]interface{})
 
 		if !ok {
-			m.logger.Warn("Invalid configuration format for server %s", name)
+			logrus.WithField("name", name).Warn("Invalid configuration format for server")
 			continue
 		}
 
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			m.logger.Error("Failed to convert config for server %s: %v", name, err)
+			logrus.WithFields(logrus.Fields{
+				"name":  name,
+				"error": err,
+			}).Error("Failed to convert config for server")
 			continue
 		}
 
-		client, err := NewClient(clientConfig, m.logger)
+		client, err := NewClient(clientConfig)
 		if err != nil {
-			m.logger.Error("Failed to create MCP client for server %s: %v", name, err)
+			logrus.WithFields(logrus.Fields{
+				"name":  name,
+				"error": err,
+			}).Error("Failed to create MCP client for server")
 			continue
 		}
 
 		if err := client.Start(context.Background()); err != nil {
-			m.logger.Error("Failed to start MCP client %s: %v", name, err)
+			logrus.WithFields(logrus.Fields{
+				"name":  name,
+				"error": err,
+			}).Error("Failed to start MCP client")
 			continue
 		}
 		m.clients[name] = client
@@ -121,11 +129,14 @@ func (m *Manager) BindConnection(conn Conn, fh types.FunctionRegistryInterface, 
 	deviceID := paramsMap["device_id"].(string)
 	clientID := paramsMap["client_id"].(string)
 	token := paramsMap["token"].(string)
-	m.logger.Debug("绑定连接到MCP Manager, sessionID: %s, visionURL: %s", sessionID, visionURL)
+	logrus.WithFields(logrus.Fields{
+		"sessionID": sessionID,
+		"visionURL": visionURL,
+	}).Debug("绑定连接到MCP Manager")
 
 	// 优化：检查XiaoZhiMCPClient是否需要重新启动
 	if m.XiaoZhiMCPClient == nil {
-		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(m.logger, conn, sessionID)
+		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(conn, sessionID)
 		m.clients["xiaozhi"] = m.XiaoZhiMCPClient
 		m.XiaoZhiMCPClient.SetVisionURL(visionURL)
 		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
@@ -237,7 +248,10 @@ func (m *Manager) LoadConfig() map[string]interface{} {
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		m.logger.Error(fmt.Sprintf("Error loading MCP config from %s: %v", m.configPath, err))
+		logrus.WithFields(logrus.Fields{
+			"path":  m.configPath,
+			"error": err,
+		}).Error("Error loading MCP config")
 		return nil
 	}
 
@@ -246,7 +260,7 @@ func (m *Manager) LoadConfig() map[string]interface{} {
 	}
 
 	if err := json.Unmarshal(data, &config); err != nil {
-		m.logger.Error(fmt.Sprintf("Error parsing MCP config: %v", err))
+		logrus.WithError(err).Error("Error parsing MCP config")
 		return nil
 	}
 
@@ -342,7 +356,10 @@ func (m *Manager) registerTools(tools []go_openai.Tool) {
 		m.tools = append(m.tools, toolName)
 		if m.funcHandler != nil {
 			if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-				m.logger.Error(fmt.Sprintf("注册工具失败: %s, 错误: %v", toolName, err))
+				logrus.WithFields(logrus.Fields{
+					"tool":  toolName,
+					"error": err,
+				}).Error("注册工具失败")
 				continue
 			}
 			//m.logger.Info("Registered tool: [%s] %s", toolName, tool.Function.Description)
@@ -366,7 +383,10 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 
 // ExecuteTool 执行工具调用
 func (m *Manager) ExecuteTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	m.logger.Info(fmt.Sprintf("Executing tool %s with arguments: %v", toolName, arguments))
+	logrus.WithFields(logrus.Fields{
+		"tool":      toolName,
+		"arguments": arguments,
+	}).Info("Executing tool")
 
 	m.mu.RLock()
 	defer m.mu.RUnlock()
@@ -403,9 +423,9 @@ func (m *Manager) CleanupAll(ctx context.Context) {
 
 			select {
 			case <-done:
-				m.logger.Info(fmt.Sprintf("MCP client closed: %s", name))
+				logrus.WithField("name", name).Info("MCP client closed")
 			case <-ctx.Done():
-				m.logger.Error(fmt.Sprintf("Timeout closing MCP client %s", name))
+				logrus.WithField("name", name).Error("Timeout closing MCP client")
 			}
 		}()
 

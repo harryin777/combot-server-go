@@ -4,11 +4,12 @@ import (
 	"fmt"
 
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
+
+	"github.com/sirupsen/logrus"
 )
 
 // Factory VLLLM工厂函数类型
-type Factory func(config *Config, logger *utils.Logger) (*Provider, error)
+type Factory func(config *Config) (*Provider, error)
 
 var (
 	factories = make(map[string]Factory)
@@ -20,7 +21,7 @@ func Register(name string, factory Factory) {
 }
 
 // Create 创建VLLLM提供者实例
-func Create(name string, vlllmConfig *configs.VLLMConfig, logger *utils.Logger) (*Provider, error) {
+func Create(name string, vlllmConfig *configs.VLLMConfig) (*Provider, error) {
 	factory, ok := factories[name]
 	if !ok {
 		return nil, fmt.Errorf("未知的VLLLM提供者: %s", name)
@@ -40,7 +41,7 @@ func Create(name string, vlllmConfig *configs.VLLMConfig, logger *utils.Logger) 
 	}
 
 	// 创建提供者实例
-	provider, err := factory(config, logger)
+	provider, err := factory(config)
 	if err != nil {
 		return nil, fmt.Errorf("创建VLLLM提供者失败: %v", err)
 	}
@@ -50,11 +51,11 @@ func Create(name string, vlllmConfig *configs.VLLMConfig, logger *utils.Logger) 
 		return nil, fmt.Errorf("初始化VLLLM提供者失败: %v", err)
 	}
 
-	logger.Debug("VLLLM提供者创建成功 %v", map[string]interface{}{
+	logrus.WithFields(logrus.Fields{
 		"name":       name,
 		"type":       config.Type,
 		"model_name": config.ModelName,
-	})
+	}).Debug("VLLLM提供者创建成功")
 
 	return provider, nil
 }

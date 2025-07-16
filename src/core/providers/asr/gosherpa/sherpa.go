@@ -2,10 +2,10 @@ package gosherpa
 
 import (
 	"context"
-	"github.com/gorilla/websocket"
 	"time"
 	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/utils"
+
+	"github.com/gorilla/websocket"
 )
 
 type Provider struct {
@@ -13,7 +13,7 @@ type Provider struct {
 	conn *websocket.Conn
 }
 
-func NewProvider(config *asr.Config, deleteFile bool, logger *utils.Logger) (*Provider, error) {
+func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
 	provider := &Provider{
@@ -67,7 +67,7 @@ func (p *Provider) Reset() error {
 }
 
 func init() {
-	asr.Register("gosherpa", func(config *asr.Config, deleteFile bool, logger *utils.Logger) (asr.Provider, error) {
-		return NewProvider(config, deleteFile, logger)
+	asr.Register("gosherpa", func(config *asr.Config, deleteFile bool) (asr.Provider, error) {
+		return NewProvider(config, deleteFile)
 	})
 }

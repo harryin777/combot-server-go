@@ -5,6 +5,8 @@ import (
 	"strings"
 	"time"
 	"xiaozhi-server-go/src/core/types"
+
+	"github.com/sirupsen/logrus"
 )
 
 func (c *LocalClient) AddToolExit() error {
@@ -24,7 +26,7 @@ func (c *LocalClient) AddToolExit() error {
 		"当用户想结束对话或需要退出系统时调用",
 		InputSchema,
 		func(ctx context.Context, args map[string]any) (interface{}, error) {
-			c.logger.Info("用户请求退出对话，告别语：%s", args["say_goodbye"])
+			logrus.WithField("say_goodbye", args["say_goodbye"]).Info("用户请求退出对话")
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
 				Result: types.ActionResponseCall{
@@ -69,7 +71,7 @@ func (c *LocalClient) AddToolChangeRole() error {
 	prompts := map[string]string{}
 	roleNames := ""
 	if roles == nil {
-		c.logger.Warn("AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
+		logrus.Warn("AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
 		return nil
 	} else {
 		for _, role := range roles {

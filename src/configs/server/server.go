@@ -3,20 +3,18 @@ package server
 import (
 	"context"
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 type DefaultCfgService struct {
-	logger *utils.Logger
 	config *configs.Config
 }
 
 // NewDefaultCfgService 构造函数
-func NewDefaultCfgService(config *configs.Config, logger *utils.Logger) (*DefaultCfgService, error) {
+func NewDefaultCfgService(config *configs.Config, logger interface{}) (*DefaultCfgService, error) {
 	service := &DefaultCfgService{
-		logger: logger,
 		config: config,
 	}
 
@@ -30,7 +28,7 @@ func (s *DefaultCfgService) Start(ctx context.Context, engine *gin.Engine, apiGr
 	apiGroup.POST("/cfg", s.handlePost)
 	apiGroup.OPTIONS("/cfg", s.handleOptions)
 
-	s.logger.Info("Cfg HTTP服务路由注册完成")
+	logrus.Info("Cfg HTTP服务路由注册完成")
 	return nil
 }
 

@@ -201,7 +201,7 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 	}
 
 	// 创建ASR实例
-	asrFactory := NewASRFactory(asrType, hc.config, hc.logger)
+	asrFactory := NewASRFactory(asrType, hc.config)
 	if asrFactory == nil {
 		result.Success = false
 		result.Error = fmt.Errorf("创建ASR工厂失败: 找不到配置 %s", asrType)
@@ -299,7 +299,7 @@ func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, m
 	}
 
 	// 创建LLM实例
-	llmFactory := NewLLMFactory(llmType, hc.config, hc.logger)
+	llmFactory := NewLLMFactory(llmType, hc.config)
 	if llmFactory == nil {
 		result.Success = false
 		result.Error = fmt.Errorf("创建LLM工厂失败: 找不到配置 %s", llmType)
@@ -398,7 +398,7 @@ func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, m
 	}
 
 	// 创建TTS实例
-	ttsFactory := NewTTSFactory(ttsType, hc.config, hc.logger)
+	ttsFactory := NewTTSFactory(ttsType, hc.config)
 	if ttsFactory == nil {
 		result.Success = false
 		result.Error = fmt.Errorf("创建TTS工厂失败: 找不到配置 %s", ttsType)
@@ -482,7 +482,7 @@ func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType strin
 	}
 
 	// 创建VLLLM实例
-	vlllmFactory := NewVLLLMFactory(vlllmType, hc.config, hc.logger)
+	vlllmFactory := NewVLLLMFactory(vlllmType, hc.config)
 	if vlllmFactory == nil {
 		result.Success = false
 		result.Error = fmt.Errorf("创建VLLLM工厂失败: 找不到配置 %s", vlllmType)

@@ -11,6 +11,7 @@ import (
 	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
+	"gorm.io/gorm/logger"
 )
 
 // PoolManager 资源池管理器
@@ -35,10 +36,10 @@ type ProviderSet struct {
 func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	pm := &PoolManager{}
 
-	// 暂时跳过连通性检查
-	// if err := pm.performConnectivityCheck(config, logrus.New()); err != nil {
-	// 	return nil, fmt.Errorf("资源连通性检查失败: %v", err)
-	// }
+	// 执行连通性检查
+	if err := pm.performConnectivityCheck(config); err != nil {
+		return nil, fmt.Errorf("资源连通性检查失败: %v", err)
+	}
 
 	poolConfig := PoolConfig{
 		MinSize:       5,
@@ -71,57 +72,48 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		if llmFactory == nil {
 			return nil, fmt.Errorf("创建LLM工厂失败: 找不到配置 %s", llmType)
 		}
-		llmPool, err := NewResourcePool(llmFactory, poolConfig)
+		llmPool, err := NewResourcePool(llmFactory, poolConfig, logger)
 		if err != nil {
 			return nil, fmt.Errorf("初始化LLM资源池失败: %v", err)
 		}
 		pm.llmPool = llmPool
 		_, cnt := llmPool.GetStats()
-		logrus.WithFields(logrus.Fields{
-			"type":  llmType,
-			"count": cnt,
-		}).Info("LLM资源池初始化成功")
+		logger.Info("LLM资源池初始化成功，类型: %s, 数量：%d", llmType, cnt)
 	}
 
 	// 初始化TTS池
 	if ttsType, ok := selectedModule["TTS"]; ok && ttsType != "" {
-		ttsFactory := NewTTSFactory(ttsType, config)
+		ttsFactory := NewTTSFactory(ttsType, config, logger)
 		if ttsFactory == nil {
 			return nil, fmt.Errorf("创建TTS工厂失败: 找不到配置 %s", ttsType)
 		}
-		ttsPool, err := NewResourcePool(ttsFactory, poolConfig)
+		ttsPool, err := NewResourcePool(ttsFactory, poolConfig, logger)
 		if err != nil {
 			return nil, fmt.Errorf("初始化TTS资源池失败: %v", err)
 		}
 		pm.ttsPool = ttsPool
 		_, cnt := ttsPool.GetStats()
-		logrus.WithFields(logrus.Fields{
-			"type":  ttsType,
-			"count": cnt,
-		}).Info("TTS资源池初始化成功")
+		logger.Info("TTS资源池初始化成功，类型: %s, 数量：%d", ttsType, cnt)
 	}
 
 	// 初始化VLLLM池（可选）
 	if vlllmType, ok := selectedModule["VLLLM"]; ok && vlllmType != "" {
-		vlllmFactory := NewVLLLMFactory(vlllmType, config)
+		vlllmFactory := NewVLLLMFactory(vlllmType, config, logger)
 		if vlllmFactory == nil {
-			logrus.WithField("type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
+			logger.Warn("创建VLLLM工厂失败: 找不到配置 %s", vlllmType)
 		} else {
-			vlllmPool, err := NewResourcePool(vlllmFactory, poolConfig)
+			vlllmPool, err := NewResourcePool(vlllmFactory, poolConfig, logger)
 			if err != nil {
-				logrus.WithError(err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
+				logger.Warn("初始化VLLLM资源池失败（将继续使用普通LLM）: %v", err)
 			} else {
 				pm.vlllmPool = vlllmPool
 			}
 		}
 		if pm.vlllmPool != nil {
 			_, cnt := pm.vlllmPool.GetStats()
-			logrus.WithFields(logrus.Fields{
-				"type":  vlllmType,
-				"count": cnt,
-			}).Info("VLLLM资源池初始化成功")
+			logger.Info("VLLLM资源池初始化成功，类型: %s, 数量：%d", vlllmType, cnt)
 		} else {
-			logrus.Warn("VLLLM资源池未初始化，将使用普通LLM")
+			logger.Warn("VLLLM资源池未初始化，将使用普通LLM")
 		}
 	}
 
@@ -133,18 +125,18 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	}
 
 	// 初始化MCP池（总是初始化，因为MCP是核心功能）
-	logrus.Info("开始初始化MCP资源池，请等待...")
-	mcpFactory := NewMCPFactory(config)
+	logger.Info("开始初始化MCP资源池，请等待...")
+	mcpFactory := NewMCPFactory(config, logger)
 	if mcpFactory != nil {
-		mcpPool, err := NewResourcePool(mcpFactory, poolConfig)
+		mcpPool, err := NewResourcePool(mcpFactory, poolConfig, logger)
 		if err != nil {
 			return nil, fmt.Errorf("初始化MCP资源池失败: %v", err)
 		}
 		pm.mcpPool = mcpPool
 		_, cnt := mcpPool.GetStats()
-		logrus.WithField("count", cnt).Info("MCP资源池初始化成功")
+		logger.Info("MCP资源池初始化成功，数量：%d", cnt)
 	} else {
-		logrus.Warn("创建MCP工厂失败，MCP功能将不可用")
+		logger.Warn("创建MCP工厂失败，MCP功能将不可用")
 	}
 
 	return pm, nil
@@ -228,66 +220,66 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 	if set.ASR != nil && pm.asrPool != nil {
 		// 重置资源状态
 		if err := pm.asrPool.Reset(set.ASR); err != nil {
-			logrus.WithError(err).Warn("重置ASR资源状态失败")
+			pm.logger.Warn("重置ASR资源状态失败: %v", err)
 		}
 		// 归还到池中
 		if err := pm.asrPool.Put(set.ASR); err != nil {
 			errs = append(errs, fmt.Errorf("归还ASR提供者失败: %v", err))
-			logrus.WithError(err).Error("归还ASR提供者失败")
+			pm.logger.Error("归还ASR提供者失败: %v", err)
 		} else {
-			logrus.Debug("ASR提供者已成功归还到池中")
+			pm.logger.Debug("ASR提供者已成功归还到池中")
 		}
 	}
 
 	// 归还LLM提供者
 	if set.LLM != nil && pm.llmPool != nil {
 		if err := pm.llmPool.Reset(set.LLM); err != nil {
-			logrus.WithError(err).Warn("重置LLM资源状态失败")
+			pm.logger.Warn("重置LLM资源状态失败: %v", err)
 		}
 		if err := pm.llmPool.Put(set.LLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还LLM提供者失败: %v", err))
-			logrus.WithError(err).Error("归还LLM提供者失败")
+			pm.logger.Error("归还LLM提供者失败: %v", err)
 		} else {
-			logrus.Debug("LLM提供者已成功归还到池中")
+			pm.logger.Debug("LLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还TTS提供者
 	if set.TTS != nil && pm.ttsPool != nil {
 		if err := pm.ttsPool.Reset(set.TTS); err != nil {
-			logrus.WithError(err).Warn("重置TTS资源状态失败")
+			pm.logger.Warn("重置TTS资源状态失败: %v", err)
 		}
 		if err := pm.ttsPool.Put(set.TTS); err != nil {
 			errs = append(errs, fmt.Errorf("归还TTS提供者失败: %v", err))
-			logrus.WithError(err).Error("归还TTS提供者失败")
+			pm.logger.Error("归还TTS提供者失败: %v", err)
 		} else {
-			logrus.Debug("TTS提供者已成功归还到池中")
+			pm.logger.Debug("TTS提供者已成功归还到池中")
 		}
 	}
 
 	// 归还VLLLM提供者
 	if set.VLLLM != nil && pm.vlllmPool != nil {
 		if err := pm.vlllmPool.Reset(set.VLLLM); err != nil {
-			logrus.WithError(err).Warn("重置VLLLM资源状态失败")
+			pm.logger.Warn("重置VLLLM资源状态失败: %v", err)
 		}
 		if err := pm.vlllmPool.Put(set.VLLLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还VLLLM提供者失败: %v", err))
-			logrus.WithError(err).Error("归还VLLLM提供者失败")
+			pm.logger.Error("归还VLLLM提供者失败: %v", err)
 		} else {
-			logrus.Debug("VLLLM提供者已成功归还到池中")
+			pm.logger.Debug("VLLLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还MCP提供者
 	if set.MCP != nil && pm.mcpPool != nil {
 		if err := pm.mcpPool.Reset(set.MCP); err != nil {
-			logrus.WithError(err).Warn("重置MCP资源状态失败")
+			pm.logger.Warn("重置MCP资源状态失败: %v", err)
 		}
 		if err := pm.mcpPool.Put(set.MCP); err != nil {
 			errs = append(errs, fmt.Errorf("归还MCP提供者失败: %v", err))
-			logrus.WithError(err).Error("归还MCP提供者失败")
+			pm.logger.Error("归还MCP提供者失败: %v", err)
 		} else {
-			logrus.Debug("MCP提供者已成功归还到池中")
+			pm.logger.Debug("MCP提供者已成功归还到池中")
 		}
 	}
 
@@ -295,7 +287,7 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 		return fmt.Errorf("归还过程中发生多个错误: %v", errs)
 	}
 
-	logrus.Debug("所有提供者已成功归还到池中")
+	pm.logger.Debug("所有提供者已成功归还到池中")
 	return nil
 }
 
