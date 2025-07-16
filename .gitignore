@@ -12,3 +12,4 @@ wake_replay
 config.db
 /ota_bin
 .idea
+go.sum
