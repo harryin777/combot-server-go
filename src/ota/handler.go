@@ -141,5 +141,3 @@ func versionLess(a, b string) bool {
 	}
 	return len(aV) < len(bV)
 }
-
-func
