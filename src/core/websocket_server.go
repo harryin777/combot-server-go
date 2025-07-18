@@ -4,10 +4,12 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/auth"
 	"xiaozhi-server-go/src/core/pool"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/task"
@@ -155,6 +157,14 @@ func (ws *WebSocketServer) Stop() error {
 
 // handleWebSocket 处理WebSocket连接
 func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Request) {
+	// 验证Authorization token
+	if ws.config.Server.Auth.Enabled {
+		if !ws.verifyToken(r) {
+			http.Error(w, "Unauthorized", http.StatusUnauthorized)
+			return
+		}
+	}
+
 	conn, err := ws.upgrader.Upgrade(w, r)
 	if err != nil {
 		logrus.Errorf("WebSocket升级失败: %v", err)
@@ -218,4 +228,37 @@ func (ws *WebSocketServer) GetActiveConnectionsCount() int {
 		return true
 	})
 	return count
+}
+
+// verifyToken 验证Authorization token
+func (ws *WebSocketServer) verifyToken(r *http.Request) bool {
+	authHeader := r.Header.Get("Authorization")
+	if authHeader == "" {
+		logrus.Debug("缺少Authorization头，允许连接但记录警告")
+		return true // 宽松策略：允许没有token的连接
+	}
+
+	if !strings.HasPrefix(authHeader, "Bearer ") {
+		logrus.Warn("Authorization头格式错误，允许连接但记录警告")
+		return true // 宽松策略：允许格式错误的token
+	}
+
+	token := strings.TrimPrefix(authHeader, "Bearer ")
+	authToken := auth.NewAuthToken(ws.config.Server.Token)
+
+	isValid, deviceID, err := authToken.VerifyToken(token)
+	if err != nil || !isValid {
+		logrus.WithError(err).Warn("Token验证失败，允许连接但记录警告")
+		return true // 宽松策略：允许无效token的连接
+	}
+
+	// 验证设备ID是否匹配
+	requestDeviceID := r.Header.Get("Device-Id")
+	if requestDeviceID != deviceID {
+		logrus.Warnf("设备ID不匹配: 请求=%s, token=%s，允许连接但记录警告", requestDeviceID, deviceID)
+		return true // 宽松策略：允许设备ID不匹配的连接
+	}
+
+	logrus.WithField("device_id", deviceID).Debug("Token验证成功")
+	return true
 }

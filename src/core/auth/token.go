@@ -24,13 +24,11 @@ func NewAuthToken(secretKey string) *AuthToken {
 }
 
 func (at *AuthToken) GenerateToken(deviceID string) (string, error) {
-	// 设置过期时间为1小时后
-	expireTime := time.Now().Add(time.Hour)
+	// 不设置过期时间，使token永久有效
 
 	// 创建claims
 	claims := jwt.MapClaims{
 		"device_id": deviceID,
-		"exp":       expireTime.Unix(),
 		"iat":       time.Now().Unix(), // 添加签发时间
 	}
 

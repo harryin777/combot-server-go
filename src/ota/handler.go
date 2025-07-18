@@ -7,8 +7,12 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/auth"
+	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
+	"github.com/sirupsen/logrus"
 )
 
 // OtaFirmwareResponse 定义OTA固件接口返回结构
@@ -22,7 +26,8 @@ type OtaFirmwareResponse struct {
 		URL     string `json:"url" example:"/ota_bin/1.0.3.bin"`
 	} `json:"firmware"`
 	Websocket struct {
-		URL string `json:"url" example:"wss://example.com/ota"`
+		URL   string `json:"url" example:"wss://example.com/ota"`
+		Token string `json:"token,omitempty" example:"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 	} `json:"websocket"`
 }
 
@@ -70,7 +75,7 @@ type OtaRequest struct {
 // @Success 200 {object} OtaFirmwareResponse
 // @Failure 400 {object} ErrorResponse
 // @Router /ota/ [post]
-func handleOtaPost(c *gin.Context, updateURL string) {
+func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 	deviceID := c.GetHeader("device-id")
 	if deviceID == "" {
 		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "缺少 device-id"})
@@ -106,6 +111,22 @@ func handleOtaPost(c *gin.Context, updateURL string) {
 	resp.Firmware.Version = version
 	resp.Firmware.URL = firmwareURL
 	resp.Websocket.URL = updateURL
+
+	// 为已激活的设备生成token
+	deviceService := service.NewDevice(config)
+	clientID := c.GetHeader("client-id")
+	if device, err := deviceService.IdentifyDevice("", deviceID, clientID); err == nil && device != nil && device.Activated {
+		// 设备已激活，生成新的token
+		authToken := auth.NewAuthToken(config.Server.Token)
+		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
+			resp.Websocket.Token = token
+			logrus.WithField("device_id", deviceID).Info("为已激活设备生成了新token")
+		} else {
+			logrus.WithError(err).WithField("device_id", deviceID).Warn("生成token失败")
+		}
+	} else {
+		logrus.WithField("device_id", deviceID).Debug("设备未激活或不存在，不生成token")
+	}
 
 	c.JSON(http.StatusOK, resp)
 }

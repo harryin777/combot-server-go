@@ -117,6 +117,7 @@ func StartHttpServer(config *configs.Config, g *errgroup.Group, groupCtx context
 	apiGroup := router.Group("/api")
 
 	apiRouter.OtaRouter(groupCtx, apiGroup, router, config)
+	apiRouter.ActiveRouter(groupCtx, apiGroup, config)
 
 	// 启动Vision服务
 	visionService, err := vision.NewDefaultVisionService(config)
