@@ -14,3 +14,28 @@ config.db
 .idea
 /ota_bin
 go.sum
+
+# Python virtual environment
+.venv/
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.Python
+.python-version
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# pyenv
+.python-version
