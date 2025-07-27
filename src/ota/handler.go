@@ -1,6 +1,7 @@
 package ota
 
 import (
+	"context"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -9,10 +10,10 @@ import (
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/auth"
+	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 // OtaFirmwareResponse 定义OTA固件接口返回结构
@@ -120,12 +121,12 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 		authToken := auth.NewAuthToken(config.Server.Token)
 		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
 			resp.Websocket.Token = token
-			logrus.WithField("device_id", deviceID).Info("为已激活设备生成了新token")
+			utils.WithField(context.Background(), "device_id", deviceID).Info("为已激活设备生成了新token")
 		} else {
-			logrus.WithError(err).WithField("device_id", deviceID).Warn("生成token失败")
+			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Warn("生成token失败")
 		}
 	} else {
-		logrus.WithField("device_id", deviceID).Debug("设备未激活或不存在，不生成token")
+		utils.WithField(context.Background(), "device_id", deviceID).Debug("设备未激活或不存在，不生成token")
 	}
 
 	c.JSON(http.StatusOK, resp)

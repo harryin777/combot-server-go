@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"sync"
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/sashabaranov/go-openai"
-	"github.com/sirupsen/logrus"
 )
 
 type HandlerFunc func(ctx context.Context, args map[string]interface{}) (interface{}, error)
@@ -32,39 +32,39 @@ func NewLocalClient(cfg *configs.Config) (*LocalClient, error) {
 
 func (c *LocalClient) RegisterTools() {
 	if c.cfg == nil {
-		logrus.Error("RegisterTools: config is nil")
+		utils.Error(context.Background(), "RegisterTools: config is nil")
 		return
 	}
 
 	if c.cfg.LocalMCPFun == nil {
-		logrus.Warn("RegisterTools: LocalMCPFun is nil")
+		utils.Warn(context.Background(), "RegisterTools: LocalMCPFun is nil")
 		return
 	}
 
 	funcs := c.cfg.LocalMCPFun
 	if len(funcs) == 0 {
-		logrus.Info("RegisterTools: LocalMCPFun is empty")
+		utils.Info(context.Background(), "RegisterTools: LocalMCPFun is empty")
 		return
 	}
 
 	for _, funcName := range funcs {
 		if funcName == "exit" {
 			c.AddToolExit()
-			logrus.Info("RegisterTools: exit tool registered")
+			utils.Info(context.Background(), "RegisterTools: exit tool registered")
 		} else if funcName == "time" {
 			c.AddToolTime()
-			logrus.Info("RegisterTools: time tool registered")
+			utils.Info(context.Background(), "RegisterTools: time tool registered")
 		} else if funcName == "change_voice" {
 			c.AddToolChangeVoice()
-			logrus.Info("RegisterTools: change_voice tool registered")
+			utils.Info(context.Background(), "RegisterTools: change_voice tool registered")
 		} else if funcName == "change_role" {
 			c.AddToolChangeRole()
-			logrus.Info("RegisterTools: change_role tool registered")
+			utils.Info(context.Background(), "RegisterTools: change_role tool registered")
 		} else if funcName == "play_music" {
 			c.AddToolPlayMusic()
-			logrus.Info("RegisterTools: play_music tool registered")
+			utils.Info(context.Background(), "RegisterTools: play_music tool registered")
 		} else {
-			logrus.WithField("funcName", funcName).Warn("RegisterTools: unknown function name")
+			utils.WithFields(context.Background(), map[string]interface{}{"funcName": funcName}).Warn("RegisterTools: unknown function name")
 		}
 	}
 }
@@ -73,7 +73,7 @@ func (c *LocalClient) RegisterTools() {
 func (c *LocalClient) Start(ctx context.Context) error {
 	c.ctx = ctx
 	c.RegisterTools()
-	logrus.Info("Local MCP client started")
+	utils.Info(context.Background(), "Local MCP client started")
 	return nil
 }
 

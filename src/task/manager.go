@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"xiaozhi-server-go/src/core/utils"
 )
 
 // TaskManager manages async tasks and their execution
@@ -166,7 +166,7 @@ func (st *ScheduledTasks) processScheduledTasks() {
 				go func(t *Task) {
 					defer func() {
 						if r := recover(); r != nil {
-							logrus.WithField("panic", r).Error("Scheduled task panic")
+							utils.WithField(t.Context, "panic", r).Error("Scheduled task panic")
 						}
 					}()
 					t.Execute()

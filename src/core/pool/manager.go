@@ -9,8 +9,6 @@ import (
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/providers/vlllm"
 	"xiaozhi-server-go/src/core/utils"
-
-	"github.com/sirupsen/logrus"
 )
 
 // PoolManager 资源池管理器
@@ -62,7 +60,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.asrPool = asrPool
 		_, cnt := asrPool.GetStats()
-		logrus.Infof("ASR资源池初始化成功，类型: %s, 数量：%d", asrType, cnt)
+		utils.Infof(context.Background(), "ASR资源池初始化成功，类型: %s, 数量：%d", asrType, cnt)
 	}
 
 	// 初始化LLM池
@@ -77,7 +75,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.llmPool = llmPool
 		_, cnt := llmPool.GetStats()
-		logrus.WithFields(logrus.Fields{
+		utils.WithFields(context.Background(), map[string]interface{}{
 			"type":  llmType,
 			"count": cnt,
 		}).Info("LLM资源池初始化成功")
@@ -95,7 +93,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.ttsPool = ttsPool
 		_, cnt := ttsPool.GetStats()
-		logrus.WithFields(logrus.Fields{
+		utils.WithFields(context.Background(), map[string]interface{}{
 			"type":  ttsType,
 			"count": cnt,
 		}).Info("TTS资源池初始化成功")
@@ -105,23 +103,23 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	if vlllmType, ok := selectedModule["VLLLM"]; ok && vlllmType != "" {
 		vlllmFactory := NewVLLLMFactory(vlllmType, config)
 		if vlllmFactory == nil {
-			logrus.WithField("type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
+			utils.WithField(context.Background(), "type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
 		} else {
 			vlllmPool, err := NewResourcePool(vlllmFactory, poolConfig)
 			if err != nil {
-				logrus.WithError(err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
+				utils.WithError(context.Background(), err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
 			} else {
 				pm.vlllmPool = vlllmPool
 			}
 		}
 		if pm.vlllmPool != nil {
 			_, cnt := pm.vlllmPool.GetStats()
-			logrus.WithFields(logrus.Fields{
+			utils.WithFields(context.Background(), map[string]interface{}{
 				"type":  vlllmType,
 				"count": cnt,
 			}).Info("VLLLM资源池初始化成功")
 		} else {
-			logrus.Warn("VLLLM资源池未初始化，将使用普通LLM")
+			utils.Warn(context.Background(), "VLLLM资源池未初始化，将使用普通LLM")
 		}
 	}
 
@@ -133,7 +131,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	}
 
 	// 初始化MCP池（总是初始化，因为MCP是核心功能）
-	logrus.Info("开始初始化MCP资源池，请等待...")
+	utils.Info(context.Background(), "开始初始化MCP资源池，请等待...")
 	mcpFactory := NewMCPFactory(config)
 	if mcpFactory != nil {
 		mcpPool, err := NewResourcePool(mcpFactory, poolConfig)
@@ -142,9 +140,9 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.mcpPool = mcpPool
 		_, cnt := mcpPool.GetStats()
-		logrus.WithField("count", cnt).Info("MCP资源池初始化成功")
+		utils.WithField(context.Background(), "count", cnt).Info("MCP资源池初始化成功")
 	} else {
-		logrus.Warn("创建MCP工厂失败，MCP功能将不可用")
+		utils.Warn(context.Background(), "创建MCP工厂失败，MCP功能将不可用")
 	}
 
 	return pm, nil
@@ -228,66 +226,66 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 	if set.ASR != nil && pm.asrPool != nil {
 		// 重置资源状态
 		if err := pm.asrPool.Reset(set.ASR); err != nil {
-			logrus.WithError(err).Warn("重置ASR资源状态失败")
+			utils.WithError(context.Background(), err).Warn("重置ASR资源状态失败")
 		}
 		// 归还到池中
 		if err := pm.asrPool.Put(set.ASR); err != nil {
 			errs = append(errs, fmt.Errorf("归还ASR提供者失败: %v", err))
-			logrus.WithError(err).Error("归还ASR提供者失败")
+			utils.WithError(context.Background(), err).Error("归还ASR提供者失败")
 		} else {
-			logrus.Debug("ASR提供者已成功归还到池中")
+			utils.Debug(context.Background(), "ASR提供者已成功归还到池中")
 		}
 	}
 
 	// 归还LLM提供者
 	if set.LLM != nil && pm.llmPool != nil {
 		if err := pm.llmPool.Reset(set.LLM); err != nil {
-			logrus.WithError(err).Warn("重置LLM资源状态失败")
+			utils.WithError(context.Background(), err).Warn("重置LLM资源状态失败")
 		}
 		if err := pm.llmPool.Put(set.LLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还LLM提供者失败: %v", err))
-			logrus.WithError(err).Error("归还LLM提供者失败")
+			utils.WithError(context.Background(), err).Error("归还LLM提供者失败")
 		} else {
-			logrus.Debug("LLM提供者已成功归还到池中")
+			utils.Debug(context.Background(), "LLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还TTS提供者
 	if set.TTS != nil && pm.ttsPool != nil {
 		if err := pm.ttsPool.Reset(set.TTS); err != nil {
-			logrus.WithError(err).Warn("重置TTS资源状态失败")
+			utils.WithError(context.Background(), err).Warn("重置TTS资源状态失败")
 		}
 		if err := pm.ttsPool.Put(set.TTS); err != nil {
 			errs = append(errs, fmt.Errorf("归还TTS提供者失败: %v", err))
-			logrus.WithError(err).Error("归还TTS提供者失败")
+			utils.WithError(context.Background(), err).Error("归还TTS提供者失败")
 		} else {
-			logrus.Debug("TTS提供者已成功归还到池中")
+			utils.Debug(context.Background(), "TTS提供者已成功归还到池中")
 		}
 	}
 
 	// 归还VLLLM提供者
 	if set.VLLLM != nil && pm.vlllmPool != nil {
 		if err := pm.vlllmPool.Reset(set.VLLLM); err != nil {
-			logrus.WithError(err).Warn("重置VLLLM资源状态失败")
+			utils.WithError(context.Background(), err).Warn("重置VLLLM资源状态失败")
 		}
 		if err := pm.vlllmPool.Put(set.VLLLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还VLLLM提供者失败: %v", err))
-			logrus.WithError(err).Error("归还VLLLM提供者失败")
+			utils.WithError(context.Background(), err).Error("归还VLLLM提供者失败")
 		} else {
-			logrus.Debug("VLLLM提供者已成功归还到池中")
+			utils.Debug(context.Background(), "VLLLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还MCP提供者
 	if set.MCP != nil && pm.mcpPool != nil {
 		if err := pm.mcpPool.Reset(set.MCP); err != nil {
-			logrus.WithError(err).Warn("重置MCP资源状态失败")
+			utils.WithError(context.Background(), err).Warn("重置MCP资源状态失败")
 		}
 		if err := pm.mcpPool.Put(set.MCP); err != nil {
 			errs = append(errs, fmt.Errorf("归还MCP提供者失败: %v", err))
-			logrus.WithError(err).Error("归还MCP提供者失败")
+			utils.WithError(context.Background(), err).Error("归还MCP提供者失败")
 		} else {
-			logrus.Debug("MCP提供者已成功归还到池中")
+			utils.Debug(context.Background(), "MCP提供者已成功归还到池中")
 		}
 	}
 
@@ -295,7 +293,7 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 		return fmt.Errorf("归还过程中发生多个错误: %v", errs)
 	}
 
-	logrus.Debug("所有提供者已成功归还到池中")
+	utils.Debug(context.Background(), "所有提供者已成功归还到池中")
 	return nil
 }
 
@@ -332,25 +330,27 @@ func (pm *PoolManager) GetStats() map[string]map[string]int {
 }
 
 // performConnectivityCheck 执行连通性检查
-func (pm *PoolManager) performConnectivityCheck(config *configs.Config, logger *utils.Logger) error {
+func (pm *PoolManager) performConnectivityCheck(config *configs.Config) error {
+	ctx := context.Background()
+
 	// 从配置创建连通性检查配置
 	connConfig, err := ConfigFromYAML(&config.ConnectivityCheck)
 	if err != nil {
-		logger.Warn("解析连通性检查配置失败，使用默认配置: %v", err)
+		utils.Warnf(ctx, "解析连通性检查配置失败，使用默认配置: %v", err)
 		connConfig = DefaultConnectivityConfig()
 	}
 
 	// 创建健康检查器
-	healthChecker := NewHealthChecker(config, connConfig, logger)
+	healthChecker := NewHealthChecker(config, connConfig)
 
 	// 执行功能性连通性检查
-	ctx, cancel := context.WithTimeout(context.Background(), connConfig.Timeout*3) // 给功能性检查更多时间
+	checkCtx, cancel := context.WithTimeout(ctx, connConfig.Timeout*3) // 给功能性检查更多时间
 	defer cancel()
 
-	err = healthChecker.CheckAllProviders(ctx, FunctionalCheck)
+	err = healthChecker.CheckAllProviders(checkCtx, FunctionalCheck)
 
 	// 打印检查报告
-	healthChecker.PrintReport()
+	healthChecker.PrintReport(checkCtx)
 
 	return err
 }

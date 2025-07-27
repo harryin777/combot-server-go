@@ -25,8 +25,6 @@ import (
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/task"
 
-	"github.com/sirupsen/logrus"
-
 	"github.com/google/uuid"
 )
 
@@ -240,7 +238,7 @@ func (h *ConnectionHandler) SubmitTask(taskType string, params map[string]interf
 	if h.safeCallbackFunc != nil {
 		taskCallback = func(result interface{}) {
 			// 移除调试输出，使用logrus替代
-			logrus.Debug("任务完成回调")
+			utils.Debug(context.Background(), "任务完成回调")
 			safeCallback := h.safeCallbackFunc(func(handler *ConnectionHandler) {
 				// 处理任务完成逻辑
 				handler.handleTaskComplete(_task, id, result)

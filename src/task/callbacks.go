@@ -1,7 +1,8 @@
 package task
 
 import (
-	"github.com/sirupsen/logrus"
+	"context"
+	"xiaozhi-server-go/src/core/utils"
 )
 
 type CallBack struct {
@@ -19,7 +20,7 @@ func (cb *CallBack) OnComplete(result interface{}) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					logrus.WithField("panic", r).Error("Callback panic recovered")
+					utils.WithField(context.Background(), "panic", r).Error("Callback panic recovered")
 				}
 			}()
 			cb.taskCallback(result)
@@ -32,7 +33,7 @@ func (cb *CallBack) OnError(err error) {
 		go func() {
 			defer func() {
 				if r := recover(); r != nil {
-					logrus.WithField("panic", r).Error("Error callback panic recovered")
+					utils.WithField(context.Background(), "panic", r).Error("Error callback panic recovered")
 				}
 			}()
 			result := map[string]interface{}{

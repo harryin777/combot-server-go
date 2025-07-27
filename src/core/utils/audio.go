@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -10,7 +11,6 @@ import (
 
 	"github.com/hajimehoshi/go-mp3"
 	opus "github.com/qrtc/opus-go"
-	"github.com/sirupsen/logrus"
 )
 
 // OpusDecoder 封装opus解码器
@@ -371,7 +371,7 @@ func AudioToPCMData(audioFile string) ([][]byte, float64, error) {
 	var finalSampleRate int
 
 	if mp3SampleRate != targetSampleRate {
-		logrus.WithFields(logrus.Fields{
+		WithFields(context.Background(), map[string]interface{}{
 			"fromSampleRate": mp3SampleRate,
 			"toSampleRate":   targetSampleRate,
 		}).Debug("重采样音频")
@@ -579,7 +579,7 @@ func MP3ToOpusData(audioFile string) ([]byte, error) {
 
 	// 获取采样率
 	sampleRate := decoder.SampleRate()
-	logrus.WithField("sampleRate", sampleRate).Debug("MP3采样率")
+	WithField(context.Background(), "sampleRate", sampleRate).Debug("MP3采样率")
 
 	// 确保PCM数据长度是偶数
 	pcmData := pcmDataSlices[0]

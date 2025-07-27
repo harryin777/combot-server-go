@@ -4,10 +4,10 @@ import (
 	"net/http"
 	"strconv"
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 type ActiveHandler struct {
@@ -69,7 +69,7 @@ type LoginResponse struct {
 func (h *ActiveHandler) Register(c *gin.Context) {
 	var req RegisterRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logrus.WithError(err).Error("Invalid register request")
+		utils.WithError(c.Request.Context(), err).Error("Invalid register request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -82,7 +82,7 @@ func (h *ActiveHandler) Register(c *gin.Context) {
 		req.ActivationVersion,
 	)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to create or update device")
+		utils.WithError(c.Request.Context(), err).Error("Failed to create or update device")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register device"})
 		return
 	}
@@ -102,7 +102,7 @@ func (h *ActiveHandler) Register(c *gin.Context) {
 func (h *ActiveHandler) Login(c *gin.Context) {
 	var req LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logrus.WithError(err).Error("Invalid login request")
+		utils.WithError(c.Request.Context(), err).Error("Invalid login request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -110,7 +110,7 @@ func (h *ActiveHandler) Login(c *gin.Context) {
 	// 激活设备并获取JWT token
 	token, err := h.deviceService.ActivateDeviceAndGetToken(req.DeviceID, req.Challenge, req.HMAC)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to activate device")
+		utils.WithError(c.Request.Context(), err).Error("Failed to activate device")
 		c.JSON(http.StatusUnauthorized, LoginResponse{
 			Success: false,
 			Message: "Device activation failed: " + err.Error(),
@@ -143,7 +143,7 @@ func (h *ActiveHandler) Logout(c *gin.Context) {
 
 	// 这里可以添加登出逻辑，比如清除session等
 	// 目前只返回成功响应
-	logrus.WithField("device_id", deviceID).Info("Device logout")
+	utils.WithField(c.Request.Context(), "device_id", deviceID).Info("Device logout")
 	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
 }
 
@@ -165,7 +165,7 @@ func (h *ActiveHandler) Info(c *gin.Context) {
 	// 查询设备信息
 	device, err := h.deviceService.GetDeviceByID(uint(deviceID))
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get device info")
+		utils.WithError(c.Request.Context(), err).Error("Failed to get device info")
 		c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
 		return
 	}
@@ -187,7 +187,7 @@ func (h *ActiveHandler) Info(c *gin.Context) {
 func (h *ActiveHandler) GetToken(c *gin.Context) {
 	var req TokenRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		logrus.WithError(err).Error("Invalid token request")
+		utils.WithError(c.Request.Context(), err).Error("Invalid token request")
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
 		return
 	}
@@ -195,7 +195,7 @@ func (h *ActiveHandler) GetToken(c *gin.Context) {
 	// 获取设备访问token
 	token, err := h.deviceService.GetDeviceToken(req.DeviceID, req.ClientID, req.Challenge, req.HMAC)
 	if err != nil {
-		logrus.WithError(err).Error("Failed to get device token")
+		utils.WithError(c.Request.Context(), err).Error("Failed to get device token")
 		c.JSON(http.StatusUnauthorized, TokenResponse{
 			Success: false,
 			Message: "Failed to get token: " + err.Error(),

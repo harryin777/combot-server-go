@@ -1,11 +1,11 @@
 package pool
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
-
-	"github.com/sirupsen/logrus"
+	"xiaozhi-server-go/src/core/utils"
 )
 
 // ResourceFactory 资源工厂接口
@@ -169,7 +169,7 @@ func (p *ResourcePool) Close() {
 		close(p.resources)
 		for resource := range p.resources {
 			if err := p.factory.Destroy(resource); err != nil {
-				logrus.WithError(err).Error("销毁资源失败")
+				utils.WithError(context.Background(), err).Error("销毁资源失败")
 			}
 		}
 	})
@@ -209,7 +209,7 @@ func (p *ResourcePool) refillPool() {
 		for i := 0; i < needed && p.totalCount < p.config.MaxSize; i++ {
 			resource, err := p.factory.Create()
 			if err != nil {
-				logrus.WithError(err).Error("重新填充资源失败")
+				utils.WithError(context.Background(), err).Error("重新填充资源失败")
 				continue
 			}
 

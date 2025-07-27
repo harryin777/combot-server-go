@@ -62,6 +62,9 @@ type Config struct {
 
 	// 连通性检查配置
 	ConnectivityCheck ConnectivityCheckConfig `yaml:"connectivity_check"`
+
+	// 数据库配置
+	Database DatabaseConfig `yaml:"database"`
 }
 
 // VADConfig VAD配置结构
@@ -135,6 +138,24 @@ type VLLMConfig struct {
 	TopP        float64                `yaml:"top_p"`       // TopP参数
 	Security    SecurityConfig         `yaml:"security"`    // 图片安全配置
 	Extra       map[string]interface{} `yaml:",inline"`     // 额外配置
+}
+
+// DatabaseConfig 数据库配置结构
+type DatabaseConfig struct {
+	Type     string `yaml:"type"`     // 数据库类型: mysql, postgres, sqlite
+	Host     string `yaml:"host"`     // 数据库主机
+	Port     int    `yaml:"port"`     // 数据库端口
+	User     string `yaml:"user"`     // 数据库用户名
+	Password string `yaml:"password"` // 数据库密码
+	Database string `yaml:"database"` // 数据库名称
+	Path     string `yaml:"path"`     // SQLite数据库文件路径
+	SSLMode  string `yaml:"ssl_mode"` // SSL模式 (PostgreSQL)
+	Charset  string `yaml:"charset"`  // 字符集 (MySQL)
+
+	// 连接池配置
+	MaxOpenConns    int    `yaml:"max_open_conns"`    // 最大打开连接数
+	MaxIdleConns    int    `yaml:"max_idle_conns"`    // 最大空闲连接数
+	ConnMaxLifetime string `yaml:"conn_max_lifetime"` // 连接最大生存时间
 }
 
 // LoadConfig 从文件加载配置

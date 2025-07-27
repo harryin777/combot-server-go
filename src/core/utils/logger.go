@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -14,22 +15,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-// LogLevel 日志级别
-type LogLevel string
+// RequestIDKey context中request ID的key
+const RequestIDKey = "req-id"
 
-const (
-	DebugLevel LogLevel = "debug"
-	InfoLevel  LogLevel = "info"
-	WarnLevel  LogLevel = "warn"
-	ErrorLevel LogLevel = "error"
-)
+// 全局logger实例
+var globalLogger *GlobalLogger
 
-const (
-	LogRetentionDays = 7 // 日志保留天数，硬编码7天
-)
-
-// Logger 日志接口实现
-type Logger struct {
+// GlobalLogger 全局日志记录器
+type GlobalLogger struct {
 	config      *configs.Config
 	logger      *logrus.Logger // 主要logger实例
 	logFile     *os.File
@@ -39,24 +32,18 @@ type Logger struct {
 	stopCh      chan struct{} // 停止信号
 }
 
-// configLogLevelToLogrusLevel 将配置中的日志级别转换为logrus.Level
-func configLogLevelToLogrusLevel(configLevel string) logrus.Level {
-	switch configLevel {
-	case "DEBUG":
-		return logrus.DebugLevel
-	case "INFO":
-		return logrus.InfoLevel
-	case "WARN":
-		return logrus.WarnLevel
-	case "ERROR":
-		return logrus.ErrorLevel
-	default:
-		return logrus.InfoLevel
+// InitGlobalLogger 初始化全局日志记录器
+func InitGlobalLogger(config *configs.Config) error {
+	logger, err := NewGlobalLogger(config)
+	if err != nil {
+		return err
 	}
+	globalLogger = logger
+	return nil
 }
 
-// NewLogger 创建新的日志记录器
-func NewLogger(config *configs.Config) (*Logger, error) {
+// NewGlobalLogger 创建新的全局日志记录器
+func NewGlobalLogger(config *configs.Config) (*GlobalLogger, error) {
 	// 确保日志目录存在
 	if err := os.MkdirAll(config.Log.LogDir, 0755); err != nil {
 		return nil, fmt.Errorf("创建日志目录失败: %v", err)
@@ -84,7 +71,7 @@ func NewLogger(config *configs.Config) (*Logger, error) {
 	multiWriter := io.MultiWriter(file, os.Stdout)
 	logger.SetOutput(multiWriter)
 
-	loggerInstance := &Logger{
+	loggerInstance := &GlobalLogger{
 		config:      config,
 		logger:      logger,
 		logFile:     file,
@@ -98,8 +85,24 @@ func NewLogger(config *configs.Config) (*Logger, error) {
 	return loggerInstance, nil
 }
 
+// configLogLevelToLogrusLevel 将配置中的日志级别转换为logrus.Level
+func configLogLevelToLogrusLevel(configLevel string) logrus.Level {
+	switch strings.ToUpper(configLevel) {
+	case "DEBUG":
+		return logrus.DebugLevel
+	case "INFO":
+		return logrus.InfoLevel
+	case "WARN":
+		return logrus.WarnLevel
+	case "ERROR":
+		return logrus.ErrorLevel
+	default:
+		return logrus.InfoLevel
+	}
+}
+
 // startRotationChecker 启动定时检查器
-func (l *Logger) startRotationChecker() {
+func (l *GlobalLogger) startRotationChecker() {
 	l.ticker = time.NewTicker(1 * time.Minute) // 每分钟检查一次
 	go func() {
 		for {
@@ -114,7 +117,7 @@ func (l *Logger) startRotationChecker() {
 }
 
 // checkAndRotate 检查并执行轮转
-func (l *Logger) checkAndRotate() {
+func (l *GlobalLogger) checkAndRotate() {
 	today := time.Now().Format("2006-01-02")
 	if today != l.currentDate {
 		l.rotateLogFile(today)
@@ -123,7 +126,7 @@ func (l *Logger) checkAndRotate() {
 }
 
 // rotateLogFile 执行日志轮转
-func (l *Logger) rotateLogFile(newDate string) {
+func (l *GlobalLogger) rotateLogFile(newDate string) {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
@@ -169,7 +172,8 @@ func (l *Logger) rotateLogFile(newDate string) {
 }
 
 // cleanOldLogs 清理旧日志文件
-func (l *Logger) cleanOldLogs() {
+func (l *GlobalLogger) cleanOldLogs() {
+	const LogRetentionDays = 7 // 日志保留天数，硬编码7天
 	logDir := l.config.Log.LogDir
 
 	// 读取日志目录
@@ -219,7 +223,7 @@ func (l *Logger) cleanOldLogs() {
 }
 
 // Close 关闭日志文件
-func (l *Logger) Close() error {
+func (l *GlobalLogger) Close() error {
 	// 停止定时器
 	if l.ticker != nil {
 		l.ticker.Stop()
@@ -235,81 +239,184 @@ func (l *Logger) Close() error {
 	return nil
 }
 
-// log 通用日志记录函数（内部使用）
-func (l *Logger) log(level logrus.Level, msg string, fields ...interface{}) {
-	// 使用读锁保护并发访问
+// getEntry 获取带有request ID的日志entry
+func (l *GlobalLogger) getEntry(ctx context.Context) *logrus.Entry {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
 	entry := l.logger.WithField("time", time.Now())
 
-	// 处理fields参数
-	if len(fields) > 0 && fields[0] != nil {
-		if fieldsMap, ok := fields[0].(map[string]interface{}); ok {
-			entry = entry.WithFields(logrus.Fields(fieldsMap))
-		} else {
-			entry = entry.WithField("fields", fields[0])
+	// 从context中提取request ID
+	if ctx != nil {
+		if reqID := ctx.Value(RequestIDKey); reqID != nil {
+			if reqIDStr, ok := reqID.(string); ok && reqIDStr != "" {
+				entry = entry.WithField("req-id", reqIDStr)
+			}
 		}
 	}
 
-	// 记录日志
-	switch level {
-	case logrus.DebugLevel:
-		entry.Debug(msg)
-	case logrus.InfoLevel:
-		entry.Info(msg)
-	case logrus.WarnLevel:
-		entry.Warn(msg)
-	case logrus.ErrorLevel:
-		entry.Error(msg)
-	}
+	return entry
 }
+
+// CloseGlobalLogger 关闭全局日志记录器
+func CloseGlobalLogger() error {
+	if globalLogger != nil {
+		return globalLogger.Close()
+	}
+	return nil
+}
+
+// ===================全局日志方法===================
 
 // Debug 记录调试级别日志
-func (l *Logger) Debug(msg string, args ...interface{}) {
-	if l.config.Log.LogLevel == "DEBUG" {
-		if len(args) > 0 && containsFormatPlaceholders(msg) {
-			formattedMsg := fmt.Sprintf(msg, args...)
-			l.log(logrus.DebugLevel, formattedMsg)
-		} else {
-			l.log(logrus.DebugLevel, msg, args...)
-		}
+func Debug(ctx context.Context, msg string) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Debug(msg)
 	}
 }
 
-func containsFormatPlaceholders(s string) bool {
-	return strings.Contains(s, "%")
+// Debugf 记录调试级别格式化日志
+func Debugf(ctx context.Context, format string, args ...interface{}) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Debugf(format, args...)
+	}
 }
 
 // Info 记录信息级别日志
-func (l *Logger) Info(msg string, args ...interface{}) {
-	// 检测是否为格式化模式
-	if len(args) > 0 && containsFormatPlaceholders(msg) {
-		// 格式化模式：类似 Info
-		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(logrus.InfoLevel, formattedMsg)
-	} else {
-		// 结构化模式：原有方式
-		l.log(logrus.InfoLevel, msg, args...)
+func Info(ctx context.Context, msg string) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Info(msg)
+	}
+}
+
+// Infof 记录信息级别格式化日志
+func Infof(ctx context.Context, format string, args ...interface{}) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Infof(format, args...)
 	}
 }
 
 // Warn 记录警告级别日志
-func (l *Logger) Warn(msg string, args ...interface{}) {
-	if len(args) > 0 && containsFormatPlaceholders(msg) {
-		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(logrus.WarnLevel, formattedMsg)
-	} else {
-		l.log(logrus.WarnLevel, msg, args...)
+func Warn(ctx context.Context, msg string) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Warn(msg)
+	}
+}
+
+// Warnf 记录警告级别格式化日志
+func Warnf(ctx context.Context, format string, args ...interface{}) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Warnf(format, args...)
 	}
 }
 
 // Error 记录错误级别日志
+func Error(ctx context.Context, msg string) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Error(msg)
+	}
+}
+
+// Errorf 记录错误级别格式化日志
+func Errorf(ctx context.Context, format string, args ...interface{}) {
+	if globalLogger != nil {
+		globalLogger.getEntry(ctx).Errorf(format, args...)
+	}
+}
+
+// WithField 添加单个字段的日志
+func WithField(ctx context.Context, key string, value interface{}) *logrus.Entry {
+	if globalLogger != nil {
+		return globalLogger.getEntry(ctx).WithField(key, value)
+	}
+	return logrus.NewEntry(logrus.New())
+}
+
+// WithFields 添加多个字段的日志
+func WithFields(ctx context.Context, fields logrus.Fields) *logrus.Entry {
+	if globalLogger != nil {
+		return globalLogger.getEntry(ctx).WithFields(fields)
+	}
+	return logrus.NewEntry(logrus.New())
+}
+
+// WithError 添加错误字段的日志
+func WithError(ctx context.Context, err error) *logrus.Entry {
+	if globalLogger != nil {
+		return globalLogger.getEntry(ctx).WithError(err)
+	}
+	return logrus.NewEntry(logrus.New())
+}
+
+// ===================兼容旧版本的Logger结构===================
+
+// Logger 兼容旧版本的日志记录器接口
+type Logger struct {
+	config      *configs.Config
+	logger      *logrus.Logger
+	logFile     *os.File
+	currentDate string
+	mu          sync.RWMutex
+	ticker      *time.Ticker
+	stopCh      chan struct{}
+}
+
+// NewLogger 创建旧版本兼容的日志记录器（已废弃，建议使用全局日志方法）
+func NewLogger(config *configs.Config) (*Logger, error) {
+	// 初始化全局logger
+	if globalLogger == nil {
+		if err := InitGlobalLogger(config); err != nil {
+			return nil, err
+		}
+	}
+
+	return &Logger{
+		config: config,
+	}, nil
+}
+
+// Debug 兼容方法
+func (l *Logger) Debug(msg string, args ...interface{}) {
+	if len(args) > 0 && containsFormatPlaceholders(msg) {
+		Debugf(context.Background(), msg, args...)
+	} else {
+		Debug(context.Background(), msg)
+	}
+}
+
+// Info 兼容方法
+func (l *Logger) Info(msg string, args ...interface{}) {
+	if len(args) > 0 && containsFormatPlaceholders(msg) {
+		Infof(context.Background(), msg, args...)
+	} else {
+		Info(context.Background(), msg)
+	}
+}
+
+// Warn 兼容方法
+func (l *Logger) Warn(msg string, args ...interface{}) {
+	if len(args) > 0 && containsFormatPlaceholders(msg) {
+		Warnf(context.Background(), msg, args...)
+	} else {
+		Warn(context.Background(), msg)
+	}
+}
+
+// Error 兼容方法
 func (l *Logger) Error(msg string, args ...interface{}) {
 	if len(args) > 0 && containsFormatPlaceholders(msg) {
-		formattedMsg := fmt.Sprintf(msg, args...)
-		l.log(logrus.ErrorLevel, formattedMsg)
+		Errorf(context.Background(), msg, args...)
 	} else {
-		l.log(logrus.ErrorLevel, msg, args...)
+		Error(context.Background(), msg)
 	}
+}
+
+// Close 兼容方法
+func (l *Logger) Close() error {
+	return CloseGlobalLogger()
+}
+
+// 工具函数
+func containsFormatPlaceholders(s string) bool {
+	return strings.Contains(s, "%")
 }

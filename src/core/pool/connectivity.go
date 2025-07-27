@@ -111,13 +111,13 @@ func DefaultConnectivityConfig() *ConnectivityConfig {
 type HealthChecker struct {
 	config        *configs.Config
 	connConfig    *ConnectivityConfig
-	logger        *utils.Logger
 	testGenerator *TestDataGenerator
 	results       map[string]*CheckResult
 }
 
 // NewHealthChecker 创建健康检查器
-func NewHealthChecker(config *configs.Config, connConfig *ConnectivityConfig, logger *utils.Logger) *HealthChecker {
+// 注意：logger 参数已废弃，现在使用全局日志器
+func NewHealthChecker(config *configs.Config, connConfig *ConnectivityConfig) *HealthChecker {
 	if connConfig == nil {
 		connConfig = DefaultConnectivityConfig()
 	}
@@ -125,7 +125,6 @@ func NewHealthChecker(config *configs.Config, connConfig *ConnectivityConfig, lo
 	return &HealthChecker{
 		config:        config,
 		connConfig:    connConfig,
-		logger:        logger,
 		testGenerator: NewTestDataGenerator(connConfig.TestModes),
 		results:       make(map[string]*CheckResult),
 	}
@@ -134,7 +133,7 @@ func NewHealthChecker(config *configs.Config, connConfig *ConnectivityConfig, lo
 // CheckAllProviders 检查所有配置的提供者
 func (hc *HealthChecker) CheckAllProviders(ctx context.Context, mode CheckMode) error {
 	if !hc.connConfig.Enabled {
-		hc.logger.Info("连通性检查已禁用，跳过检查")
+		utils.Info(ctx, "连通性检查已禁用，跳过检查")
 		return nil
 	}
 
@@ -142,7 +141,7 @@ func (hc *HealthChecker) CheckAllProviders(ctx context.Context, mode CheckMode) 
 	if mode == FunctionalCheck {
 		checkTypeName = "功能性"
 	}
-	hc.logger.Info("开始执行%s检查...", checkTypeName)
+	utils.Infof(ctx, "开始执行%s检查...", checkTypeName)
 
 	selectedModule := hc.config.SelectedModule
 	var allErrors []error
@@ -171,26 +170,26 @@ func (hc *HealthChecker) CheckAllProviders(ctx context.Context, mode CheckMode) 
 	// 检查VLLLM（可选）
 	if vlllmType, ok := selectedModule["VLLLM"]; ok && vlllmType != "" {
 		if err := hc.checkVLLLMProvider(ctx, vlllmType, mode); err != nil {
-			hc.logger.Warn("VLLLM%s检查失败，将继续使用普通LLM: %v", checkTypeName, err)
+			utils.Warnf(ctx, "VLLLM%s检查失败，将继续使用普通LLM: %v", checkTypeName, err)
 			// VLLLM是可选的，失败不会导致整体失败
 		}
 	}
 
 	if len(allErrors) > 0 {
-		hc.logger.Error("%s检查失败，详细信息:", checkTypeName)
+		utils.Errorf(ctx, "%s检查失败，详细信息:", checkTypeName)
 		for _, err := range allErrors {
-			hc.logger.Error("  - %v", err)
+			utils.Errorf(ctx, "  - %v", err)
 		}
 		return fmt.Errorf("%s检查失败: %d个服务不可用", checkTypeName, len(allErrors))
 	}
 
-	hc.logger.Info("所有资源%s检查通过", checkTypeName)
+	utils.Infof(ctx, "所有资源%s检查通过", checkTypeName)
 	return nil
 }
 
 // checkASRProvider 检查ASR提供者
 func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, mode CheckMode) error {
-	hc.logger.Info("检查ASR提供者: %s", asrType)
+	utils.Infof(ctx, "检查ASR提供者: %s", asrType)
 
 	start := time.Now()
 	result := &CheckResult{
@@ -232,12 +231,12 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 			return result.Error
 		}
 
-		hc.logger.Info("执行ASR功能性测试...")
+		utils.Info(ctx, "执行ASR功能性测试...")
 
 		// 生成测试音频数据
 		testAudioData, err := hc.generateTestAudioData()
 		if err != nil {
-			hc.logger.Warn("生成测试音频失败，跳过功能性测试: %v", err)
+			utils.Warnf(ctx, "生成测试音频失败，跳过功能性测试: %v", err)
 			result.Details["functional_test"] = "skipped - audio generation failed"
 		} else {
 			// 执行实际的ASR测试
@@ -253,7 +252,7 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 				return result.Error
 			}
 
-			hc.logger.Info("ASR转录结果: '%s' (长度: %d)", transcriptionResult, len(transcriptionResult))
+			utils.Infof(ctx, "ASR转录结果: '%s' (长度: %d)", transcriptionResult, len(transcriptionResult))
 
 			// 对于doubao ASR，由于是异步处理，可能立即返回空字符串
 			// 这里我们认为能成功调用API且没有错误就算通过
@@ -262,7 +261,7 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 				result.Details["functional_test"] = "passed"
 				result.Details["test_response_length"] = len(transcriptionResult)
 				result.Details["note"] = "ASR调用成功，异步处理中"
-				hc.logger.Info("ASR功能性测试通过，API调用成功 (异步处理)")
+				utils.Info(ctx, "ASR功能性测试通过，API调用成功 (异步处理)")
 			} else {
 				result.Success = false
 				result.Error = fmt.Errorf("ASR响应验证失败: %v", err)
@@ -282,13 +281,13 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 	if mode == FunctionalCheck {
 		checkType = "功能性"
 	}
-	hc.logger.Info("ASR提供者 %s %s检查通过", asrType, checkType)
+	utils.Infof(ctx, "ASR提供者 %s %s检查通过", asrType, checkType)
 	return nil
 }
 
 // checkLLMProvider 检查LLM提供者
 func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, mode CheckMode) error {
-	hc.logger.Info("检查LLM提供者: %s", llmType)
+	utils.Infof(ctx, "检查LLM提供者: %s", llmType)
 
 	start := time.Now()
 	result := &CheckResult{
@@ -330,7 +329,7 @@ func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, m
 			return result.Error
 		}
 
-		hc.logger.Info("执行LLM功能性测试...")
+		utils.Info(ctx, "执行LLM功能性测试...")
 
 		// 执行实际的LLM测试
 		testPrompt := hc.testGenerator.GetTestPrompt()
@@ -369,7 +368,7 @@ func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, m
 
 		result.Details["functional_test"] = "passed"
 		result.Details["test_response_length"] = len(responseText)
-		hc.logger.Info("LLM功能性测试通过，内容：%s,响应长度: %d", responseText, len(responseText))
+		utils.Infof(ctx, "LLM功能性测试通过，内容：%s,响应长度: %d", responseText, len(responseText))
 	}
 
 	result.Success = true
@@ -381,13 +380,13 @@ func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, m
 	if mode == FunctionalCheck {
 		checkType = "功能性"
 	}
-	hc.logger.Info("LLM提供者 %s %s检查通过", llmType, checkType)
+	utils.Infof(ctx, "LLM提供者 %s %s检查通过", llmType, checkType)
 	return nil
 }
 
 // checkTTSProvider 检查TTS提供者
 func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, mode CheckMode) error {
-	hc.logger.Info("检查TTS提供者: %s", ttsType)
+	utils.Infof(ctx, "检查TTS提供者: %s", ttsType)
 
 	start := time.Now()
 	result := &CheckResult{
@@ -429,7 +428,7 @@ func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, m
 			return result.Error
 		}
 
-		hc.logger.Info("执行TTS功能性测试...")
+		utils.Info(ctx, "执行TTS功能性测试...")
 
 		// 执行实际的TTS测试
 		testText := hc.testGenerator.GetTestTTSText()
@@ -453,7 +452,7 @@ func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, m
 
 		result.Details["functional_test"] = "passed"
 		result.Details["audio_path"] = audioPath
-		hc.logger.Info("TTS功能性测试通过，音频文件: %s", audioPath)
+		utils.Infof(ctx, "TTS功能性测试通过，音频文件: %s", audioPath)
 	}
 
 	result.Success = true
@@ -465,13 +464,13 @@ func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, m
 	if mode == FunctionalCheck {
 		checkType = "功能性"
 	}
-	hc.logger.Info("TTS提供者 %s %s检查通过", ttsType, checkType)
+	utils.Infof(ctx, "TTS提供者 %s %s检查通过", ttsType, checkType)
 	return nil
 }
 
 // checkVLLLMProvider 检查VLLLM提供者
 func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType string, mode CheckMode) error {
-	hc.logger.Info("检查VLLLM提供者: %s", vlllmType)
+	utils.Infof(ctx, "检查VLLLM提供者: %s", vlllmType)
 
 	start := time.Now()
 	result := &CheckResult{
@@ -513,7 +512,7 @@ func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType strin
 			return result.Error
 		}
 
-		hc.logger.Info("执行VLLLM功能性测试...")
+		utils.Info(ctx, "执行VLLLM功能性测试...")
 
 		// 获取测试图片和文本
 		testImageData, err := hc.testGenerator.GetTestImageData()
@@ -564,7 +563,7 @@ func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType strin
 
 		result.Details["functional_test"] = "passed"
 		result.Details["test_response_length"] = len(responseText)
-		hc.logger.Info("VLLLM功能性测试通过，响应长度: %d", len(responseText))
+		utils.Infof(ctx, "VLLLM功能性测试通过，响应长度: %d", len(responseText))
 	}
 
 	result.Success = true
@@ -576,7 +575,7 @@ func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType strin
 	if mode == FunctionalCheck {
 		checkType = "功能性"
 	}
-	hc.logger.Info("VLLLM提供者 %s %s检查通过", vlllmType, checkType)
+	utils.Infof(ctx, "VLLLM提供者 %s %s检查通过", vlllmType, checkType)
 	return nil
 }
 
@@ -616,7 +615,7 @@ func (hc *HealthChecker) createWithRetry(ctx context.Context, factory ResourceFa
 
 	for attempt := 0; attempt < hc.connConfig.RetryAttempts; attempt++ {
 		if attempt > 0 {
-			hc.logger.Info("连接重试 %d/%d", attempt+1, hc.connConfig.RetryAttempts)
+			utils.Infof(ctx, "连接重试 %d/%d", attempt+1, hc.connConfig.RetryAttempts)
 
 			select {
 			case <-ctx.Done():
@@ -634,7 +633,7 @@ func (hc *HealthChecker) createWithRetry(ctx context.Context, factory ResourceFa
 
 		if err != nil {
 			lastErr = err
-			hc.logger.Warn("连接尝试 %d/%d 失败: %v", attempt+1, hc.connConfig.RetryAttempts, err)
+			utils.Warnf(ctx, "连接尝试 %d/%d 失败: %v", attempt+1, hc.connConfig.RetryAttempts, err)
 			continue
 		}
 
@@ -650,8 +649,8 @@ func (hc *HealthChecker) GetResults() map[string]*CheckResult {
 }
 
 // PrintReport 打印检查报告
-func (hc *HealthChecker) PrintReport() {
-	hc.logger.Info("=== 连通性检查报告 ===")
+func (hc *HealthChecker) PrintReport(ctx context.Context) {
+	utils.Info(ctx, "=== 连通性检查报告 ===")
 
 	for providerType, result := range hc.results {
 		status := "✓ 通过"
@@ -664,18 +663,18 @@ func (hc *HealthChecker) PrintReport() {
 			checkTypeName = "功能性"
 		}
 
-		hc.logger.Info("%s (%s): %s (耗时: %v)", providerType, checkTypeName, status, result.Duration)
+		utils.Infof(ctx, "%s (%s): %s (耗时: %v)", providerType, checkTypeName, status, result.Duration)
 
 		if result.Error != nil {
-			hc.logger.Error("  错误: %v", result.Error)
+			utils.Errorf(ctx, "  错误: %v", result.Error)
 		}
 
 		if len(result.Details) > 0 {
 			for key, value := range result.Details {
-				hc.logger.Info("  %s: %v", key, value)
+				utils.Infof(ctx, "  %s: %v", key, value)
 			}
 		}
 	}
 
-	hc.logger.Info("=== 检查报告结束 ===")
+	utils.Info(ctx, "=== 检查报告结束 ===")
 }

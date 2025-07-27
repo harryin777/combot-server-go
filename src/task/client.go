@@ -1,11 +1,12 @@
 package task
 
 import (
+	"context"
 	"fmt"
 	"sync"
 	"time"
 
-	"github.com/sirupsen/logrus"
+	"xiaozhi-server-go/src/core/utils"
 )
 
 // ClientManager manages client contexts and resources
@@ -113,7 +114,7 @@ func (rq *ResourceQuota) CheckAndResetDailyQuota() {
 	if rq.LastResetDate.Before(today) {
 		rq.TotalUsedQuota = 0
 		rq.LastResetDate = today
-		logrus.WithField("date", today.Format("2006-01-02")).Info("每日配额已重置")
+		utils.WithField(context.Background(), "date", today.Format("2006-01-02")).Info("每日配额已重置")
 	}
 }
 

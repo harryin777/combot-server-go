@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/sirupsen/logrus"
-
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/auth"
 	"xiaozhi-server-go/src/core/image"
 	"xiaozhi-server-go/src/core/providers"
 	"xiaozhi-server-go/src/core/providers/vlllm"
+	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
 )
@@ -54,7 +53,7 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	// 先看配置中的VLLLM provider
 	selected_vlllm := s.config.SelectedModule["VLLLM"]
 	if selected_vlllm == "" {
-		logrus.Warn("请设置好VLLLM provider配置")
+		utils.Warn(context.Background(), "请设置好VLLLM provider配置")
 		return fmt.Errorf("请设置好VLLLM provider配置")
 	}
 
@@ -75,21 +74,21 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	// 创建provider实例
 	provider, err := vlllm.NewProvider(providerConfig)
 	if err != nil {
-		logrus.Warn(fmt.Sprintf("创建VLLLM provider 失败: %v", err))
+		utils.Warn(context.Background(), fmt.Sprintf("创建VLLLM provider 失败: %v", err))
 
 	}
 
 	// 初始化provider
 	if err := provider.Initialize(); err != nil {
-		logrus.Warn(fmt.Sprintf("初始化VLLLM provider失败: %v", err))
+		utils.Warn(context.Background(), fmt.Sprintf("初始化VLLLM provider失败: %v", err))
 
 	}
 
 	s.vlllmMap[selected_vlllm] = provider
-	logrus.Info(fmt.Sprintf("VLLLM provider %s 初始化成功", selected_vlllm))
+	utils.Info(context.Background(), fmt.Sprintf("VLLLM provider %s 初始化成功", selected_vlllm))
 
 	if len(s.vlllmMap) == 0 {
-		logrus.Error("没有可用的VLLLM provider，请检查配置")
+		utils.Error(context.Background(), "没有可用的VLLLM provider，请检查配置")
 		return fmt.Errorf("没有可用的VLLLM provider")
 	}
 
@@ -103,20 +102,20 @@ func (s *DefaultVisionService) Start(ctx context.Context, engine *gin.Engine, ap
 	apiGroup.POST("/vision", s.handlePost)
 	apiGroup.OPTIONS("/vision", s.handleOptions)
 
-	logrus.Info("Vision HTTP服务路由注册完成")
+	utils.Info(context.Background(), "Vision HTTP服务路由注册完成")
 	return nil
 }
 
 // handleOptions 处理OPTIONS请求（CORS）
 func (s *DefaultVisionService) handleOptions(c *gin.Context) {
-	logrus.Info("收到Vision CORS预检请求 options")
+	utils.Info(context.Background(), "收到Vision CORS预检请求 options")
 	s.addCORSHeaders(c)
 	c.Status(http.StatusOK)
 }
 
 // handleGet 处理GET请求（状态检查）
 func (s *DefaultVisionService) handleGet(c *gin.Context) {
-	logrus.Info("收到Vision状态检查请求 get")
+	utils.Info(context.Background(), "收到Vision状态检查请求 get")
 	s.addCORSHeaders(c)
 
 	// 检查Vision服务状态
@@ -140,13 +139,13 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 	authResult, err := s.verifyAuth(c)
 	if err != nil {
 		s.respondError(c, http.StatusUnauthorized, err.Error())
-		logrus.WithError(err).Warn("vision 认证失败")
+		utils.WithError(context.Background(), err).Warn("vision 认证失败")
 		return
 	}
 
 	if !authResult.IsValid {
 		s.respondError(c, http.StatusUnauthorized, "无效的认证token或设备ID不匹配")
-		logrus.Warn(fmt.Sprintf("Vision认证失败: %s", authResult.DeviceID))
+		utils.Warn(context.Background(), fmt.Sprintf("Vision认证失败: %s", authResult.DeviceID))
 		return
 	}
 
@@ -154,11 +153,11 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 	req, err := s.parseMultipartRequest(c, deviceID)
 	if err != nil {
 		s.respondError(c, http.StatusBadRequest, err.Error())
-		logrus.Warn(fmt.Sprintf("Vision请求解析失败: %v", err))
+		utils.Warn(context.Background(), fmt.Sprintf("Vision请求解析失败: %v", err))
 		return
 	}
 
-	logrus.WithFields(logrus.Fields{
+	utils.WithFields(context.Background(), map[string]interface{}{
 		"device_id":  req.DeviceID,
 		"client_id":  req.ClientID,
 		"question":   req.Question,
@@ -177,14 +176,14 @@ func (s *DefaultVisionService) handlePost(c *gin.Context) {
 
 	if err != nil {
 		s.respondError(c, http.StatusInternalServerError, err.Error())
-		logrus.Warn(fmt.Sprintf("Vision请求处理失败: %v", err))
+		utils.Warn(context.Background(), fmt.Sprintf("Vision请求处理失败: %v", err))
 		// 返回成功响应
 		response.Success = false
 		response.Message = err.Error()
 		response.Result = "" // 清空结果
 	}
 
-	logrus.WithFields(logrus.Fields{
+	utils.WithFields(context.Background(), map[string]interface{}{
 		"success": response.Success,
 		"result":  response.Result,
 	}).Info("Vision分析结果")
@@ -202,19 +201,19 @@ func (s *DefaultVisionService) verifyAuth(c *gin.Context) (*AuthVerifyResult, er
 	token := authHeader[7:] // 移除"Bearer "前缀
 
 	// 打印认证token
-	logrus.Debug(fmt.Sprintf("收到认证token: %s", token))
+	utils.Debug(context.Background(), fmt.Sprintf("收到认证token: %s", token))
 
 	// 验证token（注意VerifyToken返回3个值）
 	isValid, deviceID, err := s.authToken.VerifyToken(token)
 	if err != nil || !isValid {
-		logrus.Warn(fmt.Sprintf("认证token验证失败: %v", err))
+		utils.Warn(context.Background(), fmt.Sprintf("认证token验证失败: %v", err))
 		return nil, fmt.Errorf("无效的认证token或token已过期")
 	}
 
 	// 检查设备ID匹配
 	requestDeviceID := c.GetHeader("Device-Id")
 	if requestDeviceID != deviceID {
-		logrus.Warn(fmt.Sprintf("设备ID与token不匹配: 请求设备ID=%s, token设备ID=%s", requestDeviceID, deviceID))
+		utils.Warn(context.Background(), fmt.Sprintf("设备ID与token不匹配: 请求设备ID=%s, token设备ID=%s", requestDeviceID, deviceID))
 		return nil, fmt.Errorf("设备ID与token不匹配")
 	}
 
@@ -233,17 +232,17 @@ func (s *DefaultVisionService) parseMultipartRequest(c *gin.Context, deviceID st
 	}
 
 	// 打印所有的form字段
-	logrus.Info("解析到的form字段:")
+	utils.Info(context.Background(), "解析到的form字段:")
 	if c.Request.MultipartForm != nil {
 		// 打印所有文本字段
 		for key, values := range c.Request.MultipartForm.Value {
-			logrus.Info(fmt.Sprintf("文本字段 %s: %v", key, values))
+			utils.Info(context.Background(), fmt.Sprintf("文本字段 %s: %v", key, values))
 		}
 		// 打印所有文件字段
 		for key, files := range c.Request.MultipartForm.File {
-			logrus.Info(fmt.Sprintf("文件字段 %s: 共%d个文件", key, len(files)))
+			utils.Info(context.Background(), fmt.Sprintf("文件字段 %s: 共%d个文件", key, len(files)))
 			for i, file := range files {
-				logrus.Info(fmt.Sprintf("  文件%d: %s (大小: %d bytes)", i+1, file.Filename, file.Size))
+				utils.Info(context.Background(), fmt.Sprintf("  文件%d: %s (大小: %d bytes)", i+1, file.Filename, file.Size))
 			}
 		}
 	}
@@ -312,7 +311,7 @@ func (s *DefaultVisionService) saveImageToFile(imageData []byte, deviceID string
 		return "", fmt.Errorf("保存图片文件失败: %v", err)
 	}
 
-	logrus.Info(fmt.Sprintf("图片已保存到: %s", filepath))
+	utils.Info(context.Background(), fmt.Sprintf("图片已保存到: %s", filepath))
 	return filepath, nil
 }
 
@@ -332,7 +331,7 @@ func (s *DefaultVisionService) processVisionRequest(req *VisionRequest) (string,
 		Data:   imageBase64,
 		Format: s.detectImageFormat(req.Image),
 	}
-	logrus.WithFields(logrus.Fields{
+	utils.WithFields(context.Background(), map[string]interface{}{
 		"client_id": req.ClientID,
 		"format":    imageData.Format,
 	}).Debug("处理图片数据")
@@ -348,7 +347,7 @@ func (s *DefaultVisionService) processVisionRequest(req *VisionRequest) (string,
 	for content := range responseChan {
 		result.WriteString(content)
 	}
-	logrus.Info(fmt.Sprintf("VLLLM分析结果: %s", result.String()))
+	utils.Info(context.Background(), fmt.Sprintf("VLLLM分析结果: %s", result.String()))
 
 	return result.String(), nil
 }
@@ -456,9 +455,9 @@ func (s *DefaultVisionService) respondError(c *gin.Context, statusCode int, mess
 func (s *DefaultVisionService) Cleanup() error {
 	for name, provider := range s.vlllmMap {
 		if err := provider.Cleanup(); err != nil {
-			logrus.Warn(fmt.Sprintf("清理VLLLM provider %s 失败: %v", name, err))
+			utils.Warn(context.Background(), fmt.Sprintf("清理VLLLM provider %s 失败: %v", name, err))
 		}
 	}
-	logrus.Info("Vision服务清理完成")
+	utils.Info(context.Background(), "Vision服务清理完成")
 	return nil
 }

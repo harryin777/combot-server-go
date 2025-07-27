@@ -7,8 +7,7 @@ import (
 	"time"
 
 	"xiaozhi-server-go/src/core/types"
-
-	"github.com/sirupsen/logrus"
+	"xiaozhi-server-go/src/core/utils"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -68,7 +67,7 @@ func NewClient(config *Config) (*Client, error) {
 		c.stdioClient = stdioClient
 		c.useStdioClient = true
 	} else {
-		logrus.Warn("Unsupported MCP client type, only stdio client is supported")
+		utils.Warn(context.Background(), "Unsupported MCP client type, only stdio client is supported")
 	}
 
 	return c, nil
@@ -97,7 +96,7 @@ func (c *Client) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize stdio MCP client: %w", err)
 		}
 		c.name = initResult.ServerInfo.Name
-		logrus.WithFields(logrus.Fields{
+		utils.WithFields(context.Background(), map[string]interface{}{
 			"name":    initResult.ServerInfo.Name,
 			"version": initResult.ServerInfo.Version,
 			"command": c.config.Command,
@@ -153,7 +152,7 @@ func (c *Client) fetchTools(ctx context.Context) error {
 			toolNames += fmt.Sprintf("%s, ", tool.Name)
 			//log.Printf("Added tool: %s - %s %v; %v; %v", tool.Name, tool.Description, tool.InputSchema, tool.RawInputSchema, tool.Annotations)
 		}
-		logrus.WithFields(logrus.Fields{
+		utils.WithFields(context.Background(), map[string]interface{}{
 			"name":      c.name,
 			"toolNames": toolNames,
 		}).Info("Fetching available tools")
@@ -169,12 +168,12 @@ func (c *Client) fetchTools(ctx context.Context) error {
 func (c *Client) Stop() {
 	if c.useStdioClient {
 		if c.stdioClient != nil {
-			logrus.Info("Stopping MCP stdio client")
+			utils.Info(context.Background(), "Stopping MCP stdio client")
 			c.stdioClient.Close()
 		}
 	} else {
 		if c.client != nil {
-			logrus.Info("Stopping MCP client")
+			utils.Info(context.Background(), "Stopping MCP client")
 			c.client.Close()
 		}
 	}

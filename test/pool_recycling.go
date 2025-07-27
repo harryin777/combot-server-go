@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -76,7 +79,8 @@ func main() {
 		CheckInterval: 10 * time.Second,
 	}
 
-	resourcePool, err := pool.NewResourcePool(factory, poolConfig, logger)
+	// NewResourcePool 现在移除了 logger 参数
+	resourcePool, err := pool.NewResourcePool(factory, poolConfig)
 	if err != nil {
 		log.Fatal(err)
 	}

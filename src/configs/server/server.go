@@ -3,9 +3,9 @@ package server
 import (
 	"context"
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 type DefaultCfgService struct {
@@ -28,7 +28,7 @@ func (s *DefaultCfgService) Start(ctx context.Context, engine *gin.Engine, apiGr
 	apiGroup.POST("/cfg", s.handlePost)
 	apiGroup.OPTIONS("/cfg", s.handleOptions)
 
-	logrus.Info("Cfg HTTP服务路由注册完成")
+	utils.Info(ctx, "Cfg HTTP服务路由注册完成")
 	return nil
 }
 

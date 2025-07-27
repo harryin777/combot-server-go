@@ -1,3 +1,6 @@
+//go:build ignore
+// +build ignore
+
 package main
 
 import (
@@ -29,16 +32,16 @@ func main() {
 	}
 	log.Printf("使用配置文件: %s", path)
 
-	// 创建日志记录器
-	logger, err := utils.NewLogger(config)
+	// 初始化全局日志记录器
+	err = utils.InitGlobalLogger(config)
 	if err != nil {
-		log.Fatalf("创建日志记录器失败: %v", err)
+		log.Fatalf("初始化日志记录器失败: %v", err)
 	}
 
 	// 创建连通性检查配置
 	connConfig, err := pool.ConfigFromYAML(&config.ConnectivityCheck)
 	if err != nil {
-		logger.Warn("解析连通性检查配置失败，使用默认配置: %v", err)
+		utils.Warnf(context.Background(), "解析连通性检查配置失败，使用默认配置: %v", err)
 		connConfig = pool.DefaultConnectivityConfig()
 	}
 
@@ -61,7 +64,7 @@ func main() {
 	}
 
 	// 创建健康检查器
-	healthChecker := pool.NewHealthChecker(config, connConfig, logger)
+	healthChecker := pool.NewHealthChecker(config, connConfig)
 
 	ctx := context.Background()
 
@@ -76,10 +79,10 @@ func main() {
 
 	// 打印基础检查报告
 	fmt.Printf("\n")
-	healthChecker.PrintReport()
+	healthChecker.PrintReport(ctx)
 
 	// 清空结果准备功能性检查
-	healthChecker = pool.NewHealthChecker(config, connConfig, logger)
+	healthChecker = pool.NewHealthChecker(config, connConfig)
 
 	// 执行功能性检查
 	fmt.Printf("\n开始执行功能性检查...\n")
@@ -92,7 +95,7 @@ func main() {
 
 	// 打印功能性检查报告
 	fmt.Printf("\n")
-	healthChecker.PrintReport()
+	healthChecker.PrintReport(ctx)
 
 	// 获取详细结果
 	results := healthChecker.GetResults()

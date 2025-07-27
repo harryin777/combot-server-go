@@ -3,10 +3,10 @@ package router
 import (
 	"context"
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/handlers"
 
 	"github.com/gin-gonic/gin"
-	"github.com/sirupsen/logrus"
 )
 
 // ActiveRouter 注册激活相关路由
@@ -24,5 +24,5 @@ func ActiveRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *config
 		activeGroup.GET("/info", activeHandler.Info)
 	}
 
-	logrus.Info("Active HTTP服务路由注册完成")
+	utils.Info(ctx, "Active HTTP服务路由注册完成")
 }

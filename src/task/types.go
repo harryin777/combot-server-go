@@ -6,8 +6,9 @@ import (
 	"sync"
 	"time"
 
+	"xiaozhi-server-go/src/core/utils"
+
 	"github.com/google/uuid"
-	"github.com/sirupsen/logrus"
 )
 
 // TaskType represents different types of async tasks
@@ -42,7 +43,7 @@ func RegisterTaskExecutor(taskType TaskType, executor TaskExecutor) {
 	taskRegistry.mu.Lock()
 	defer taskRegistry.mu.Unlock()
 	taskRegistry.executors[taskType] = executor
-	logrus.WithField("taskType", taskType).Info("注册任务类型")
+	utils.WithField(context.Background(), "taskType", taskType).Info("注册任务类型")
 }
 
 // GetTaskExecutor retrieves the executor for a specific task type
@@ -98,7 +99,7 @@ func (t *Task) Execute() {
 		if r := recover(); r != nil {
 			t.Status = TaskStatusFailed
 			t.Error = fmt.Errorf("task panicked: %v", r)
-			logrus.WithFields(logrus.Fields{
+			utils.WithFields(t.Context, map[string]interface{}{
 				"taskID": t.ID,
 				"panic":  r,
 			}).Error("任务执行时发生panic")
@@ -110,7 +111,7 @@ func (t *Task) Execute() {
 
 	select {
 	case <-t.Context.Done():
-		logrus.WithField("taskID", t.ID).Info("任务因连接断开而取消")
+		utils.WithField(t.Context, "taskID", t.ID).Info("任务因连接断开而取消")
 		return
 	default:
 	}
