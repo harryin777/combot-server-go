@@ -21,8 +21,13 @@ type Device struct {
 	Activated         bool       `gorm:"default:false" json:"activated"`
 	ActivatedAt       *time.Time `json:"activated_at"`
 	LastSeen          time.Time  `gorm:"autoUpdateTime" json:"last_seen"`
-	CreatedAt         time.Time  `json:"created_at"`
-	UpdatedAt         time.Time  `json:"updated_at"`
+
+	// 新增字段支持用户关联
+	UserID     *uint  `gorm:"index" json:"user_id"`                   // 关联的用户ID
+	DeviceName string `gorm:"size:100;default:''" json:"device_name"` // 设备昵称
+
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // TableName ...

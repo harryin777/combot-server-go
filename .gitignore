@@ -40,3 +40,6 @@ pip-delete-this-directory.txt
 
 # pyenv
 .python-version
+
+# VSCode workspace files
+*.code-workspace

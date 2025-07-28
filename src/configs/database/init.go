@@ -260,6 +260,8 @@ func migrateTables(db *gorm.DB) error {
 		&models.User{},
 		&models.UserSetting{},
 		&models.ModuleConfig{},
+		&models.Device{},
+		&models.DeviceVerificationCode{},
 	)
 }
 

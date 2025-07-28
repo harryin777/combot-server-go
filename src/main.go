@@ -17,13 +17,10 @@ import (
 
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
-	cfg "xiaozhi-server-go/src/configs/server"
 	"xiaozhi-server-go/src/core"
 	"xiaozhi-server-go/src/core/utils"
 	_ "xiaozhi-server-go/src/docs"
 	"xiaozhi-server-go/src/middleware"
-	"xiaozhi-server-go/src/user"
-	"xiaozhi-server-go/src/vision"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
@@ -43,7 +40,6 @@ import (
 	apiRouter "xiaozhi-server-go/src/router"
 
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
 )
 
@@ -54,12 +50,6 @@ func main() {
 		// 此时全局日志器可能还未初始化，使用标准错误输出
 		fmt.Fprintf(os.Stderr, "加载配置或初始化日志系统失败: %v\n", err)
 		os.Exit(1)
-	}
-
-	// 加载 .env 文件
-	err = godotenv.Load()
-	if err != nil {
-		utils.Warn(context.Background(), "未找到 .env 文件，使用系统环境变量")
 	}
 
 	// 初始化数据库连接
@@ -159,36 +149,8 @@ func StartHttpServer(config *configs.Config, g *errgroup.Group, groupCtx context
 	}
 
 	// API路由全部挂载到/api前缀下
-	apiGroup := router.Group("/api")
-
-	apiRouter.OtaRouter(groupCtx, apiGroup, router, config)
-	apiRouter.ActiveRouter(groupCtx, apiGroup, config)
-
-	// 启动用户管理服务
-	userService := user.NewUserService(config, nil, database.DB)
-	if err := userService.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("用户管理服务启动失败")
-		return err
-	}
-
-	// 启动Vision服务
-	visionService, err := vision.NewDefaultVisionService(config)
-	if err != nil {
-		utils.WithError(context.Background(), err).Error("Vision 服务初始化失败")
-		return err
-	}
-	if err := visionService.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("Vision 服务启动失败")
-		return err
-	}
-
-	cfgServer, err := cfg.NewDefaultCfgService(config, nil)
-	if err != nil {
-		utils.WithError(context.Background(), err).Error("配置服务初始化失败")
-		return err
-	}
-	if err := cfgServer.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("配置服务启动失败")
+	if err := apiRouter.SetupRoutes(groupCtx, router, config); err != nil {
+		utils.WithError(context.Background(), err).Error("路由注册失败")
 		return err
 	}
 

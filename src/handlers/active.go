@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"net/http"
-	"strconv"
+	"time"
+
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
@@ -12,200 +12,175 @@ import (
 
 type ActiveHandler struct {
 	deviceService *service.DeviceService
+	config        *configs.Config
 }
 
-func NewActiveHandler(config *configs.Config) *ActiveHandler {
+func NewActiveHandler() *ActiveHandler {
+	config, _, _ := configs.LoadConfig()
 	return &ActiveHandler{
 		deviceService: service.NewDevice(config),
+		config:        config,
 	}
 }
 
-// RegisterRequest 设备注册请求
-type RegisterRequest struct {
-	SerialNumber      string `json:"serial_number"`
-	DeviceID          string `json:"device_id"`          // MAC地址
-	ClientID          string `json:"client_id"`          // UUID
-	ActivationVersion int    `json:"activation_version"` // 激活版本号
-}
+// CheckVersion 处理设备的版本检查请求 (对应combot的CheckVersion调用)
+// 如果设备未激活，返回包含验证码的activation响应
+func (h *ActiveHandler) CheckVersion(c *gin.Context) {
+	// 从头部获取设备信息
+	deviceID := c.GetHeader("Device-Id")
+	clientID := c.GetHeader("Client-Id")
+	serialNumber := c.GetHeader("Serial-Number")
 
-// RegisterResponse 设备注册响应
-type RegisterResponse struct {
-	DeviceID       uint   `json:"device_id"`
-	ActivationCode string `json:"activation_code"`
-	Challenge      string `json:"challenge"`
-	Token          string `json:"token"`
-}
-
-// TokenRequest 获取token请求
-type TokenRequest struct {
-	DeviceID  string `json:"device_id"` // MAC地址
-	ClientID  string `json:"client_id"` // UUID
-	Challenge string `json:"challenge"` // 当前挑战
-	HMAC      string `json:"hmac"`      // HMAC签名
-}
-
-// TokenResponse 获取token响应
-type TokenResponse struct {
-	Success bool   `json:"success"`
-	Token   string `json:"token,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-// LoginRequest 设备登录请求
-type LoginRequest struct {
-	DeviceID  uint   `json:"device_id"`
-	Challenge string `json:"challenge"`
-	HMAC      string `json:"hmac"`
-}
-
-// LoginResponse 设备登录响应
-type LoginResponse struct {
-	Success bool   `json:"success"`
-	Token   string `json:"token,omitempty"`
-	Message string `json:"message,omitempty"`
-}
-
-// Register 处理设备注册
-func (h *ActiveHandler) Register(c *gin.Context) {
-	var req RegisterRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid register request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+	if deviceID == "" || clientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要的设备标识"})
 		return
 	}
 
-	// 创建或更新设备
-	device, err := h.deviceService.CreateOrUpdateDevice(
-		req.SerialNumber,
-		req.DeviceID,
-		req.ClientID,
-		req.ActivationVersion,
-	)
-	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to create or update device")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to register device"})
-		return
-	}
+	// 检查设备是否已激活
+	device, err := h.deviceService.IdentifyDevice(serialNumber, deviceID, clientID)
+	if err != nil || device == nil || !device.Activated {
+		// 设备未激活，生成验证码
+		code, expiresAt, err := h.deviceService.GenerateDeviceVerificationCode(deviceID, clientID)
+		if err != nil {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+			return
+		}
 
-	// 返回激活信息
-	resp := RegisterResponse{
-		DeviceID:       device.ID,
-		ActivationCode: device.ActivationCode,
-		Challenge:      device.Challenge,
-		Token:          device.Token,
-	}
-
-	c.JSON(http.StatusOK, resp)
-}
-
-// Login 处理设备登录（激活）
-func (h *ActiveHandler) Login(c *gin.Context) {
-	var req LoginRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid login request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
-		return
-	}
-
-	// 激活设备并获取JWT token
-	token, err := h.deviceService.ActivateDeviceAndGetToken(req.DeviceID, req.Challenge, req.HMAC)
-	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to activate device")
-		c.JSON(http.StatusUnauthorized, LoginResponse{
-			Success: false,
-			Message: "Device activation failed: " + err.Error(),
+		// 返回包含验证码的响应 (匹配combot期望的格式)
+		c.JSON(http.StatusOK, gin.H{
+			"activation": gin.H{
+				"code":       code,
+				"challenge":  "dummy_challenge", // combot需要的challenge字段
+				"message":    "设备未激活，请输入验证码完成绑定",
+				"timeout_ms": int64(expiresAt-int(time.Now().Unix())) * 1000,
+			},
 		})
 		return
 	}
 
-	// 激活成功，返回JWT token
-	c.JSON(http.StatusOK, LoginResponse{
-		Success: true,
-		Token:   token,
-		Message: "Device activated successfully",
-	})
-}
-
-// Logout 处理设备登出
-func (h *ActiveHandler) Logout(c *gin.Context) {
-	// 获取设备ID
-	deviceIDStr := c.Query("device_id")
-	if deviceIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "device_id is required"})
-		return
-	}
-
-	deviceID, err := strconv.ParseUint(deviceIDStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid device_id format"})
-		return
-	}
-
-	// 这里可以添加登出逻辑，比如清除session等
-	// 目前只返回成功响应
-	utils.WithField(c.Request.Context(), "device_id", deviceID).Info("Device logout")
-	c.JSON(http.StatusOK, gin.H{"message": "Logout successful"})
-}
-
-// Info 获取设备信息
-func (h *ActiveHandler) Info(c *gin.Context) {
-	// 获取设备ID
-	deviceIDStr := c.Query("device_id")
-	if deviceIDStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "device_id is required"})
-		return
-	}
-
-	deviceID, err := strconv.ParseUint(deviceIDStr, 10, 32)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid device_id format"})
-		return
-	}
-
-	// 查询设备信息
-	device, err := h.deviceService.GetDeviceByID(uint(deviceID))
-	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to get device info")
-		c.JSON(http.StatusNotFound, gin.H{"error": "Device not found"})
-		return
-	}
-
-	// 返回设备信息
+	// 设备已激活，返回正常配置
 	c.JSON(http.StatusOK, gin.H{
-		"device_id":          device.ID,
-		"serial_number":      device.SerialNumber,
-		"device_id_mac":      device.DeviceID,
-		"client_id":          device.ClientID,
-		"activated":          device.Activated,
-		"activated_at":       device.ActivatedAt,
-		"last_seen":          device.LastSeen,
-		"activation_version": device.ActivationVersion,
+		"websocket": gin.H{
+			"url": h.config.Web.Websocket, // 从配置文件读取WebSocket URL
+		},
 	})
 }
 
-// GetToken 获取访问token
-func (h *ActiveHandler) GetToken(c *gin.Context) {
-	var req TokenRequest
+// Activate 处理设备激活请求 (对应combot的Activate调用)
+func (h *ActiveHandler) Activate(c *gin.Context) {
+	// 从头部获取设备信息
+	deviceID := c.GetHeader("Device-Id")
+	clientID := c.GetHeader("Client-Id")
+
+	if deviceID == "" || clientID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少必要的设备标识"})
+		return
+	}
+
+	// 解析请求体中的激活数据
+	var req struct {
+		Algorithm    string `json:"algorithm"`
+		SerialNumber string `json:"serial_number"`
+		Challenge    string `json:"challenge"`
+		Hmac         string `json:"hmac"`
+	}
+
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid token request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
 
-	// 获取设备访问token
-	token, err := h.deviceService.GetDeviceToken(req.DeviceID, req.ClientID, req.Challenge, req.HMAC)
+	// 简化版激活逻辑：先找到设备，然后激活
+	// 在实际生产环境中，这里应该验证HMAC签名
+	device, err := h.deviceService.IdentifyDevice("", deviceID, clientID)
+	if err != nil || device == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "设备未找到"})
+		return
+	}
+
+	err = h.deviceService.ActivateDevice(device.ID, req.Challenge, req.Hmac)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to get device token")
-		c.JSON(http.StatusUnauthorized, TokenResponse{
-			Success: false,
-			Message: "Failed to get token: " + err.Error(),
-		})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, TokenResponse{
-		Success: true,
-		Token:   token,
-		Message: "Token retrieved successfully",
+	c.JSON(http.StatusOK, gin.H{
+		"message": "激活成功",
+	})
+}
+
+// 绑定设备 (用户输入验证码)
+type BindDeviceRequest struct {
+	VerificationCode string `json:"verification_code" binding:"required"`
+	DeviceName       string `json:"device_name" binding:"required"`
+}
+
+type BindDeviceResponse struct {
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+}
+
+func (h *ActiveHandler) BindDevice(c *gin.Context) {
+	var req BindDeviceRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		return
+	}
+
+	device, err := h.deviceService.BindDeviceToUser(userID.(uint), req.VerificationCode, req.DeviceName)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, BindDeviceResponse{
+		DeviceID:   device.DeviceID,
+		DeviceName: device.DeviceName,
+	})
+}
+
+// 获取用户设备列表
+type GetUserDevicesResponse struct {
+	Devices []UserDevice `json:"devices"`
+}
+
+type UserDevice struct {
+	ID         uint   `json:"id"`
+	DeviceID   string `json:"device_id"`
+	DeviceName string `json:"device_name"`
+	Activated  bool   `json:"activated"`
+}
+
+func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
+	userID, exists := c.Get("userID")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		return
+	}
+
+	devices, err := h.deviceService.GetUserDevices(userID.(uint))
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	userDevices := make([]UserDevice, len(devices))
+	for i, device := range devices {
+		userDevices[i] = UserDevice{
+			ID:         device.ID,
+			DeviceID:   device.DeviceID,
+			DeviceName: device.DeviceName,
+			Activated:  device.Activated,
+		}
+	}
+
+	c.JSON(http.StatusOK, GetUserDevicesResponse{
+		Devices: userDevices,
 	})
 }

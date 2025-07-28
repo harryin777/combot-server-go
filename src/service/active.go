@@ -2,6 +2,7 @@ package service
 
 import (
 	"errors"
+	"fmt"
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
@@ -235,4 +236,123 @@ func (s *DeviceService) GetDeviceToken(deviceID, clientID, challenge, hmacHex st
 	}
 
 	return token, nil
+}
+
+// GenerateDeviceVerificationCode 为设备生成验证码
+func (s *DeviceService) GenerateDeviceVerificationCode(deviceID, clientID string) (string, int, error) {
+	// 清理过期的验证码
+	database.DB.Where("expires_at < ?", time.Now()).Delete(&models.DeviceVerificationCode{})
+
+	// 检查是否已存在未过期的验证码
+	var existingCode models.DeviceVerificationCode
+	err := database.DB.Where("device_id = ? AND client_id = ? AND used = false AND expires_at > ?",
+		deviceID, clientID, time.Now()).First(&existingCode).Error
+
+	if err == nil {
+		// 返回现有未过期的验证码
+		expiresIn := int(time.Until(existingCode.ExpiresAt).Seconds())
+		return existingCode.VerificationCode, expiresIn, nil
+	}
+
+	// 生成新的6位验证码
+	verificationCode := models.GenerateActivationCode()
+	expiresAt := time.Now().Add(10 * time.Minute) // 10分钟过期
+
+	// 存储验证码
+	deviceVerification := models.DeviceVerificationCode{
+		DeviceID:         deviceID,
+		ClientID:         clientID,
+		VerificationCode: verificationCode,
+		ExpiresAt:        expiresAt,
+		Used:             false,
+	}
+
+	if err := database.DB.Create(&deviceVerification).Error; err != nil {
+		return "", 0, fmt.Errorf("failed to create verification code: %w", err)
+	}
+
+	expiresIn := int(time.Until(expiresAt).Seconds())
+	return verificationCode, expiresIn, nil
+}
+
+// BindDeviceToUser 验证验证码并绑定设备到用户
+func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceName string) (*models.Device, error) {
+	// 查找验证码
+	var deviceVerification models.DeviceVerificationCode
+	err := database.DB.Where("verification_code = ? AND used = false AND expires_at > ?",
+		verificationCode, time.Now()).First(&deviceVerification).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("invalid or expired verification code")
+		}
+		return nil, fmt.Errorf("failed to find verification code: %w", err)
+	}
+
+	// 标记验证码为已使用
+	deviceVerification.Used = true
+	if err := database.DB.Save(&deviceVerification).Error; err != nil {
+		return nil, fmt.Errorf("failed to mark verification code as used: %w", err)
+	}
+
+	// 查找或创建设备
+	var device models.Device
+	err = database.DB.Where("device_id = ? AND client_id = ?",
+		deviceVerification.DeviceID, deviceVerification.ClientID).First(&device).Error
+
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// 创建新设备
+		device = models.Device{
+			DeviceID:          deviceVerification.DeviceID,
+			ClientID:          deviceVerification.ClientID,
+			UserID:            &userID,
+			DeviceName:        deviceName,
+			ActivationVersion: 1,
+			ActivationCode:    models.GenerateActivationCode(),
+			Challenge:         models.GenerateChallenge(),
+			Token:             models.GenerateToken(),
+			Activated:         true,
+			ActivatedAt:       &time.Time{},
+		}
+		now := time.Now()
+		device.ActivatedAt = &now
+
+		if err := database.DB.Create(&device).Error; err != nil {
+			return nil, fmt.Errorf("failed to create device: %w", err)
+		}
+	} else if err != nil {
+		return nil, fmt.Errorf("failed to query device: %w", err)
+	} else {
+		// 更新现有设备
+		updates := map[string]interface{}{
+			"user_id":     userID,
+			"device_name": deviceName,
+			"activated":   true,
+		}
+		if !device.Activated {
+			now := time.Now()
+			updates["activated_at"] = &now
+		}
+
+		if err := database.DB.Model(&device).Updates(updates).Error; err != nil {
+			return nil, fmt.Errorf("failed to update device: %w", err)
+		}
+
+		// 重新查询以获取更新后的数据
+		if err := database.DB.Where("id = ?", device.ID).First(&device).Error; err != nil {
+			return nil, fmt.Errorf("failed to reload device: %w", err)
+		}
+	}
+
+	return &device, nil
+}
+
+// GetUserDevices 获取用户的设备列表
+func (s *DeviceService) GetUserDevices(userID uint) ([]models.Device, error) {
+	var devices []models.Device
+	err := database.DB.Where("user_id = ?", userID).Find(&devices).Error
+	if err != nil {
+		return nil, fmt.Errorf("failed to get user devices: %w", err)
+	}
+	return devices, nil
 }

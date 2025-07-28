@@ -5,6 +5,12 @@ import (
 	"gorm.io/datatypes"
 )
 
+// 用户角色枚举
+const (
+	UserRoleUser  int8 = 1 // 普通用户
+	UserRoleAdmin int8 = 2 // 管理员
+)
+
 // 系统全局配置（只保存一条记录）
 type SystemConfig struct {
 	ID               int64          `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:主键ID"`
@@ -24,11 +30,10 @@ func (SystemConfig) TableName() string {
 
 // 用户
 type User struct {
-	ID       int64       `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:用户ID"`
-	Username string      `json:"username" gorm:"column:username;type:varchar(50);uniqueIndex;not null;comment:用户名"`
-	Password string      `json:"password" gorm:"column:password;type:varchar(255);not null;comment:密码（建议加密）"`
-	Role     string      `json:"role" gorm:"column:role;type:varchar(20);not null;default:'user';comment:用户角色（admin/user）"`
-	Setting  UserSetting `json:"setting" gorm:"foreignKey:UserID;references:ID"`
+	ID      int64       `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:用户ID"`
+	Phone   string      `json:"phone" gorm:"column:phone;type:varchar(20);uniqueIndex;not null;comment:手机号"`
+	Role    int8        `json:"role" gorm:"column:role;type:tinyint;not null;default:1;comment:用户角色（1=用户，2=管理员）"`
+	Setting UserSetting `json:"setting" gorm:"foreignKey:UserID;references:ID"`
 }
 
 func (User) TableName() string {

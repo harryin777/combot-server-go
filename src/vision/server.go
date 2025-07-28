@@ -97,7 +97,6 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 
 // Start 实现 VisionService 接口，注册所有 Vision 相关路由
 func (s *DefaultVisionService) Start(ctx context.Context, engine *gin.Engine, apiGroup *gin.RouterGroup) error {
-	// Vision 主接口（GET用于状态检查，POST用于图片分析）
 	apiGroup.GET("/vision", s.handleGet)
 	apiGroup.POST("/vision", s.handlePost)
 	apiGroup.OPTIONS("/vision", s.handleOptions)
@@ -106,14 +105,24 @@ func (s *DefaultVisionService) Start(ctx context.Context, engine *gin.Engine, ap
 	return nil
 }
 
-// handleOptions 处理OPTIONS请求（CORS）
+// @Summary Vision CORS preflight
+// @Description 处理CORS预检请求
+// @Tags Vision
+// @Produce text/plain
+// @Success 200
+// @Router /vision [options]
 func (s *DefaultVisionService) handleOptions(c *gin.Context) {
 	utils.Info(context.Background(), "收到Vision CORS预检请求 options")
 	s.addCORSHeaders(c)
 	c.Status(http.StatusOK)
 }
 
-// handleGet 处理GET请求（状态检查）
+// @Summary Vision status check
+// @Description 检查Vision服务状态
+// @Tags Vision
+// @Produce text/plain
+// @Success 200 {string} string "状态信息"
+// @Router /vision [get]
 func (s *DefaultVisionService) handleGet(c *gin.Context) {
 	utils.Info(context.Background(), "收到Vision状态检查请求 get")
 	s.addCORSHeaders(c)
@@ -129,7 +138,20 @@ func (s *DefaultVisionService) handleGet(c *gin.Context) {
 	c.String(http.StatusOK, message)
 }
 
-// handlePost 处理POST请求（图片分析）
+// @Summary Vision image analysis
+// @Description 上传图片并获取分析结果
+// @Tags Vision
+// @Accept multipart/form-data
+// @Param file formData file true "Image file"
+// @Param question formData string true "Question text"
+// @Param Device-Id header string true "Device ID"
+// @Param Authorization header string true "Bearer token"
+// @Produce application/json
+// @Success 200 {object} VisionResponse
+// @Failure 400 {object} VisionResponse
+// @Failure 401 {object} VisionResponse
+// @Failure 500 {object} VisionResponse
+// @Router /vision [post]
 func (s *DefaultVisionService) handlePost(c *gin.Context) {
 	s.addCORSHeaders(c)
 
