@@ -402,7 +402,7 @@ func (c *XiaoZhiMCPClient) SendMCPToolsListContinueRequest(cursor string) error 
 }
 
 // HandleMCPMessage 处理MCP消息
-func (c *XiaoZhiMCPClient) HandleMCPMessage(msgMap map[string]interface{}) error {
+func (c *XiaoZhiMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
 	//c.logger.Info("处理MCP消息: " + fmt.Sprintf("%v", msgMap))
 	// 获取payload
 	payload, ok := msgMap["payload"].(map[string]interface{})

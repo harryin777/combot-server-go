@@ -267,12 +267,12 @@ func (m *Manager) LoadConfig() map[string]interface{} {
 	return config.MCPServers
 }
 
-func (m *Manager) HandleXiaoZhiMCPMessage(msgMap map[string]interface{}) error {
+func (m *Manager) HandleXiaoZhiMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
 	// 处理小智MCP消息
 	if m.XiaoZhiMCPClient == nil {
 		return fmt.Errorf("XiaoZhiMCPClient is not initialized")
 	}
-	m.XiaoZhiMCPClient.HandleMCPMessage(msgMap)
+	m.XiaoZhiMCPClient.HandleMCPMessage(ctx, msgMap)
 	if m.XiaoZhiMCPClient.IsReady() && !m.bRegisteredXiaoZhiMCP {
 		// 注册小智MCP工具
 		m.registerTools(m.XiaoZhiMCPClient.GetAvailableTools())

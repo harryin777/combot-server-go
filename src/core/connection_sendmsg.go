@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
@@ -157,9 +158,9 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 	if textIndex == 1 {
 		now := time.Now()
 		spentTime := now.Sub(h.roundStartTime)
-		h.logger.Debug("回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
+		utils.Debugf(context.Background(), "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	h.logger.Debug("TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
+	utils.Debugf(context.Background(), "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(audioData, text, round); err != nil {

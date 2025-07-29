@@ -8,6 +8,7 @@ import (
 
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/utils"
+	"xiaozhi-server-go/src/core/utils/gormlogrus"
 	"xiaozhi-server-go/src/models"
 
 	"gorm.io/driver/mysql"
@@ -17,44 +18,6 @@ import (
 
 	gorm_logger "gorm.io/gorm/logger"
 )
-
-type DBLogger struct {
-	// 移除logger字段，直接使用logrus
-}
-
-func (l *DBLogger) LogMode(level gorm_logger.LogLevel) gorm_logger.Interface {
-	return &DBLogger{}
-}
-
-func (l *DBLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	utils.Infof(ctx, msg, data...)
-}
-
-func (l *DBLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	utils.Warnf(ctx, msg, data...)
-}
-
-func (l *DBLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	utils.Errorf(ctx, msg, data...)
-}
-func (l *DBLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
-	sql, rows := fc()
-	elapsed := time.Since(begin)
-	if err != nil {
-		utils.WithFields(ctx, map[string]interface{}{
-			"sql":     sql,
-			"rows":    rows,
-			"elapsed": elapsed,
-			"err":     err,
-		}).Error("SQL Trace Error")
-	} else {
-		utils.WithFields(ctx, map[string]interface{}{
-			"sql":     sql,
-			"rows":    rows,
-			"elapsed": elapsed,
-		}).Debug("SQL Trace")
-	}
-}
 
 var DB *gorm.DB
 
@@ -73,21 +36,22 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 	var (
 		db  *gorm.DB
 		err error
-		lg  DBLogger
 	)
+	// 使用全局logrus适配器
+	gormLogger := gormlogrus.NewGormLogrusLogger(gorm_logger.Info)
 
 	switch dbType {
 	case "mysql":
 		db, err = gorm.Open(mysql.Open(dsn), &gorm.Config{
-			Logger: &lg,
+			Logger: gormLogger,
 		})
 	case "postgres":
 		db, err = gorm.Open(postgres.Open(dsn), &gorm.Config{
-			Logger: &lg,
+			Logger: gormLogger,
 		})
 	case "sqlite":
 		db, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{
-			Logger: &lg,
+			Logger: gormLogger,
 		})
 	default:
 		return nil, "", fmt.Errorf("不支持的数据库类型: %s", dbType)
@@ -262,6 +226,8 @@ func migrateTables(db *gorm.DB) error {
 		&models.ModuleConfig{},
 		&models.Device{},
 		&models.DeviceVerificationCode{},
+		&models.ConversationHistory{},
+		&models.ConversationSession{},
 	)
 }
 
