@@ -3,12 +3,13 @@ package router
 import (
 	"context"
 
-	"github.com/gin-gonic/gin"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
 	cfg "xiaozhi-server-go/src/configs/server"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/user"
+
+	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes 统一注册所有路由
@@ -22,6 +23,9 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	AuthRouter(groupCtx, apiGroup, config)
 	ConversationRoutes(groupCtx, apiGroup, config)
 	VisionRouter(groupCtx, apiGroup, router, config)
+
+	// 为ComBot兼容性，在根路径也注册OTA路由
+	OtaRouter(groupCtx, router.Group(""), router, config)
 
 	// 启动用户管理服务
 	userService := user.NewUserService(config, database.DB)

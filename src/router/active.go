@@ -15,11 +15,7 @@ func ActiveRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *config
 	// 创建ActiveHandler实例
 	activeHandler := handlers.NewActiveHandler()
 
-	// 匹配combot实际API调用
-	apiGroup.Any("", activeHandler.CheckVersion)       // 对应combot的CheckVersion调用
-	apiGroup.POST("/activate", activeHandler.Activate) // 对应combot的Activate调用
-
-	// 设备添加相关路由 (兼容现有逻辑)
+	// 设备管理相关路由 (仅供Web前端使用)
 	activeGroup := apiGroup.Group("/active")
 	{
 		// 需要身份验证的路由

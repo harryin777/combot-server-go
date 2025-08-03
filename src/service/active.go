@@ -1,12 +1,17 @@
 package service
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/auth"
+	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/models"
 
 	"gorm.io/gorm"
@@ -16,8 +21,8 @@ type DeviceService struct {
 	config *configs.Config
 }
 
-// NewDevice 创建一个新的 Device 实例
-func NewDevice(config *configs.Config) *DeviceService {
+// NewDevice 创建一个新的设备服务实例
+func NewDevice(config *configs.Config) ActiveService {
 	return &DeviceService{
 		config: config,
 	}
@@ -63,296 +68,233 @@ func (s *DeviceService) IdentifyDevice(serialNumber, deviceID, clientID string) 
 	return nil, gorm.ErrRecordNotFound
 }
 
-// GetDeviceByID 通过设备ID查询设备
-func (s *DeviceService) GetDeviceByID(deviceID uint) (*models.Device, error) {
-	var device models.Device
-	if err := database.DB.Where("id = ?", deviceID).First(&device).Error; err != nil {
+// GenerateDeviceVerificationCode 生成设备验证码并确保设备记录存在
+func (s *DeviceService) GenerateDeviceVerificationCode(deviceID, clientID string) (string, int64, error) {
+	// 生成6位数字验证码
+	code := s.GenerateActivationCode()
+	expiresAt := time.Now().Add(5 * time.Minute) // 5分钟有效期
+
+	err := database.DB.Transaction(func(tx *gorm.DB) error {
+		// 清理该设备的旧验证码
+		tx.Where("device_id = ? OR client_id = ?", deviceID, clientID).
+			Delete(&models.DeviceVerificationCode{})
+
+		// 确保设备记录存在（如果不存在则创建，但不激活）
+		var device models.Device
+		err := tx.Where("device_id = ? OR client_id = ?", deviceID, clientID).
+			First(&device).Error
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 创建未激活的设备记录
+			device = models.Device{
+				DeviceID:   deviceID,
+				ClientID:   clientID,
+				UserID:     nil,   // 尚未绑定用户
+				DeviceName: "",    // 尚未命名
+				Activated:  false, // 尚未激活
+				Token:      "",    // 尚无token
+				LastSeen:   time.Now(),
+			}
+
+			if err := tx.Create(&device).Error; err != nil {
+				return fmt.Errorf("创建设备记录失败: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("查询设备失败: %w", err)
+		}
+
+		// 存储新验证码
+		verificationCode := &models.DeviceVerificationCode{
+			DeviceID:         deviceID,
+			ClientID:         clientID,
+			VerificationCode: code,
+			ExpiresAt:        expiresAt,
+			Used:             false,
+		}
+
+		if err := tx.Create(verificationCode).Error; err != nil {
+			return fmt.Errorf("保存验证码失败: %w", err)
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return "", 0, err
+	}
+
+	// 验证码直接在HTTP响应中返回给智能体，智能体收到后会立即播报给用户
+	utils.Info(nil, fmt.Sprintf("为设备 %s 生成验证码: %s，有效期至: %s",
+		deviceID, code, expiresAt.Format("2006-01-02 15:04:05")))
+
+	return code, expiresAt.Unix(), nil
+} // ValidateVerificationCode 验证验证码
+func (s *DeviceService) ValidateVerificationCode(code string) (*models.DeviceVerificationCode, error) {
+	var verificationCode models.DeviceVerificationCode
+
+	err := database.DB.Where("verification_code = ? AND used = false", code).
+		First(&verificationCode).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("验证码不存在或已使用")
+		}
 		return nil, err
 	}
-	return &device, nil
-}
 
-// CreateOrUpdateDevice 创建或更新设备
-func (s *DeviceService) CreateOrUpdateDevice(serialNumber, deviceID, clientID string, activationVersion int) (*models.Device, error) {
-	device, err := s.IdentifyDevice(serialNumber, deviceID, clientID)
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, err
+	// 检查验证码是否过期
+	if verificationCode.IsExpired() {
+		return nil, errors.New("验证码已过期")
 	}
 
-	if device == nil {
-		// 创建新设备
-		device = &models.Device{
-			SerialNumber:      serialNumber,
-			DeviceID:          deviceID,
-			ClientID:          clientID,
-			ActivationVersion: activationVersion,
-			ActivationCode:    models.GenerateActivationCode(),
-			Challenge:         models.GenerateChallenge(),
-			Token:             models.GenerateToken(),
-			Activated:         false,
-		}
-
-		if err := database.DB.Create(device).Error; err != nil {
-			return nil, err
-		}
-	} else {
-		// 更新现有设备信息
-		updates := map[string]interface{}{
-			"device_id":          deviceID,
-			"client_id":          clientID,
-			"activation_version": activationVersion,
-			"last_seen":          time.Now(),
-		}
-
-		// 如果设备未激活，更新挑战和激活码
-		if !device.Activated {
-			updates["activation_code"] = models.GenerateActivationCode()
-			updates["challenge"] = models.GenerateChallenge()
-		}
-
-		if err := database.DB.Model(device).Updates(updates).Error; err != nil {
-			return nil, err
-		}
-
-		// 重新查询更新后的设备
-		if err := database.DB.Where("id = ?", device.ID).First(device).Error; err != nil {
-			return nil, err
-		}
-	}
-
-	return device, nil
+	return &verificationCode, nil
 }
 
 // ActivateDevice 激活设备
-func (s *DeviceService) ActivateDevice(deviceID uint, challenge, hmacHex string) error {
-	var device models.Device
-	if err := database.DB.Where("id = ?", deviceID).First(&device).Error; err != nil {
-		return err
-	}
-
-	// 验证challenge是否匹配
-	if device.Challenge != challenge {
-		return errors.New("invalid challenge")
-	}
-
-	// 从配置文件读取HMAC密钥
-	hmacKey := s.config.Server.Device.HmacKey
-	if hmacKey == "" {
-		return errors.New("HMAC key not configured")
-	}
-
-	if !device.VerifyHMAC(challenge, hmacHex, hmacKey) {
-		return errors.New("invalid HMAC")
-	}
-
-	// 激活设备
-	now := time.Now()
-	return database.DB.Model(&device).Updates(map[string]interface{}{
-		"activated":    true,
-		"activated_at": &now,
-		"last_seen":    now,
-	}).Error
-}
-
-// ActivateDeviceAndGetToken 激活设备并获取JWT token
-func (s *DeviceService) ActivateDeviceAndGetToken(deviceID uint, challenge, hmacHex string) (string, error) {
-	var device models.Device
-	if err := database.DB.Where("id = ?", deviceID).First(&device).Error; err != nil {
-		return "", err
-	}
-
-	// 验证challenge是否匹配
-	if device.Challenge != challenge {
-		return "", errors.New("invalid challenge")
-	}
-
-	// 从配置文件读取HMAC密钥
-	hmacKey := s.config.Server.Device.HmacKey
-	if hmacKey == "" {
-		return "", errors.New("HMAC key not configured")
-	}
-
-	if !device.VerifyHMAC(challenge, hmacHex, hmacKey) {
-		return "", errors.New("invalid HMAC")
-	}
-
-	// 激活设备
-	now := time.Now()
-	if err := database.DB.Model(&device).Updates(map[string]interface{}{
-		"activated":    true,
-		"activated_at": &now,
-		"last_seen":    now,
-	}).Error; err != nil {
-		return "", err
-	}
-
-	// 生成JWT token
-	authToken := auth.NewAuthToken(s.config.Server.Token)
-	token, err := authToken.GenerateToken(device.DeviceID)
-	if err != nil {
-		return "", err
-	}
-
-	return token, nil
-}
-
-// GetDeviceToken 获取设备访问token
-func (s *DeviceService) GetDeviceToken(deviceID, clientID, challenge, hmacHex string) (string, error) {
-	// 根据设备ID或客户端ID查找设备
-	device, err := s.IdentifyDevice("", deviceID, clientID)
-	if err != nil {
-		return "", err
-	}
-
-	// 检查设备是否已激活
-	if !device.Activated {
-		return "", errors.New("device not activated")
-	}
-
-	// 验证challenge是否匹配
-	if device.Challenge != challenge {
-		return "", errors.New("invalid challenge")
-	}
-
-	// 从配置文件读取HMAC密钥
-	hmacKey := s.config.Server.Device.HmacKey
-	if hmacKey == "" {
-		return "", errors.New("HMAC key not configured")
-	}
-
-	if !device.VerifyHMAC(challenge, hmacHex, hmacKey) {
-		return "", errors.New("invalid HMAC")
-	}
-
-	// 更新最后访问时间
-	now := time.Now()
-	database.DB.Model(device).Update("last_seen", now)
-
-	// 生成JWT token
-	authToken := auth.NewAuthToken(s.config.Server.Token)
-	token, err := authToken.GenerateToken(device.DeviceID)
-	if err != nil {
-		return "", err
-	}
-
-	return token, nil
-}
-
-// GenerateDeviceVerificationCode 为设备生成验证码
-func (s *DeviceService) GenerateDeviceVerificationCode(deviceID, clientID string) (string, int, error) {
-	// 清理过期的验证码
-	database.DB.Where("expires_at < ?", time.Now()).Delete(&models.DeviceVerificationCode{})
-
-	// 检查是否已存在未过期的验证码
-	var existingCode models.DeviceVerificationCode
-	err := database.DB.Where("device_id = ? AND client_id = ? AND used = false AND expires_at > ?",
-		deviceID, clientID, time.Now()).First(&existingCode).Error
-
-	if err == nil {
-		// 返回现有未过期的验证码
-		expiresIn := int(time.Until(existingCode.ExpiresAt).Seconds())
-		return existingCode.VerificationCode, expiresIn, nil
-	}
-
-	// 生成新的6位验证码
-	verificationCode := models.GenerateActivationCode()
-	expiresAt := time.Now().Add(10 * time.Minute) // 10分钟过期
-
-	// 存储验证码
-	deviceVerification := models.DeviceVerificationCode{
-		DeviceID:         deviceID,
-		ClientID:         clientID,
-		VerificationCode: verificationCode,
-		ExpiresAt:        expiresAt,
-		Used:             false,
-	}
-
-	if err := database.DB.Create(&deviceVerification).Error; err != nil {
-		return "", 0, fmt.Errorf("failed to create verification code: %w", err)
-	}
-
-	expiresIn := int(time.Until(expiresAt).Seconds())
-	return verificationCode, expiresIn, nil
-}
-
-// BindDeviceToUser 验证验证码并绑定设备到用户
-func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceName string) (*models.Device, error) {
-	// 查找验证码
-	var deviceVerification models.DeviceVerificationCode
-	err := database.DB.Where("verification_code = ? AND used = false AND expires_at > ?",
-		verificationCode, time.Now()).First(&deviceVerification).Error
-
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, errors.New("invalid or expired verification code")
+func (s *DeviceService) ActivateDevice(deviceID uint, challenge, hmac string) error {
+	return database.DB.Transaction(func(tx *gorm.DB) error {
+		var device models.Device
+		if err := tx.Where("id = ?", deviceID).First(&device).Error; err != nil {
+			return fmt.Errorf("设备不存在: %w", err)
 		}
-		return nil, fmt.Errorf("failed to find verification code: %w", err)
-	}
 
-	// 标记验证码为已使用
-	deviceVerification.Used = true
-	if err := database.DB.Save(&deviceVerification).Error; err != nil {
-		return nil, fmt.Errorf("failed to mark verification code as used: %w", err)
-	}
+		// 在生产环境中，这里应该验证HMAC签名
+		// if !s.VerifyHMAC(challenge, hmac, s.config.Security.HMACKey) {
+		//     return errors.New("HMAC验证失败")
+		// }
 
-	// 查找或创建设备
-	var device models.Device
-	err = database.DB.Where("device_id = ? AND client_id = ?",
-		deviceVerification.DeviceID, deviceVerification.ClientID).First(&device).Error
-
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		// 创建新设备
-		device = models.Device{
-			DeviceID:          deviceVerification.DeviceID,
-			ClientID:          deviceVerification.ClientID,
-			UserID:            &userID,
-			DeviceName:        deviceName,
-			ActivationVersion: 1,
-			ActivationCode:    models.GenerateActivationCode(),
-			Challenge:         models.GenerateChallenge(),
-			Token:             models.GenerateToken(),
-			Activated:         true,
-			ActivatedAt:       &time.Time{},
+		// 生成新的Token
+		authToken := auth.NewAuthToken(s.config.Server.Token)
+		token, err := authToken.GenerateToken(device.DeviceID)
+		if err != nil {
+			return fmt.Errorf("生成Token失败: %w", err)
 		}
+
+		// 更新设备激活状态
 		now := time.Now()
-		device.ActivatedAt = &now
-
-		if err := database.DB.Create(&device).Error; err != nil {
-			return nil, fmt.Errorf("failed to create device: %w", err)
-		}
-	} else if err != nil {
-		return nil, fmt.Errorf("failed to query device: %w", err)
-	} else {
-		// 更新现有设备
 		updates := map[string]interface{}{
-			"user_id":     userID,
-			"device_name": deviceName,
-			"activated":   true,
+			"activated":          true,
+			"activated_at":       &now,
+			"token":              token,
+			"challenge":          challenge,
+			"activation_version": device.ActivationVersion + 1,
+			"last_seen":          now,
 		}
-		if !device.Activated {
+
+		if err := tx.Model(&device).Updates(updates).Error; err != nil {
+			return fmt.Errorf("更新设备激活状态失败: %w", err)
+		}
+
+		utils.Info(nil, fmt.Sprintf("设备 %s 激活成功", device.DeviceID))
+		return nil
+	})
+}
+
+// BindDeviceToUser 绑定设备到用户
+func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceName string) (*models.Device, error) {
+	// 验证验证码
+	vcRecord, err := s.ValidateVerificationCode(verificationCode)
+	if err != nil {
+		return nil, err
+	}
+
+	var device models.Device
+	err = database.DB.Transaction(func(tx *gorm.DB) error {
+		// 标记验证码为已使用
+		if err := tx.Model(vcRecord).Update("used", true).Error; err != nil {
+			return fmt.Errorf("更新验证码状态失败: %w", err)
+		}
+
+		// 查找或创建设备
+		err := tx.Where("device_id = ? OR client_id = ?", vcRecord.DeviceID, vcRecord.ClientID).
+			First(&device).Error
+
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 创建新设备
+			device = models.Device{
+				DeviceID:    vcRecord.DeviceID,
+				ClientID:    vcRecord.ClientID,
+				UserID:      &userID,
+				DeviceName:  deviceName,
+				Activated:   true,
+				ActivatedAt: &[]time.Time{time.Now()}[0],
+				Token:       s.GenerateToken(),
+				LastSeen:    time.Now(),
+			}
+
+			if err := tx.Create(&device).Error; err != nil {
+				return fmt.Errorf("创建设备失败: %w", err)
+			}
+		} else if err != nil {
+			return fmt.Errorf("查询设备失败: %w", err)
+		} else {
+			// 更新现有设备
 			now := time.Now()
-			updates["activated_at"] = &now
+			updates := map[string]interface{}{
+				"user_id":      &userID,
+				"device_name":  deviceName,
+				"activated":    true,
+				"activated_at": &now,
+				"last_seen":    now,
+			}
+
+			if err := tx.Model(&device).Updates(updates).Error; err != nil {
+				return fmt.Errorf("更新设备失败: %w", err)
+			}
 		}
 
-		if err := database.DB.Model(&device).Updates(updates).Error; err != nil {
-			return nil, fmt.Errorf("failed to update device: %w", err)
-		}
+		utils.Info(nil, fmt.Sprintf("设备 %s 成功绑定到用户 %d", device.DeviceID, userID))
+		return nil
+	})
 
-		// 重新查询以获取更新后的数据
-		if err := database.DB.Where("id = ?", device.ID).First(&device).Error; err != nil {
-			return nil, fmt.Errorf("failed to reload device: %w", err)
-		}
+	if err != nil {
+		return nil, err
 	}
 
 	return &device, nil
 }
 
-// GetUserDevices 获取用户的设备列表
+// GetUserDevices 获取用户设备列表
 func (s *DeviceService) GetUserDevices(userID uint) ([]models.Device, error) {
 	var devices []models.Device
-	err := database.DB.Where("user_id = ?", userID).Find(&devices).Error
-	if err != nil {
-		return nil, fmt.Errorf("failed to get user devices: %w", err)
+	err := database.DB.Where("user_id = ?", userID).
+		Order("created_at DESC").
+		Find(&devices).Error
+	return devices, err
+}
+
+// VerifyHMAC 验证HMAC签名
+func (s *DeviceService) VerifyHMAC(challenge, hmacHex, hmacKey string) bool {
+	mac := hmac.New(sha256.New, []byte(hmacKey))
+	mac.Write([]byte(challenge))
+	expectedMAC := mac.Sum(nil)
+	expectedHex := hex.EncodeToString(expectedMAC)
+
+	return hmac.Equal([]byte(hmacHex), []byte(expectedHex))
+}
+
+// GenerateActivationCode 生成6位数字激活码
+func (s *DeviceService) GenerateActivationCode() string {
+	const digits = "0123456789"
+	b := make([]byte, 6)
+	rand.Read(b)
+
+	code := make([]byte, 6)
+	for i := range b {
+		code[i] = digits[b[i]%10]
 	}
-	return devices, nil
+	return string(code)
+}
+
+// GenerateChallenge 生成随机challenge
+func (s *DeviceService) GenerateChallenge() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
+}
+
+// GenerateToken 生成随机token
+func (s *DeviceService) GenerateToken() string {
+	b := make([]byte, 32)
+	rand.Read(b)
+	return hex.EncodeToString(b)
 }

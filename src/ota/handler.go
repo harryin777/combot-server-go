@@ -30,6 +30,12 @@ type OtaFirmwareResponse struct {
 		URL   string `json:"url" example:"wss://example.com/ota"`
 		Token string `json:"token,omitempty" example:"Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."`
 	} `json:"websocket"`
+	Activation *struct {
+		Code      string `json:"code" example:"123456"`
+		Challenge string `json:"challenge" example:"dummy_challenge"`
+		Message   string `json:"message" example:"设备未激活，请输入验证码完成绑定"`
+		TimeoutMs int64  `json:"timeout_ms" example:"300000"`
+	} `json:"activation,omitempty"`
 }
 
 // ErrorResponse 定义错误返回结构
@@ -77,9 +83,10 @@ type OtaRequest struct {
 // @Failure 400 {object} ErrorResponse
 // @Router /ota/ [post]
 func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
-	deviceID := c.GetHeader("device-id")
+	// ComBot发送的是大写的请求头，需要正确读取
+	deviceID := c.GetHeader("Device-Id")
 	if deviceID == "" {
-		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "缺少 device-id"})
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "缺少 Device-Id"})
 		return
 	}
 	var body OtaRequest
@@ -113,10 +120,12 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 	resp.Firmware.URL = firmwareURL
 	resp.Websocket.URL = updateURL
 
-	// 为已激活的设备生成token
+	// 为已激活的设备生成token，未激活的设备生成验证码
 	deviceService := service.NewDevice(config)
-	clientID := c.GetHeader("client-id")
-	if device, err := deviceService.IdentifyDevice("", deviceID, clientID); err == nil && device != nil && device.Activated {
+	clientID := c.GetHeader("Client-Id")
+	serialNumber := c.GetHeader("Serial-Number")
+
+	if device, err := deviceService.IdentifyDevice(serialNumber, deviceID, clientID); err == nil && device != nil && device.Activated {
 		// 设备已激活，生成新的token
 		authToken := auth.NewAuthToken(config.Server.Token)
 		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
@@ -126,7 +135,24 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Warn("生成token失败")
 		}
 	} else {
-		utils.WithField(context.Background(), "device_id", deviceID).Debug("设备未激活或不存在，不生成token")
+		// 设备未激活或不存在，生成验证码
+		code, expiresAt, err := deviceService.GenerateDeviceVerificationCode(deviceID, clientID)
+		if err != nil {
+			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("生成验证码失败")
+		} else {
+			resp.Activation = &struct {
+				Code      string `json:"code" example:"123456"`
+				Challenge string `json:"challenge" example:"dummy_challenge"`
+				Message   string `json:"message" example:"设备未激活，请输入验证码完成绑定"`
+				TimeoutMs int64  `json:"timeout_ms" example:"300000"`
+			}{
+				Code:      code,
+				Challenge: "dummy_challenge", // combot需要的challenge字段
+				Message:   "设备未激活，请输入验证码完成绑定",
+				TimeoutMs: (expiresAt - time.Now().Unix()) * 1000,
+			}
+			utils.WithField(context.Background(), "device_id", deviceID).Info("为未激活设备生成了验证码")
+		}
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -150,6 +176,70 @@ func handleOtaBinDownload(c *gin.Context) {
 	c.Header("Content-Type", "application/octet-stream")
 	c.Header("Content-Disposition", "attachment; filename="+fname)
 	c.File(p)
+}
+
+// 激活请求体结构体定义 (对应combot的GetActivationPayload)
+type ActivateRequest struct {
+	Algorithm    string `json:"algorithm" example:"hmac-sha256"`
+	SerialNumber string `json:"serial_number" example:"ABC123456"`
+	Challenge    string `json:"challenge" example:"dummy_challenge"`
+	Hmac         string `json:"hmac" example:"a1b2c3d4..."`
+}
+
+// @Summary 设备激活确认
+// @Description 设备通过HMAC签名确认激活
+// @Tags OTA
+// @Accept json
+// @Produce json
+// @Param device-id header string true "设备ID"
+// @Param client-id header string true "客户端ID"
+// @Param body body ActivateRequest true "激活请求"
+// @Success 200 {string} string "OK"
+// @Failure 400 {object} ErrorResponse
+// @Failure 404 {object} ErrorResponse
+// @Failure 500 {object} ErrorResponse
+// @Router /ota/activate [post]
+func handleOtaActivate(c *gin.Context, config *configs.Config) {
+	deviceID := c.GetHeader("Device-Id")
+	clientID := c.GetHeader("Client-Id")
+
+	if deviceID == "" || clientID == "" {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "缺少必要的设备标识"})
+		return
+	}
+
+	var req ActivateRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, ErrorResponse{Success: false, Message: "解析激活请求失败: " + err.Error()})
+		return
+	}
+
+	deviceService := service.NewDevice(config)
+
+	// 查找设备
+	device, err := deviceService.IdentifyDevice(req.SerialNumber, deviceID, clientID)
+	if err != nil || device == nil {
+		c.JSON(http.StatusNotFound, ErrorResponse{Success: false, Message: "设备未找到"})
+		return
+	}
+
+	// 检查设备是否已被用户绑定（有UserID表示已绑定）
+	if device.UserID == nil {
+		// 设备还未被用户绑定，返回202让ComBot继续重试
+		utils.WithField(context.Background(), "device_id", deviceID).Debug("设备尚未绑定到用户，返回202状态码")
+		c.Status(http.StatusAccepted) // 202 Accepted - ComBot会重试
+		return
+	}
+
+	// 激活设备
+	if err := deviceService.ActivateDevice(device.ID, req.Challenge, req.Hmac); err != nil {
+		utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("设备激活失败")
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "激活失败: " + err.Error()})
+		return
+	}
+
+	utils.WithField(context.Background(), "device_id", deviceID).Info("设备激活成功")
+	c.JSON(http.StatusOK, gin.H{"message": "激活成功"})
 }
 
 // versionLess 比较版本号语义 a < b

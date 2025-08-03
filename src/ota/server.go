@@ -25,7 +25,7 @@ func (s *DefaultOTAService) Start(ctx context.Context, engine *gin.Engine, apiGr
 	apiGroup.OPTIONS("/ota/", handleOtaOptions)
 	apiGroup.GET("/ota/", func(c *gin.Context) { handleOtaGet(c, s.UpdateURL) })
 	apiGroup.POST("/ota/", func(c *gin.Context) { handleOtaPost(c, s.UpdateURL, s.Config) })
-	apiGroup.POST("/ota/activate", func(c *gin.Context) { handleOtaPost(c, s.UpdateURL, s.Config) })
+	apiGroup.POST("/ota/activate", func(c *gin.Context) { handleOtaActivate(c, s.Config) })
 
 	engine.GET("/ota_bin/:filename", handleOtaBinDownload)
 
