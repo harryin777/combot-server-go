@@ -81,6 +81,51 @@ CREATE TABLE `module_configs` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模块配置表';
 
 -- ==============================================
+-- 5. 对话会话表 (conversation_sessions)
+-- ==============================================
+DROP TABLE IF EXISTS `conversation_sessions`;
+CREATE TABLE `conversation_sessions` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '会话自增ID',
+    `session_id` VARCHAR(100) NOT NULL COMMENT '会话唯一标识',
+    `device_id` VARCHAR(100) NOT NULL COMMENT '设备ID',
+    `client_id` VARCHAR(100) DEFAULT '' COMMENT '客户端ID',
+    `user_id` BIGINT DEFAULT NULL COMMENT '关联用户ID（可选）',
+    `title` VARCHAR(200) DEFAULT '' COMMENT '会话标题（显示在左侧列表）',
+    `current_role` VARCHAR(50) DEFAULT '小智' COMMENT '当前AI角色',
+    `start_time` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '会话开始时间',
+    `last_activity` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后活动时间',
+    `status` VARCHAR(20) DEFAULT 'active' COMMENT '会话状态（active/closed）',
+    `message_count` INT DEFAULT 0 COMMENT '消息总数',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `idx_session_id` (`session_id`),
+    KEY `idx_device_id` (`device_id`),
+    KEY `idx_user_id` (`user_id`),
+    KEY `idx_last_activity` (`last_activity`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话会话表';
+
+-- ==============================================
+-- 6. 对话消息表 (conversation_messages)
+-- ==============================================
+DROP TABLE IF EXISTS `conversation_messages`;
+CREATE TABLE `conversation_messages` (
+    `id` BIGINT NOT NULL AUTO_INCREMENT COMMENT '消息自增ID',
+    `session_id` VARCHAR(100) NOT NULL COMMENT '所属会话ID',
+    `role` VARCHAR(20) NOT NULL COMMENT '消息角色（user/assistant/system）',
+    `content` TEXT NOT NULL COMMENT '消息内容',
+    `message_type` VARCHAR(20) DEFAULT 'text' COMMENT '消息类型（text/image/audio）',
+    `round` INT NOT NULL DEFAULT 0 COMMENT '对话轮次（一问一答为一轮）',
+    `metadata` JSON DEFAULT NULL COMMENT '额外元数据（如图片信息、音频时长等）',
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    KEY `idx_session_id` (`session_id`),
+    KEY `idx_role` (`role`),
+    KEY `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话消息详情表';
+
+-- ==============================================
 -- 插入默认数据
 -- ==============================================
 

@@ -226,7 +226,7 @@ func migrateTables(db *gorm.DB) error {
 		&models.ModuleConfig{},
 		&models.Device{},
 		&models.DeviceVerificationCode{},
-		&models.ConversationHistory{},
+		&models.ConversationMessage{},
 		&models.ConversationSession{},
 	)
 }

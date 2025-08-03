@@ -21,7 +21,7 @@ type UserService struct {
 }
 
 // NewUserService 创建用户服务实例
-func NewUserService(config *configs.Config, logger interface{}, db *gorm.DB) *UserService {
+func NewUserService(config *configs.Config, db *gorm.DB) *UserService {
 	return &UserService{
 		config: config,
 		db:     db,

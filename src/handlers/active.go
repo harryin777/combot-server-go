@@ -24,6 +24,17 @@ func NewActiveHandler() *ActiveHandler {
 }
 
 // CheckVersion 处理设备的版本检查请求 (对应combot的CheckVersion调用)
+// @Summary 检查设备版本
+// @Description 检查设备版本，如果设备未激活，返回包含验证码的activation响应
+// @Tags 设备激活
+// @Produce json
+// @Param Device-Id header string true "设备ID"
+// @Param Client-Id header string true "客户端ID"
+// @Param Serial-Number header string false "设备序列号"
+// @Success 200 {object} map[string]interface{} "成功返回websocket配置或激活信息"
+// @Failure 400 {object} map[string]interface{} "请求参数错误"
+// @Failure 500 {object} map[string]interface{} "服务器内部错误"
+// @Router /api/devices/version [get]
 // 如果设备未激活，返回包含验证码的activation响应
 func (h *ActiveHandler) CheckVersion(c *gin.Context) {
 	// 从头部获取设备信息
@@ -67,6 +78,18 @@ func (h *ActiveHandler) CheckVersion(c *gin.Context) {
 }
 
 // Activate 处理设备激活请求 (对应combot的Activate调用)
+// @Summary 激活设备
+// @Description 通过验证码激活设备
+// @Tags 设备激活
+// @Accept json
+// @Produce json
+// @Param Device-Id header string true "设备ID"
+// @Param Client-Id header string true "客户端ID"
+// @Param request body map[string]interface{} true "激活请求参数"
+// @Success 200 {object} map[string]interface{} "成功激活设备"
+// @Failure 400 {object} map[string]interface{} "请求参数错误"
+// @Failure 500 {object} map[string]interface{} "服务器内部错误"
+// @Router /api/devices/activate [post]
 func (h *ActiveHandler) Activate(c *gin.Context) {
 	// 从头部获取设备信息
 	deviceID := c.GetHeader("Device-Id")
@@ -120,6 +143,18 @@ type BindDeviceResponse struct {
 	DeviceName string `json:"device_name"`
 }
 
+// BindDevice 绑定设备到用户
+// @Summary 绑定设备到用户
+// @Description 通过验证码将设备绑定到当前登录用户
+// @Tags 设备管理
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Param request body BindDeviceRequest true "绑定设备请求参数"
+// @Success 200 {object} BindDeviceResponse "成功绑定设备"
+// @Failure 400 {object} map[string]interface{} "请求参数错误"
+// @Failure 401 {object} map[string]interface{} "未授权"
+// @Router /api/devices/bind [post]
 func (h *ActiveHandler) BindDevice(c *gin.Context) {
 	var req BindDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -157,6 +192,16 @@ type UserDevice struct {
 	Activated  bool   `json:"activated"`
 }
 
+// GetUserDevices 获取用户的设备列表
+// @Summary 获取用户的设备列表
+// @Description 获取当前登录用户的所有设备
+// @Tags 设备管理
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Success 200 {object} GetUserDevicesResponse "成功返回设备列表"
+// @Failure 401 {object} map[string]interface{} "未授权"
+// @Failure 500 {object} map[string]interface{} "服务器内部错误"
+// @Router /api/devices [get]
 func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {

@@ -32,6 +32,13 @@ func (s *DefaultCfgService) Start(ctx context.Context, engine *gin.Engine, apiGr
 	return nil
 }
 
+// handleGet 获取配置服务状态
+// @Summary 获取配置服务状态
+// @Description 获取配置服务的运行状态
+// @Tags 配置管理
+// @Produce json
+// @Success 200 {object} map[string]interface{} "配置服务状态"
+// @Router /api/configs [get]
 func (s *DefaultCfgService) handleGet(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"status":  "ok",
@@ -39,6 +46,14 @@ func (s *DefaultCfgService) handleGet(c *gin.Context) {
 	})
 }
 
+// handlePost 配置服务POST请求
+// @Summary 配置服务POST请求
+// @Description 处理配置相关的POST请求
+// @Tags 配置管理
+// @Accept json
+// @Produce json
+// @Success 200 {object} map[string]interface{} "配置服务状态"
+// @Router /api/configs [post]
 func (s *DefaultCfgService) handlePost(c *gin.Context) {
 	c.JSON(200, gin.H{
 		"status":  "ok",
@@ -46,6 +61,12 @@ func (s *DefaultCfgService) handlePost(c *gin.Context) {
 	})
 }
 
+// handleOptions 配置服务预检请求
+// @Summary 配置服务预检请求
+// @Description 处理配置服务的OPTIONS预检请求
+// @Tags 配置管理
+// @Success 200 "OK"
+// @Router /api/configs [options]
 func (s *DefaultCfgService) handleOptions(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 	c.Header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")

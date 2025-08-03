@@ -3,14 +3,12 @@ package router
 import (
 	"context"
 
+	"github.com/gin-gonic/gin"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
 	cfg "xiaozhi-server-go/src/configs/server"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/user"
-	"xiaozhi-server-go/src/vision"
-
-	"github.com/gin-gonic/gin"
 )
 
 // SetupRoutes 统一注册所有路由
@@ -22,22 +20,13 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	OtaRouter(groupCtx, apiGroup, router, config)
 	ActiveRouter(groupCtx, apiGroup, config)
 	AuthRouter(groupCtx, apiGroup, config)
+	ConversationRoutes(groupCtx, apiGroup, config)
+	VisionRouter(groupCtx, apiGroup, router, config)
 
 	// 启动用户管理服务
-	userService := user.NewUserService(config, nil, database.DB)
+	userService := user.NewUserService(config, database.DB)
 	if err := userService.Start(groupCtx, router, apiGroup); err != nil {
 		utils.WithError(context.Background(), err).Error("用户管理服务启动失败")
-		return err
-	}
-
-	// 启动Vision服务
-	visionService, err := vision.NewDefaultVisionService(config)
-	if err != nil {
-		utils.WithError(context.Background(), err).Error("Vision 服务初始化失败")
-		return err
-	}
-	if err := visionService.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("Vision 服务启动失败")
 		return err
 	}
 
