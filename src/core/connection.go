@@ -509,7 +509,7 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 
 	// 保存用户消息到数据库
 	go func() {
-		err := h.conversationService.SaveConversation(
+		_, _, err := h.conversationService.SaveConversation(
 			ctx,
 			h.sessionID,
 			h.deviceID,
@@ -725,7 +725,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 
 		// 保存助手回复到数据库
 		go func() {
-			err := h.conversationService.SaveConversation(
+			_, _, err := h.conversationService.SaveConversation(
 				h.ctx,
 				h.sessionID,
 				h.deviceID,

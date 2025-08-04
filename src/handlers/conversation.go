@@ -56,10 +56,14 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 		return
 	}
 
-	sessions, err := h.conversationService.GetUserConversations(c.Request.Context(), req.UserID, req.DeviceID, req.Limit, req.Offset)
+	sessions, code, err := h.conversationService.GetUserConversations(c.Request.Context(), req.UserID, req.DeviceID, req.Limit, req.Offset)
 	if err != nil {
 		utils.Error(c.Request.Context(), "获取用户对话列表失败: "+err.Error())
 		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 
@@ -114,10 +118,14 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 		return
 	}
 
-	messages, err := h.conversationService.GetConversationMessages(c.Request.Context(), req.SessionID, req.Limit, req.Offset)
+	messages, code, err := h.conversationService.GetConversationMessages(c.Request.Context(), req.SessionID, req.Limit, req.Offset)
 	if err != nil {
 		utils.Error(c.Request.Context(), "获取对话详情失败: "+err.Error())
 		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 

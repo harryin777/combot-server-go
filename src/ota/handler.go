@@ -10,6 +10,7 @@ import (
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/auth"
+	"xiaozhi-server-go/src/core/codes"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
@@ -125,7 +126,7 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 	clientID := c.GetHeader("Client-Id")
 	serialNumber := c.GetHeader("Serial-Number")
 
-	if device, err := deviceService.IdentifyDevice(c.Request.Context(), serialNumber, deviceID, clientID); err == nil && device != nil && device.Activated {
+	if device, code, err := deviceService.IdentifyDevice(c.Request.Context(), serialNumber, deviceID, clientID); err == nil && code == codes.CodeSuccess && device != nil && device.Activated {
 		// 设备已激活，生成新的token
 		authToken := auth.NewAuthToken(config.Server.Token)
 		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
@@ -136,8 +137,8 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 		}
 	} else {
 		// 设备未激活或不存在，生成验证码
-		code, expiresAt, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), deviceID, clientID)
-		if err != nil {
+		code, expiresAt, retCode, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), deviceID, clientID)
+		if err != nil || retCode != codes.CodeSuccess {
 			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("生成验证码失败")
 		} else {
 			resp.Activation = &struct {
@@ -217,8 +218,8 @@ func handleOtaActivate(c *gin.Context, config *configs.Config) {
 	deviceService := service.NewDevice(config)
 
 	// 查找设备
-	device, err := deviceService.IdentifyDevice(c.Request.Context(), req.SerialNumber, deviceID, clientID)
-	if err != nil || device == nil {
+	device, code, err := deviceService.IdentifyDevice(c.Request.Context(), req.SerialNumber, deviceID, clientID)
+	if err != nil || code != codes.CodeSuccess || device == nil {
 		c.JSON(http.StatusNotFound, ErrorResponse{Success: false, Message: "设备未找到"})
 		return
 	}
@@ -232,9 +233,10 @@ func handleOtaActivate(c *gin.Context, config *configs.Config) {
 	}
 
 	// 激活设备
-	if err := deviceService.ActivateDevice(c.Request.Context(), device.ID, req.Challenge, req.Hmac); err != nil {
+	_, retCode, err := deviceService.ActivateDevice(c.Request.Context(), device.ID, req.Challenge, req.Hmac)
+	if err != nil || retCode != codes.CodeSuccess {
 		utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("设备激活失败")
-		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "激活失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "激活失败"})
 		return
 	}
 

@@ -58,9 +58,13 @@ func (h *ActiveHandler) BindDevice(c *gin.Context) {
 		return
 	}
 
-	device, err := h.deviceService.BindDeviceToUser(c.Request.Context(), userID.(uint), req.VerificationCode, req.DeviceName)
+	device, code, err := h.deviceService.BindDeviceToUser(c.Request.Context(), userID.(uint), req.VerificationCode, req.DeviceName)
 	if err != nil {
-		response.Failed(c, codes.CodeInvalidRequest, nil)
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 
@@ -101,11 +105,12 @@ func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 
 	devices, code, err := h.deviceService.GetUserDevices(c.Request.Context(), userID.(uint))
 	if err != nil {
-		response.Failed(c, codes.CodeInternalError, err)
+		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
 	if code != codes.CodeSuccess {
 		response.Failed(c, code, nil)
+		return
 	}
 
 	userDevices := make([]UserDevice, len(devices))

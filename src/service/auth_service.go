@@ -8,6 +8,7 @@ import (
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
+	"xiaozhi-server-go/src/core/codes"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/models"
 
@@ -29,18 +30,23 @@ func NewAuthService(config *configs.Config) AuthService {
 }
 
 // GetCaptcha 生成图形验证码
-func (s *AuthServiceImpl) GetCaptcha(ctx context.Context, width, height int) (id, imageBase64 string, err error) {
+func (s *AuthServiceImpl) GetCaptcha(ctx context.Context, width, height int) (id, imageBase64 string, code int, err error) {
 	driver := base64Captcha.NewDriverDigit(height, width, 6, 0.7, 80)
 	cp := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
 	id, imageBase64, _, err = cp.Generate()
-	return
+	if err != nil {
+		utils.Errorf(ctx, "生成验证码失败: %v", err)
+		return "", "", codes.CodeInternalError, err
+	}
+	return id, imageBase64, codes.CodeSuccess, nil
 }
 
 // SendSMS 校验图形码并下发短信验证码（模拟实现）
-func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captchaID, captchaValue string) error {
+func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captchaID, captchaValue string) (interface{}, int, error) {
 	// 验证图形验证码
 	if !base64Captcha.DefaultMemStore.Verify(captchaID, captchaValue, true) {
-		return errors.New("invalid captcha")
+		utils.Warnf(ctx, "图形验证码验证失败，手机号: %s", phone)
+		return nil, codes.CodeInvalidRequest, nil
 	}
 
 	// 生成6位数字验证码
@@ -48,13 +54,15 @@ func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captc
 	key := countryCode + phone
 	smsStore[key] = code
 
+	utils.Infof(ctx, "短信验证码发送成功，手机号: %s，验证码: %s", key, code)
+
 	// TODO: 接入真正的短信服务提供商
 	// 这里仅模拟发送成功
-	return nil
+	return nil, codes.CodeSuccess, nil
 }
 
 // PhoneAuth 手机号登录/注册，返回用户信息和JWT token
-func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, smsCode string) (*models.User, string, error) {
+func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, smsCode string) (*models.User, string, int, error) {
 	key := countryCode + phone
 
 	// 记录登录尝试
@@ -63,7 +71,7 @@ func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, sms
 	// 验证短信验证码
 	if storedCode, exists := smsStore[key]; !exists || storedCode != smsCode {
 		utils.Warnf(ctx, "短信验证码验证失败，手机号: %s", key)
-		return nil, "", errors.New("invalid sms code")
+		return nil, "", codes.CodeInvalidUsernamePassword, nil
 	}
 
 	// 删除已使用的验证码
@@ -81,12 +89,12 @@ func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, sms
 		}
 		if err = database.DB.WithContext(ctx).Create(&user).Error; err != nil {
 			utils.Errorf(ctx, "创建用户失败: %v", err)
-			return nil, "", fmt.Errorf("failed to create user: %w", err)
+			return nil, "", codes.CodeInternalError, err
 		}
 		utils.Infof(ctx, "用户注册成功，用户ID: %d", user.ID)
 	} else if err != nil {
 		utils.Errorf(ctx, "数据库查询用户失败: %v", err)
-		return nil, "", fmt.Errorf("database error: %w", err)
+		return nil, "", codes.CodeInternalError, err
 	}
 
 	utils.Infof(ctx, "用户登录成功，用户ID: %d", user.ID)
@@ -101,9 +109,9 @@ func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, sms
 	tokenString, err := token.SignedString([]byte(s.config.Server.Token))
 	if err != nil {
 		utils.Errorf(ctx, "生成JWT token失败: %v", err)
-		return nil, "", fmt.Errorf("failed to generate token: %w", err)
+		return nil, "", codes.CodeInternalError, err
 	}
 
 	utils.Infof(ctx, "用户认证完成，用户ID: %d", user.ID)
-	return &user, tokenString, nil
+	return &user, tokenString, codes.CodeSuccess, nil
 }

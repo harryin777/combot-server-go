@@ -84,10 +84,14 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 		req.Height = 40
 	}
 
-	id, img, err := h.authService.GetCaptcha(c.Request.Context(), req.Width, req.Height)
+	id, img, code, err := h.authService.GetCaptcha(c.Request.Context(), req.Width, req.Height)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to generate captcha")
 		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 
@@ -114,10 +118,14 @@ func (h *AuthHandler) SendSMS(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.SendSMS(c.Request.Context(), req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
+	_, code, err := h.authService.SendSMS(c.Request.Context(), req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to send SMS")
-		response.Failed(c, codes.CodeInvalidRequest, nil)
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 
@@ -145,10 +153,14 @@ func (h *AuthHandler) PhoneAuth(c *gin.Context) {
 		return
 	}
 
-	user, token, err := h.authService.PhoneAuth(c.Request.Context(), req.CountryCode, req.Phone, req.SMSCode)
+	user, token, code, err := h.authService.PhoneAuth(c.Request.Context(), req.CountryCode, req.Phone, req.SMSCode)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Phone authentication failed")
-		response.Failed(c, codes.CodeInvalidUsernamePassword, nil)
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 		return
 	}
 
