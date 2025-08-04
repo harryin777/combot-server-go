@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"net/http"
 	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/configs/database"
@@ -255,12 +256,12 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 }
 
 // GetUserDevices 获取用户设备列表
-func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]models.Device, error) {
+func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]models.Device, int, error) {
 	var devices []models.Device
 	err := database.DB.WithContext(ctx).Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&devices).Error
-	return devices, err
+	return devices, http.StatusInternalServerError, err
 }
 
 // VerifyHMAC 验证HMAC签名

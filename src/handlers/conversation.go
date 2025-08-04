@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"net/http"
-
+	"xiaozhi-server-go/src/core/codes"
+	"xiaozhi-server-go/src/core/response"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
@@ -52,14 +52,14 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 	var req GetUserConversationsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	sessions, err := h.conversationService.GetUserConversations(c.Request.Context(), req.UserID, req.DeviceID, req.Limit, req.Offset)
 	if err != nil {
 		utils.Error(c.Request.Context(), "获取用户对话列表失败: "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取对话列表失败"})
+		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
 
@@ -77,11 +77,7 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, GetUserConversationsResponse{
-		Code:    200,
-		Message: "成功",
-		Data:    responseSessions,
-	})
+	response.Success(c, responseSessions)
 }
 
 // GetConversationMessagesRequest 获取对话详情请求参数
@@ -114,14 +110,14 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 	var req GetConversationMessagesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
-		c.JSON(http.StatusBadRequest, gin.H{"code": 400, "message": "参数错误: " + err.Error()})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	messages, err := h.conversationService.GetConversationMessages(c.Request.Context(), req.SessionID, req.Limit, req.Offset)
 	if err != nil {
 		utils.Error(c.Request.Context(), "获取对话详情失败: "+err.Error())
-		c.JSON(http.StatusInternalServerError, gin.H{"code": 500, "message": "获取对话详情失败"})
+		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
 
@@ -139,9 +135,5 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 		})
 	}
 
-	c.JSON(http.StatusOK, GetConversationMessagesResponse{
-		Code:    200,
-		Message: "成功",
-		Data:    responseMessages,
-	})
+	response.Success(c, responseMessages)
 }

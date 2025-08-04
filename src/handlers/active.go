@@ -1,9 +1,9 @@
 package handlers
 
 import (
-	"net/http"
-
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/codes"
+	"xiaozhi-server-go/src/core/response"
 	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
@@ -48,23 +48,23 @@ type BindDeviceResponse struct {
 func (h *ActiveHandler) BindDevice(c *gin.Context) {
 	var req BindDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		response.Failed(c, codes.CodeUnauthorized, nil)
 		return
 	}
 
 	device, err := h.deviceService.BindDeviceToUser(c.Request.Context(), userID.(uint), req.VerificationCode, req.DeviceName)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, BindDeviceResponse{
+	response.Success(c, BindDeviceResponse{
 		DeviceID:   device.DeviceID,
 		DeviceName: device.DeviceName,
 	})
@@ -95,14 +95,17 @@ type UserDevice struct {
 func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 	userID, exists := c.Get("userID")
 	if !exists {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "未授权"})
+		response.Failed(c, codes.CodeUnauthorized, nil)
 		return
 	}
 
-	devices, err := h.deviceService.GetUserDevices(c.Request.Context(), userID.(uint))
+	devices, code, err := h.deviceService.GetUserDevices(c.Request.Context(), userID.(uint))
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		response.Failed(c, codes.CodeInternalError, err)
 		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
 	}
 
 	userDevices := make([]UserDevice, len(devices))
@@ -115,7 +118,7 @@ func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, GetUserDevicesResponse{
+	response.Success(c, GetUserDevicesResponse{
 		Devices: userDevices,
 	})
 }

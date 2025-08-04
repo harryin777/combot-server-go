@@ -1,8 +1,9 @@
 package handlers
 
 import (
-	"net/http"
 	"xiaozhi-server-go/src/configs"
+	"xiaozhi-server-go/src/core/codes"
+	"xiaozhi-server-go/src/core/response"
 	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/service"
 
@@ -71,7 +72,7 @@ type PhoneAuthResponse struct {
 func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 	var req CaptchaRequest
 	if err := c.ShouldBindQuery(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters"})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
@@ -86,11 +87,11 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 	id, img, err := h.authService.GetCaptcha(c.Request.Context(), req.Width, req.Height)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to generate captcha")
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate captcha"})
+		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, CaptchaResponse{
+	response.Success(c, CaptchaResponse{
 		CaptchaID:   id,
 		ImageBase64: img,
 	})
@@ -109,18 +110,18 @@ func (h *AuthHandler) SendSMS(c *gin.Context) {
 	var req SMSRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Invalid SMS request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	err := h.authService.SendSMS(c.Request.Context(), req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to send SMS")
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, SMSResponse{
+	response.Success(c, SMSResponse{
 		Success: true,
 		Message: "SMS sent successfully",
 	})
@@ -140,18 +141,18 @@ func (h *AuthHandler) PhoneAuth(c *gin.Context) {
 	var req PhoneAuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Invalid phone auth request")
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request format"})
+		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	user, token, err := h.authService.PhoneAuth(c.Request.Context(), req.CountryCode, req.Phone, req.SMSCode)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Phone authentication failed")
-		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
+		response.Failed(c, codes.CodeInvalidUsernamePassword, nil)
 		return
 	}
 
-	c.JSON(http.StatusOK, PhoneAuthResponse{
+	response.Success(c, PhoneAuthResponse{
 		Token: token,
 		User:  user,
 	})

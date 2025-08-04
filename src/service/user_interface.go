@@ -16,20 +16,20 @@ type LoginDevice struct {
 // UserService 定义用户服务接口
 type UserService interface {
 	// UsernamePasswordLogin 用户名密码登录
-	UsernamePasswordLogin(ctx context.Context, username, password string) (*models.User, string, error)
+	UsernamePasswordLogin(ctx context.Context, username, password string) (*models.User, string, int, error)
 
 	// UpdateUserProfile 更新用户基本信息（用户名、手机号）
-	UpdateUserProfile(ctx context.Context, userID int64, username, phone string) error
+	UpdateUserProfile(ctx context.Context, userID int64, username, phone string) (interface{}, int, error)
 
 	// ChangePassword 修改密码
-	ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) error
+	ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) (interface{}, int, error)
 
 	// GetLoginDevices 获取登录设备列表
-	GetLoginDevices(ctx context.Context, userID int64) ([]LoginDevice, error)
+	GetLoginDevices(ctx context.Context, userID int64) ([]LoginDevice, int, error)
 
 	// LogoutDevice 退出登录指定设备
-	LogoutDevice(ctx context.Context, userID int64, deviceIdentifier string) error
+	LogoutDevice(ctx context.Context, userID int64, deviceIdentifier string) (interface{}, int, error)
 
 	// DeleteAccount 删除账号
-	DeleteAccount(ctx context.Context, userID int64, password string) error
+	DeleteAccount(ctx context.Context, userID int64, password string) (interface{}, int, error)
 }

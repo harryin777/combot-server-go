@@ -19,7 +19,7 @@ type ActiveService interface {
 	BindDeviceToUser(ctx context.Context, userID uint, verificationCode, deviceName string) (*models.Device, error) // 绑定设备到用户
 
 	// GetUserDevices 设备查询
-	GetUserDevices(ctx context.Context, userID uint) ([]models.Device, error) // 获取用户设备列表
+	GetUserDevices(ctx context.Context, userID uint) ([]models.Device, int, error) // 获取用户设备列表
 
 	// VerifyHMAC 安全相关
 	VerifyHMAC(ctx context.Context, challenge, hmacHex, hmacKey string) bool // 验证HMAC

@@ -1,9 +1,10 @@
 package middleware
 
 import (
-	"net/http"
 	"strings"
 	"xiaozhi-server-go/src/configs/database"
+	"xiaozhi-server-go/src/core/codes"
+	"xiaozhi-server-go/src/core/response"
 	"xiaozhi-server-go/src/models"
 
 	"github.com/gin-gonic/gin"
@@ -16,14 +17,14 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 		// 获取Authorization头
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Authorization header missing"})
+			response.Failed(c, codes.CodeTokenMissing, nil)
 			c.Abort()
 			return
 		}
 
 		// 检查Bearer前缀
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid authorization header format"})
+			response.Failed(c, codes.CodeInvalidToken, nil)
 			c.Abort()
 			return
 		}
@@ -41,7 +42,7 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 		})
 
 		if err != nil || !token.Valid {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token"})
+			response.Failed(c, codes.CodeInvalidToken, nil)
 			c.Abort()
 			return
 		}
@@ -49,7 +50,7 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 		// 获取claims
 		claims, ok := token.Claims.(jwt.MapClaims)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid token claims"})
+			response.Failed(c, codes.CodeJWTParseError, nil)
 			c.Abort()
 			return
 		}
@@ -57,7 +58,7 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 		// 获取用户ID
 		userIDFloat, ok := claims["user_id"].(float64)
 		if !ok {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "Invalid user ID in token"})
+			response.Failed(c, codes.CodeJWTParseError, nil)
 			c.Abort()
 			return
 		}
@@ -67,7 +68,7 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 		// 验证用户是否存在
 		var user models.User
 		if err := database.DB.Where("id = ?", userID).First(&user).Error; err != nil {
-			c.JSON(http.StatusUnauthorized, gin.H{"error": "User not found"})
+			response.Failed(c, codes.CodeUserNotFound, nil)
 			c.Abort()
 			return
 		}
