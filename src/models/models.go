@@ -1,6 +1,7 @@
 package models
 
 import (
+	"time"
 	//"gorm.io/gorm"
 	"gorm.io/datatypes"
 )
@@ -11,7 +12,7 @@ const (
 	UserRoleAdmin int8 = 2 // 管理员
 )
 
-// 系统全局配置（只保存一条记录）
+// SystemConfig 系统全局配置（只保存一条记录）
 type SystemConfig struct {
 	ID               int64          `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:主键ID"`
 	SelectedASR      string         `json:"selected_asr" gorm:"column:selected_asr;type:varchar(100);not null;default:'';comment:选中的ASR服务"`
@@ -28,19 +29,21 @@ func (SystemConfig) TableName() string {
 	return "system_config"
 }
 
-// 用户
+// User 用户
 type User struct {
-	ID      int64       `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:用户ID"`
-	Phone   string      `json:"phone" gorm:"column:phone;type:varchar(20);uniqueIndex;not null;comment:手机号"`
-	Role    int8        `json:"role" gorm:"column:role;type:tinyint;not null;default:1;comment:用户角色（1=用户，2=管理员）"`
-	Setting UserSetting `json:"setting" gorm:"foreignKey:UserID;references:ID"`
+	ID       int64       `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:用户ID"`
+	Phone    string      `json:"phone" gorm:"column:phone;type:varchar(20);uniqueIndex;comment:手机号"`
+	Username string      `json:"username" gorm:"column:username;type:varchar(50);uniqueIndex;comment:用户名"`
+	Password string      `json:"-" gorm:"column:password;type:varchar(255);comment:密码哈希"`
+	Role     int8        `json:"role" gorm:"column:role;type:tinyint;not null;default:1;comment:用户角色（1=用户，2=管理员）"`
+	Setting  UserSetting `json:"setting" gorm:"foreignKey:UserID;references:ID"`
 }
 
 func (User) TableName() string {
 	return "users"
 }
 
-// 用户设置
+// UserSetting 用户设置
 type UserSetting struct {
 	ID              int64          `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:设置ID"`
 	UserID          int64          `json:"user_id" gorm:"column:user_id;uniqueIndex;not null;comment:用户ID（一对一关联）"`
@@ -56,7 +59,7 @@ func (UserSetting) TableName() string {
 	return "user_settings"
 }
 
-// 模块配置（可选）
+// ModuleConfig 模块配置（可选）
 type ModuleConfig struct {
 	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:配置ID"`
 	Name        string         `json:"name" gorm:"column:name;type:varchar(100);uniqueIndex;not null;comment:模块名"`
@@ -69,4 +72,21 @@ type ModuleConfig struct {
 
 func (ModuleConfig) TableName() string {
 	return "module_configs"
+}
+
+// UserSession 用户登录会话
+type UserSession struct {
+	ID         int64     `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:会话ID"`
+	UserID     int64     `json:"user_id" gorm:"column:user_id;not null;index;comment:用户ID"`
+	Token      string    `json:"token" gorm:"column:token;type:varchar(500);uniqueIndex;not null;comment:JWT Token"`
+	UserAgent  string    `json:"user_agent" gorm:"column:user_agent;type:varchar(500);not null;default:'';comment:用户代理"`
+	IP         string    `json:"ip" gorm:"column:ip;type:varchar(45);not null;default:'';comment:IP地址"`
+	DeviceType string    `json:"device_type" gorm:"column:device_type;type:varchar(100);not null;default:'';comment:设备类型"`
+	CreatedAt  time.Time `json:"created_at" gorm:"column:created_at;not null;comment:创建时间"`
+	ExpiresAt  time.Time `json:"expires_at" gorm:"column:expires_at;not null;comment:过期时间"`
+	IsActive   bool      `json:"is_active" gorm:"column:is_active;type:tinyint(1);not null;default:1;comment:是否活跃"`
+}
+
+func (UserSession) TableName() string {
+	return "user_sessions"
 }

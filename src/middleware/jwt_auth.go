@@ -62,7 +62,7 @@ func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 			return
 		}
 
-		userID := uint(userIDFloat)
+		userID := int64(userIDFloat)
 
 		// 验证用户是否存在
 		var user models.User

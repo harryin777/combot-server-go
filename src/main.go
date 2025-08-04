@@ -98,7 +98,7 @@ func LoadConfigAndLogger() (*configs.Config, error) {
 
 func StartWSServer(config *configs.Config, g *errgroup.Group, groupCtx context.Context) (*core.WebSocketServer, error) {
 	// 创建 WebSocket 服务
-	wsServer, err := core.NewWebSocketServer(config)
+	wsServer, err := core.NewWebSocketServer(groupCtx, config)
 	if err != nil {
 		return nil, err
 	}

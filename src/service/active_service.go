@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -29,12 +30,12 @@ func NewDevice(config *configs.Config) ActiveService {
 }
 
 // IdentifyDevice 根据请求头识别设备
-func (s *DeviceService) IdentifyDevice(serialNumber, deviceID, clientID string) (*models.Device, error) {
+func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, deviceID, clientID string) (*models.Device, error) {
 	var device models.Device
 
 	// 优先使用序列号查找
 	if serialNumber != "" {
-		err := database.DB.Where("serial_number = ?", serialNumber).First(&device).Error
+		err := database.DB.WithContext(ctx).Where("serial_number = ?", serialNumber).First(&device).Error
 		if err == nil {
 			return &device, nil
 		}
@@ -45,7 +46,7 @@ func (s *DeviceService) IdentifyDevice(serialNumber, deviceID, clientID string) 
 
 	// 备用MAC地址查找
 	if deviceID != "" {
-		err := database.DB.Where("device_id = ?", deviceID).First(&device).Error
+		err := database.DB.WithContext(ctx).Where("device_id = ?", deviceID).First(&device).Error
 		if err == nil {
 			return &device, nil
 		}
@@ -56,7 +57,7 @@ func (s *DeviceService) IdentifyDevice(serialNumber, deviceID, clientID string) 
 
 	// 最后使用UUID查找
 	if clientID != "" {
-		err := database.DB.Where("client_id = ?", clientID).First(&device).Error
+		err := database.DB.WithContext(ctx).Where("client_id = ?", clientID).First(&device).Error
 		if err == nil {
 			return &device, nil
 		}
@@ -69,9 +70,9 @@ func (s *DeviceService) IdentifyDevice(serialNumber, deviceID, clientID string) 
 }
 
 // GenerateDeviceVerificationCode 生成设备验证码并确保设备记录存在
-func (s *DeviceService) GenerateDeviceVerificationCode(deviceID, clientID string) (string, int64, error) {
+func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, deviceID, clientID string) (string, int64, error) {
 	// 生成6位数字验证码
-	code := s.GenerateActivationCode()
+	code := s.GenerateActivationCode(ctx)
 	expiresAt := time.Now().Add(5 * time.Minute) // 5分钟有效期
 
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
@@ -129,10 +130,10 @@ func (s *DeviceService) GenerateDeviceVerificationCode(deviceID, clientID string
 
 	return code, expiresAt.Unix(), nil
 } // ValidateVerificationCode 验证验证码
-func (s *DeviceService) ValidateVerificationCode(code string) (*models.DeviceVerificationCode, error) {
+func (s *DeviceService) ValidateVerificationCode(ctx context.Context, code string) (*models.DeviceVerificationCode, error) {
 	var verificationCode models.DeviceVerificationCode
 
-	err := database.DB.Where("verification_code = ? AND used = false", code).
+	err := database.DB.WithContext(ctx).Where("verification_code = ? AND used = false", code).
 		First(&verificationCode).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -150,7 +151,7 @@ func (s *DeviceService) ValidateVerificationCode(code string) (*models.DeviceVer
 }
 
 // ActivateDevice 激活设备
-func (s *DeviceService) ActivateDevice(deviceID uint, challenge, hmac string) error {
+func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, challenge, hmac string) error {
 	return database.DB.Transaction(func(tx *gorm.DB) error {
 		var device models.Device
 		if err := tx.Where("id = ?", deviceID).First(&device).Error; err != nil {
@@ -184,21 +185,21 @@ func (s *DeviceService) ActivateDevice(deviceID uint, challenge, hmac string) er
 			return fmt.Errorf("更新设备激活状态失败: %w", err)
 		}
 
-		utils.Info(nil, fmt.Sprintf("设备 %s 激活成功", device.DeviceID))
+		utils.Infof(ctx, "设备 %s 激活成功", device.DeviceID)
 		return nil
 	})
 }
 
 // BindDeviceToUser 绑定设备到用户
-func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceName string) (*models.Device, error) {
+func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verificationCode, deviceName string) (*models.Device, error) {
 	// 验证验证码
-	vcRecord, err := s.ValidateVerificationCode(verificationCode)
+	vcRecord, err := s.ValidateVerificationCode(ctx, verificationCode)
 	if err != nil {
 		return nil, err
 	}
 
 	var device models.Device
-	err = database.DB.Transaction(func(tx *gorm.DB) error {
+	err = database.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 标记验证码为已使用
 		if err := tx.Model(vcRecord).Update("used", true).Error; err != nil {
 			return fmt.Errorf("更新验证码状态失败: %w", err)
@@ -217,7 +218,7 @@ func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceNa
 				DeviceName:  deviceName,
 				Activated:   true,
 				ActivatedAt: &[]time.Time{time.Now()}[0],
-				Token:       s.GenerateToken(),
+				Token:       s.GenerateToken(ctx),
 				LastSeen:    time.Now(),
 			}
 
@@ -254,16 +255,16 @@ func (s *DeviceService) BindDeviceToUser(userID uint, verificationCode, deviceNa
 }
 
 // GetUserDevices 获取用户设备列表
-func (s *DeviceService) GetUserDevices(userID uint) ([]models.Device, error) {
+func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]models.Device, error) {
 	var devices []models.Device
-	err := database.DB.Where("user_id = ?", userID).
+	err := database.DB.WithContext(ctx).Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&devices).Error
 	return devices, err
 }
 
 // VerifyHMAC 验证HMAC签名
-func (s *DeviceService) VerifyHMAC(challenge, hmacHex, hmacKey string) bool {
+func (s *DeviceService) VerifyHMAC(ctx context.Context, challenge, hmacHex, hmacKey string) bool {
 	mac := hmac.New(sha256.New, []byte(hmacKey))
 	mac.Write([]byte(challenge))
 	expectedMAC := mac.Sum(nil)
@@ -273,7 +274,7 @@ func (s *DeviceService) VerifyHMAC(challenge, hmacHex, hmacKey string) bool {
 }
 
 // GenerateActivationCode 生成6位数字激活码
-func (s *DeviceService) GenerateActivationCode() string {
+func (s *DeviceService) GenerateActivationCode(ctx context.Context) string {
 	const digits = "0123456789"
 	b := make([]byte, 6)
 	rand.Read(b)
@@ -286,14 +287,14 @@ func (s *DeviceService) GenerateActivationCode() string {
 }
 
 // GenerateChallenge 生成随机challenge
-func (s *DeviceService) GenerateChallenge() string {
+func (s *DeviceService) GenerateChallenge(ctx context.Context) string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
 }
 
 // GenerateToken 生成随机token
-func (s *DeviceService) GenerateToken() string {
+func (s *DeviceService) GenerateToken(ctx context.Context) string {
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)

@@ -125,12 +125,12 @@ func (h *ConnectionHandler) handleIotMessage(msgMap map[string]interface{}) erro
 	if descriptors, ok := msgMap["descriptors"].([]interface{}); ok {
 		// 处理设备描述符
 		// 这里需要实现具体的IOT设备描述符处理逻辑
-		h.LogInfo(fmt.Sprintf("收到IOT设备描述符：%v", descriptors))
+		utils.Infof(h.ctx, "收到IOT设备描述符：%v", descriptors)
 	}
 	if states, ok := msgMap["states"].([]interface{}); ok {
 		// 处理设备状态
 		// 这里需要实现具体的IOT设备状态处理逻辑
-		h.LogInfo(fmt.Sprintf("收到IOT设备状态：%v", states))
+		utils.Infof(h.ctx, "收到IOT设备状态：%v", states)
 	}
 	return nil
 }
@@ -140,7 +140,7 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 	// 增加对话轮次
 	h.talkRound++
 	currentRound := h.talkRound
-	h.LogInfo(fmt.Sprintf("开始新的图片对话轮次: %d", currentRound))
+	utils.Infof(h.ctx, "开始新的图片对话轮次: %d", currentRound)
 
 	// 判断是否需要验证
 	if h.isNeedAuth() {
@@ -148,7 +148,7 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 			utils.Errorf(ctx, "检查认证码失败: %v", err)
 			return err
 		}
-		h.LogInfo("设备未认证，等待管理员认证")
+		utils.Info(h.ctx, "设备未认证，等待管理员认证")
 		return nil
 	}
 
@@ -186,13 +186,13 @@ func (h *ConnectionHandler) handleImageMessage(ctx context.Context, msgMap map[s
 		return fmt.Errorf("图片数据为空")
 	}
 
-	h.LogInfo(fmt.Sprintf("收到图片消息 %v", map[string]interface{}{
+	utils.Infof(h.ctx, "收到图片消息 %v", map[string]interface{}{
 		"text":        text,
 		"has_url":     imageData.URL != "",
 		"has_data":    imageData.Data != "",
 		"format":      imageData.Format,
 		"data_length": len(imageData.Data),
-	}))
+	})
 
 	// 立即发送STT消息
 	err := h.sendSTTMessage(text)

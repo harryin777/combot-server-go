@@ -11,13 +11,13 @@ import (
 
 // ConversationHandler 对话处理器
 type ConversationHandler struct {
-	conversationService *service.ConversationService
+	conversationService *service.ConversationServiceImpl
 }
 
 // NewConversationHandler 创建对话处理器
 func NewConversationHandler() *ConversationHandler {
 	return &ConversationHandler{
-		conversationService: service.NewConversationService(),
+		conversationService: service.NewConversationService().(*service.ConversationServiceImpl),
 	}
 }
 
@@ -69,10 +69,10 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 		responseSessions = append(responseSessions, GetUserConversationsResponseSession{
 			SessionID:    session.SessionID,
 			Title:        session.Title,
-			CurrentRole:  session.CurrentRole,
+			CurrentRole:  session.CombotName,
 			StartTime:    session.StartTime.Format("2006-01-02T15:04:05Z"),
 			LastActivity: session.LastActivity.Format("2006-01-02T15:04:05Z"),
-			Status:       session.Status,
+			Status:       string(rune(session.Status + 48)), // 转换枚举为字符串
 			MessageCount: session.MessageCount,
 		})
 	}
@@ -129,12 +129,12 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 	var responseMessages []GetConversationMessagesResponseMessage
 	for _, message := range messages {
 		responseMessages = append(responseMessages, GetConversationMessagesResponseMessage{
-			ID:          message.ID,
+			ID:          uint(message.ID),
 			SessionID:   message.SessionID,
-			Role:        message.Role,
+			Role:        string(rune(message.Role + 48)), // 转换枚举为字符串
 			Content:     message.Content,
-			MessageType: message.MessageType,
-			Round:       message.Round,
+			MessageType: string(rune(message.MessageType + 48)), // 转换枚举为字符串
+			Round:       1,                                      // 使用默认值，因为模型中没有这个字段
 			CreatedAt:   message.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}

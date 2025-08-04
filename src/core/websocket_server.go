@@ -34,7 +34,7 @@ type Upgrader interface {
 }
 
 // NewWebSocketServer 创建新的WebSocket服务器
-func NewWebSocketServer(config *configs.Config) (*WebSocketServer, error) {
+func NewWebSocketServer(ctx context.Context, config *configs.Config) (*WebSocketServer, error) {
 	ws := &WebSocketServer{
 		config:   config,
 		upgrader: NewDefaultUpgrader(),
@@ -48,7 +48,7 @@ func NewWebSocketServer(config *configs.Config) (*WebSocketServer, error) {
 		}(),
 	}
 	// 初始化资源池管理器
-	poolManager, err := pool.NewPoolManager(config)
+	poolManager, err := pool.NewPoolManager(ctx, config)
 	if err != nil {
 		logrus.Errorf("初始化资源池管理器失败: %v", err)
 		return nil, fmt.Errorf("初始化资源池管理器失败: %v", err)
@@ -185,7 +185,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	// 创建新的连接处理器
 	// 创建临时的 utils.Logger 实例
 	tempLogger := &utils.Logger{}
-	handler := NewConnectionHandler(ws.config, providerSet, tempLogger, r, connCtx)
+	handler := NewConnectionHandler(ws.config, providerSet, r, connCtx)
 
 	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, tempLogger, conn, connCtx, connCancel)
 

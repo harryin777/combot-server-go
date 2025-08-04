@@ -10,7 +10,7 @@ import (
 )
 
 type AuthHandler struct {
-	authService *service.AuthService
+	authService service.AuthService
 }
 
 // NewAuthHandler 创建认证处理器
@@ -83,7 +83,7 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 		req.Height = 40
 	}
 
-	id, img, err := h.authService.GetCaptcha(req.Width, req.Height)
+	id, img, err := h.authService.GetCaptcha(c.Request.Context(), req.Width, req.Height)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to generate captcha")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate captcha"})
@@ -113,7 +113,7 @@ func (h *AuthHandler) SendSMS(c *gin.Context) {
 		return
 	}
 
-	err := h.authService.SendSMS(req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
+	err := h.authService.SendSMS(c.Request.Context(), req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Failed to send SMS")
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -144,7 +144,7 @@ func (h *AuthHandler) PhoneAuth(c *gin.Context) {
 		return
 	}
 
-	user, token, err := h.authService.PhoneAuth(req.CountryCode, req.Phone, req.SMSCode)
+	user, token, err := h.authService.PhoneAuth(c.Request.Context(), req.CountryCode, req.Phone, req.SMSCode)
 	if err != nil {
 		utils.WithError(c.Request.Context(), err).Error("Phone authentication failed")
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})

@@ -58,7 +58,7 @@ func (h *ActiveHandler) BindDevice(c *gin.Context) {
 		return
 	}
 
-	device, err := h.deviceService.BindDeviceToUser(userID.(uint), req.VerificationCode, req.DeviceName)
+	device, err := h.deviceService.BindDeviceToUser(c.Request.Context(), userID.(uint), req.VerificationCode, req.DeviceName)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -99,7 +99,7 @@ func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 		return
 	}
 
-	devices, err := h.deviceService.GetUserDevices(userID.(uint))
+	devices, err := h.deviceService.GetUserDevices(c.Request.Context(), userID.(uint))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return

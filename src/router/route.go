@@ -21,6 +21,7 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	OtaRouter(groupCtx, apiGroup, router, config)
 	ActiveRouter(groupCtx, apiGroup, config)
 	AuthRouter(groupCtx, apiGroup, config)
+	UserRouter(groupCtx, apiGroup, config)
 	ConversationRoutes(groupCtx, apiGroup, config)
 	VisionRouter(groupCtx, apiGroup, router, config)
 

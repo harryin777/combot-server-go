@@ -19,17 +19,17 @@ import (
 // 内存存储短信验证码（生产环境应使用Redis）
 var smsStore = map[string]string{}
 
-type AuthService struct {
+type AuthServiceImpl struct {
 	config *configs.Config
 }
 
 // NewAuthService 创建认证服务
-func NewAuthService(config *configs.Config) *AuthService {
-	return &AuthService{config: config}
+func NewAuthService(config *configs.Config) AuthService {
+	return &AuthServiceImpl{config: config}
 }
 
 // GetCaptcha 生成图形验证码
-func (s *AuthService) GetCaptcha(width, height int) (id, imageBase64 string, err error) {
+func (s *AuthServiceImpl) GetCaptcha(ctx context.Context, width, height int) (id, imageBase64 string, err error) {
 	driver := base64Captcha.NewDriverDigit(height, width, 6, 0.7, 80)
 	cp := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
 	id, imageBase64, _, err = cp.Generate()
@@ -37,7 +37,7 @@ func (s *AuthService) GetCaptcha(width, height int) (id, imageBase64 string, err
 }
 
 // SendSMS 校验图形码并下发短信验证码（模拟实现）
-func (s *AuthService) SendSMS(countryCode, phone, captchaID, captchaValue string) error {
+func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captchaID, captchaValue string) error {
 	// 验证图形验证码
 	if !base64Captcha.DefaultMemStore.Verify(captchaID, captchaValue, true) {
 		return errors.New("invalid captcha")
@@ -54,9 +54,8 @@ func (s *AuthService) SendSMS(countryCode, phone, captchaID, captchaValue string
 }
 
 // PhoneAuth 手机号登录/注册，返回用户信息和JWT token
-func (s *AuthService) PhoneAuth(countryCode, phone, smsCode string) (*models.User, string, error) {
+func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, smsCode string) (*models.User, string, error) {
 	key := countryCode + phone
-	ctx := context.Background()
 
 	// 记录登录尝试
 	utils.Infof(ctx, "用户尝试登录，手机号: %s", key)
@@ -71,7 +70,7 @@ func (s *AuthService) PhoneAuth(countryCode, phone, smsCode string) (*models.Use
 	delete(smsStore, key)
 
 	var user models.User
-	err := database.DB.Where("phone = ?", key).First(&user).Error
+	err := database.DB.WithContext(ctx).Where("phone = ?", key).First(&user).Error
 
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// 用户不存在，自动注册
@@ -80,7 +79,7 @@ func (s *AuthService) PhoneAuth(countryCode, phone, smsCode string) (*models.Use
 			Phone: key,
 			Role:  models.UserRoleUser, // 使用枚举值：普通用户
 		}
-		if err = database.DB.Create(&user).Error; err != nil {
+		if err = database.DB.WithContext(ctx).Create(&user).Error; err != nil {
 			utils.Errorf(ctx, "创建用户失败: %v", err)
 			return nil, "", fmt.Errorf("failed to create user: %w", err)
 		}

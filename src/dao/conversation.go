@@ -64,7 +64,7 @@ func (dao *ConversationDAO) GetConversationMessages(ctx context.Context, session
 }
 
 // UpdateOrCreateSession 更新会话或创建新会话（原子操作）
-func (dao *ConversationDAO) UpdateOrCreateSession(ctx context.Context, sessionID, deviceID, clientID string, userID *uint, currentRole, firstUserMessage string) error {
+func (dao *ConversationDAO) UpdateOrCreateSession(ctx context.Context, sessionID, deviceID, clientID string, userID int, combotName string, firstUserMessage string) error {
 	return dao.base.Transaction(ctx, func(tx *gorm.DB) error {
 		now := time.Now()
 
@@ -73,8 +73,8 @@ func (dao *ConversationDAO) UpdateOrCreateSession(ctx context.Context, sessionID
 			Where("session_id = ?", sessionID).
 			Updates(map[string]interface{}{
 				"last_activity": now,
-				"current_role":  currentRole,
-				"message_count": gorm.Expr("message_count + 2"), // 用户+AI两条消息
+				"combot_Name":   combotName,
+				"message_count": gorm.Expr("message_count + 1"), // 用户+AI两条消息
 			})
 
 		// 如果会话不存在，创建新会话
@@ -91,20 +91,20 @@ func (dao *ConversationDAO) UpdateOrCreateSession(ctx context.Context, sessionID
 				ClientID:     clientID,
 				UserID:       userID,
 				Title:        title,
-				CurrentRole:  currentRole,
+				CombotName:   combotName,
 				StartTime:    now,
 				LastActivity: now,
-				Status:       "active",
-				MessageCount: 2, // 第一轮对话就是2条消息
+				Status:       models.StatusActive, // 新会话默认为活跃状态
+				MessageCount: 1,                   // 第一轮对话就是2条消息
 				CreatedAt:    now,
 				UpdatedAt:    now,
 			}
 
 			if err := tx.Create(&session).Error; err != nil {
-				utils.Error(ctx, fmt.Sprintf("创建新会话失败: %v", err))
+				utils.Errorf(ctx, "创建新会话失败: %v", err)
 				return fmt.Errorf("创建新会话失败: %w", err)
 			} else {
-				utils.Debug(ctx, fmt.Sprintf("创建新会话成功: sessionID=%s, title=%s", sessionID, title))
+				utils.Debugf(ctx, "创建新会话成功: sessionID=%s, title=%s", sessionID, title)
 			}
 		}
 

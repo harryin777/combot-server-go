@@ -37,3 +37,9 @@ func (us *UserService) Start(ctx context.Context, router *gin.Engine, apiGroup *
 	}
 	return nil
 }
+
+// LoginWithNewLogger 用户名密码登录处理器
+func (us *UserService) LoginWithNewLogger(c *gin.Context) {
+	// 这里可以添加登录逻辑，或者直接返回成功
+	c.JSON(200, gin.H{"message": "login endpoint placeholder"})
+}

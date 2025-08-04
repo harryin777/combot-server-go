@@ -99,7 +99,7 @@ func (c *ConnectionContext) Close() error {
 
 	// 归还资源到池中
 	if c.providerSet != nil && c.poolManager != nil {
-		if err := c.poolManager.ReturnProviderSet(c.providerSet); err != nil {
+		if err := c.poolManager.ReturnProviderSet(c.ctx, c.providerSet); err != nil {
 			errs = append(errs, fmt.Errorf("归还资源失败: %v", err))
 			c.logger.Error(fmt.Sprintf("客户端 %s 归还资源失败: %v", c.clientID, err))
 		} else {

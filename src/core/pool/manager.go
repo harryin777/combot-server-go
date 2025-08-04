@@ -30,7 +30,7 @@ type ProviderSet struct {
 }
 
 // NewPoolManager 创建资源池管理器
-func NewPoolManager(config *configs.Config) (*PoolManager, error) {
+func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, error) {
 	pm := &PoolManager{}
 
 	// 暂时跳过连通性检查
@@ -60,7 +60,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.asrPool = asrPool
 		_, cnt := asrPool.GetStats()
-		utils.Infof(context.Background(), "ASR资源池初始化成功，类型: %s, 数量：%d", asrType, cnt)
+		utils.Infof(ctx, "ASR资源池初始化成功，类型: %s, 数量：%d", asrType, cnt)
 	}
 
 	// 初始化LLM池
@@ -75,7 +75,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.llmPool = llmPool
 		_, cnt := llmPool.GetStats()
-		utils.WithFields(context.Background(), map[string]interface{}{
+		utils.WithFields(ctx, map[string]interface{}{
 			"type":  llmType,
 			"count": cnt,
 		}).Info("LLM资源池初始化成功")
@@ -93,7 +93,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.ttsPool = ttsPool
 		_, cnt := ttsPool.GetStats()
-		utils.WithFields(context.Background(), map[string]interface{}{
+		utils.WithFields(ctx, map[string]interface{}{
 			"type":  ttsType,
 			"count": cnt,
 		}).Info("TTS资源池初始化成功")
@@ -103,23 +103,23 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	if vlllmType, ok := selectedModule["VLLLM"]; ok && vlllmType != "" {
 		vlllmFactory := NewVLLLMFactory(vlllmType, config)
 		if vlllmFactory == nil {
-			utils.WithField(context.Background(), "type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
+			utils.WithField(ctx, "type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
 		} else {
 			vlllmPool, err := NewResourcePool(vlllmFactory, poolConfig)
 			if err != nil {
-				utils.WithError(context.Background(), err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
+				utils.WithError(ctx, err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
 			} else {
 				pm.vlllmPool = vlllmPool
 			}
 		}
 		if pm.vlllmPool != nil {
 			_, cnt := pm.vlllmPool.GetStats()
-			utils.WithFields(context.Background(), map[string]interface{}{
+			utils.WithFields(ctx, map[string]interface{}{
 				"type":  vlllmType,
 				"count": cnt,
 			}).Info("VLLLM资源池初始化成功")
 		} else {
-			utils.Warn(context.Background(), "VLLLM资源池未初始化，将使用普通LLM")
+			utils.Warn(ctx, "VLLLM资源池未初始化，将使用普通LLM")
 		}
 	}
 
@@ -131,7 +131,7 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 	}
 
 	// 初始化MCP池（总是初始化，因为MCP是核心功能）
-	utils.Info(context.Background(), "开始初始化MCP资源池，请等待...")
+	utils.Info(ctx, "开始初始化MCP资源池，请等待...")
 	mcpFactory := NewMCPFactory(config)
 	if mcpFactory != nil {
 		mcpPool, err := NewResourcePool(mcpFactory, poolConfig)
@@ -140,9 +140,9 @@ func NewPoolManager(config *configs.Config) (*PoolManager, error) {
 		}
 		pm.mcpPool = mcpPool
 		_, cnt := mcpPool.GetStats()
-		utils.WithField(context.Background(), "count", cnt).Info("MCP资源池初始化成功")
+		utils.WithField(ctx, "count", cnt).Info("MCP资源池初始化成功")
 	} else {
-		utils.Warn(context.Background(), "创建MCP工厂失败，MCP功能将不可用")
+		utils.Warn(ctx, "创建MCP工厂失败，MCP功能将不可用")
 	}
 
 	return pm, nil
@@ -215,7 +215,7 @@ func (pm *PoolManager) Close() {
 }
 
 // ReturnProviderSet 归还提供者集合到池中
-func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
+func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) error {
 	if set == nil {
 		return fmt.Errorf("提供者集合为空，无法归还")
 	}
@@ -226,66 +226,66 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 	if set.ASR != nil && pm.asrPool != nil {
 		// 重置资源状态
 		if err := pm.asrPool.Reset(set.ASR); err != nil {
-			utils.WithError(context.Background(), err).Warn("重置ASR资源状态失败")
+			utils.WithError(ctx, err).Warn("重置ASR资源状态失败")
 		}
 		// 归还到池中
 		if err := pm.asrPool.Put(set.ASR); err != nil {
 			errs = append(errs, fmt.Errorf("归还ASR提供者失败: %v", err))
-			utils.WithError(context.Background(), err).Error("归还ASR提供者失败")
+			utils.WithError(ctx, err).Error("归还ASR提供者失败")
 		} else {
-			utils.Debug(context.Background(), "ASR提供者已成功归还到池中")
+			utils.Debug(ctx, "ASR提供者已成功归还到池中")
 		}
 	}
 
 	// 归还LLM提供者
 	if set.LLM != nil && pm.llmPool != nil {
 		if err := pm.llmPool.Reset(set.LLM); err != nil {
-			utils.WithError(context.Background(), err).Warn("重置LLM资源状态失败")
+			utils.WithError(ctx, err).Warn("重置LLM资源状态失败")
 		}
 		if err := pm.llmPool.Put(set.LLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还LLM提供者失败: %v", err))
-			utils.WithError(context.Background(), err).Error("归还LLM提供者失败")
+			utils.WithError(ctx, err).Error("归还LLM提供者失败")
 		} else {
-			utils.Debug(context.Background(), "LLM提供者已成功归还到池中")
+			utils.Debug(ctx, "LLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还TTS提供者
 	if set.TTS != nil && pm.ttsPool != nil {
 		if err := pm.ttsPool.Reset(set.TTS); err != nil {
-			utils.WithError(context.Background(), err).Warn("重置TTS资源状态失败")
+			utils.WithError(ctx, err).Warn("重置TTS资源状态失败")
 		}
 		if err := pm.ttsPool.Put(set.TTS); err != nil {
 			errs = append(errs, fmt.Errorf("归还TTS提供者失败: %v", err))
-			utils.WithError(context.Background(), err).Error("归还TTS提供者失败")
+			utils.WithError(ctx, err).Error("归还TTS提供者失败")
 		} else {
-			utils.Debug(context.Background(), "TTS提供者已成功归还到池中")
+			utils.Debug(ctx, "TTS提供者已成功归还到池中")
 		}
 	}
 
 	// 归还VLLLM提供者
 	if set.VLLLM != nil && pm.vlllmPool != nil {
 		if err := pm.vlllmPool.Reset(set.VLLLM); err != nil {
-			utils.WithError(context.Background(), err).Warn("重置VLLLM资源状态失败")
+			utils.WithError(ctx, err).Warn("重置VLLLM资源状态失败")
 		}
 		if err := pm.vlllmPool.Put(set.VLLLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还VLLLM提供者失败: %v", err))
-			utils.WithError(context.Background(), err).Error("归还VLLLM提供者失败")
+			utils.WithError(ctx, err).Error("归还VLLLM提供者失败")
 		} else {
-			utils.Debug(context.Background(), "VLLLM提供者已成功归还到池中")
+			utils.Debug(ctx, "VLLLM提供者已成功归还到池中")
 		}
 	}
 
 	// 归还MCP提供者
 	if set.MCP != nil && pm.mcpPool != nil {
 		if err := pm.mcpPool.Reset(set.MCP); err != nil {
-			utils.WithError(context.Background(), err).Warn("重置MCP资源状态失败")
+			utils.WithError(ctx, err).Warn("重置MCP资源状态失败")
 		}
 		if err := pm.mcpPool.Put(set.MCP); err != nil {
 			errs = append(errs, fmt.Errorf("归还MCP提供者失败: %v", err))
-			utils.WithError(context.Background(), err).Error("归还MCP提供者失败")
+			utils.WithError(ctx, err).Error("归还MCP提供者失败")
 		} else {
-			utils.Debug(context.Background(), "MCP提供者已成功归还到池中")
+			utils.Debug(ctx, "MCP提供者已成功归还到池中")
 		}
 	}
 
@@ -293,7 +293,7 @@ func (pm *PoolManager) ReturnProviderSet(set *ProviderSet) error {
 		return fmt.Errorf("归还过程中发生多个错误: %v", errs)
 	}
 
-	utils.Debug(context.Background(), "所有提供者已成功归还到池中")
+	utils.Debug(ctx, "所有提供者已成功归还到池中")
 	return nil
 }
 
@@ -330,8 +330,7 @@ func (pm *PoolManager) GetStats() map[string]map[string]int {
 }
 
 // performConnectivityCheck 执行连通性检查
-func (pm *PoolManager) performConnectivityCheck(config *configs.Config) error {
-	ctx := context.Background()
+func (pm *PoolManager) performConnectivityCheck(ctx context.Context, config *configs.Config) error {
 
 	// 从配置创建连通性检查配置
 	connConfig, err := ConfigFromYAML(&config.ConnectivityCheck)
