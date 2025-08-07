@@ -139,6 +139,9 @@ func StartHttpServer(config *configs.Config, g *errgroup.Group, groupCtx context
 	}
 	router := gin.Default()
 
+	// 添加全局CORS中间件
+	router.Use(middleware.CORSMiddleware())
+
 	// 添加Request ID中间件
 	router.Use(middleware.RequestIDMiddleware())
 

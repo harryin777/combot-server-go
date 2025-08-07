@@ -43,6 +43,12 @@ func (s *UserServiceImpl) UsernamePasswordLogin(ctx context.Context, username, p
 	// 验证密码
 	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
 	if err != nil {
+		s, err := bcrypt.GenerateFromPassword([]byte(password), 8)
+		if err != nil {
+			utils.Errorf(ctx, "密码哈希生成失败: %v", err)
+			return nil, "", codes.CodeInternalError, err
+		}
+		utils.Infof(ctx, "用户密码哈希: %s", s)
 		utils.Warnf(ctx, "密码验证失败，用户名: %s", username)
 		return nil, "", codes.CodeInvalidUsernamePassword, nil
 	}

@@ -69,14 +69,14 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 	}
 
 	// 自动迁移所有表
-	if err := migrateTables(db); err != nil {
-		return nil, dbType, err
-	}
-
-	// 插入默认配置
-	if err := InsertDefaultConfigIfNeeded(db); err != nil {
-		utils.WithError(context.Background(), err).Warn("插入默认配置失败")
-	}
+	//if err := migrateTables(db); err != nil {
+	//	return nil, dbType, err
+	//}
+	//
+	//// 插入默认配置
+	//if err := InsertDefaultConfigIfNeeded(db); err != nil {
+	//	utils.WithError(context.Background(), err).Warn("插入默认配置失败")
+	//}
 
 	DB = db
 

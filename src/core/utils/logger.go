@@ -1,6 +1,7 @@
 package utils
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -12,6 +13,7 @@ import (
 
 	"xiaozhi-server-go/src/configs"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -31,6 +33,8 @@ type GlobalLogger struct {
 	ticker      *time.Ticker  // 定时器
 	stopCh      chan struct{} // 停止信号
 }
+
+type Formatter struct{}
 
 // InitGlobalLogger 初始化全局日志记录器
 func InitGlobalLogger(config *configs.Config) error {
@@ -63,9 +67,7 @@ func NewGlobalLogger(config *configs.Config) (*GlobalLogger, error) {
 	logger.SetLevel(configLogLevelToLogrusLevel(config.Log.LogLevel))
 
 	// 设置JSON格式化器用于文件输出
-	logger.SetFormatter(&logrus.JSONFormatter{
-		TimestampFormat: time.RFC3339,
-	})
+	logger.SetFormatter(&Formatter{})
 
 	// 设置输出到文件和控制台（同时输出）
 	multiWriter := io.MultiWriter(file, os.Stdout)
@@ -83,6 +85,34 @@ func NewGlobalLogger(config *configs.Config) (*GlobalLogger, error) {
 	loggerInstance.startRotationChecker()
 
 	return loggerInstance, nil
+}
+
+func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
+	// 按你的顺序排列
+	data := make(map[string]interface{})
+
+	// 先放最想要的字段
+	data["level"] = entry.Level.String()
+	data["time"] = entry.Time.Format(time.RFC3339)
+	if reqID, ok := entry.Data["req-id"]; ok {
+		data["req-id"] = reqID
+	}
+	// 其它字段
+	data["msg"] = entry.Message
+
+	// 再附加剩下的字段（排除已经加过的）
+	for k, v := range entry.Data {
+		if k != "req-id" {
+			data[k] = v
+		}
+	}
+
+	// 编码为 JSON
+	var b bytes.Buffer
+	encoder := jsoniter.NewEncoder(&b)
+	encoder.SetEscapeHTML(false)
+	err := encoder.Encode(data)
+	return b.Bytes(), err
 }
 
 // configLogLevelToLogrusLevel 将配置中的日志级别转换为logrus.Level

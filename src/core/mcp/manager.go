@@ -55,7 +55,8 @@ func NewManagerForPool(cfg *configs.Config) *Manager {
 		systemCfg:             cfg,
 	}
 	// 预先初始化非连接相关的MCP服务器
-	if err := mgr.preInitializeServers(); err != nil {
+	ctx := context.Background()
+	if err := mgr.preInitializeServers(ctx); err != nil {
 		logrus.WithError(err).Error("预初始化MCP服务器失败")
 	}
 
@@ -63,10 +64,10 @@ func NewManagerForPool(cfg *configs.Config) *Manager {
 }
 
 // preInitializeServers 预初始化不依赖连接的MCP服务器
-func (m *Manager) preInitializeServers() error {
+func (m *Manager) preInitializeServers(ctx context.Context) error {
 
 	m.localClient, _ = NewLocalClient(m.systemCfg)
-	m.localClient.Start(context.Background())
+	m.localClient.Start(ctx)
 	m.clients["local"] = m.localClient
 
 	config := m.LoadConfig()
@@ -79,7 +80,7 @@ func (m *Manager) preInitializeServers() error {
 		srvConfigMap, ok := srvConfig.(map[string]interface{})
 
 		if !ok {
-			logrus.WithField("name", name).Warn("Invalid configuration format for server")
+			utils.Warnf(ctx, "Invalid configuration format for server, name %v", name)
 			continue
 		}
 
