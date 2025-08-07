@@ -23,11 +23,11 @@ func UserRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *configs.
 
 		// 需要JWT认证的路由
 		authenticated := userGroup.Use(middleware.JWTAuthMiddleware(config.Server.Token))
-		authenticated.POST("/profile", userHandler.UpdateProfile)
-		authenticated.POST("/change-password", userHandler.ChangePassword)
-		authenticated.POST("/devices", userHandler.GetLoginDevices)
+		authenticated.PUT("/profile", userHandler.UpdateProfile)
+		authenticated.PUT("/change-password", userHandler.ChangePassword)
+		authenticated.GET("/devices", userHandler.GetLoginDevices)
 		authenticated.POST("/logout-device", userHandler.LogoutDevice)
-		authenticated.POST("/delete-account", userHandler.DeleteAccount)
+		authenticated.DELETE("/delete-account", userHandler.DeleteAccount)
 	}
 
 	utils.Info(ctx, "User HTTP服务路由注册完成")

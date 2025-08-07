@@ -16,7 +16,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
-	gorm_logger "gorm.io/gorm/logger"
+	gormlogger "gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
@@ -38,7 +38,7 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 		err error
 	)
 	// 使用全局logrus适配器
-	gormLogger := gormlogrus.NewGormLogrusLogger(gorm_logger.Info)
+	gormLogger := gormlogrus.NewGormLogrusLogger(gormlogger.Info)
 
 	switch dbType {
 	case "mysql":

@@ -4,10 +4,8 @@ import (
 	"context"
 
 	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
 	cfg "xiaozhi-server-go/src/configs/server"
 	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/user"
 
 	"github.com/gin-gonic/gin"
 )
@@ -24,16 +22,7 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	UserRouter(groupCtx, apiGroup, config)
 	ConversationRoutes(groupCtx, apiGroup, config)
 	VisionRouter(groupCtx, apiGroup, router, config)
-
-	// 为ComBot兼容性，在根路径也注册OTA路由
-	OtaRouter(groupCtx, router.Group(""), router, config)
-
-	// 启动用户管理服务
-	userService := user.NewUserService(config, database.DB)
-	if err := userService.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("用户管理服务启动失败")
-		return err
-	}
+	RoleRouter(groupCtx, apiGroup, config) // 添加角色管理路由
 
 	// 启动配置服务
 	cfgServer, err := cfg.NewDefaultCfgService(config, nil)
