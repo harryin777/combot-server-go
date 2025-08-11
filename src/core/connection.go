@@ -291,7 +291,7 @@ func (h *ConnectionHandler) Handle(conn Connection) {
 			"client_id":  h.clientId,
 			"token":      h.config.Server.Token,
 		}
-		if err := h.mcpManager.BindConnection(conn, h.functionRegister, params); err != nil {
+		if err := h.mcpManager.BindConnection(h.ctx, conn, h.functionRegister, params); err != nil {
 			utils.Error(h.ctx, fmt.Sprintf("绑定MCP管理器连接失败: %v", err))
 			return
 		}

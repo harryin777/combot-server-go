@@ -74,6 +74,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	// 启动 pprof，端口号 9090
+	go func() {
+		if err := http.ListenAndServe(":9090", nil); err != nil {
+			utils.WithError(groupCtx, err).Error("pprof 服务启动失败")
+		}
+	}()
+
 	// 启动优雅关机处理
 	GracefulShutdown(cancel, g)
 

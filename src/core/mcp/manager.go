@@ -118,7 +118,7 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 }
 
 // BindConnection 绑定连接到MCP Manager
-func (m *Manager) BindConnection(conn Conn, fh types.FunctionRegistryInterface, params interface{}) error {
+func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.FunctionRegistryInterface, params interface{}) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
@@ -130,10 +130,8 @@ func (m *Manager) BindConnection(conn Conn, fh types.FunctionRegistryInterface, 
 	deviceID := paramsMap["device_id"].(string)
 	clientID := paramsMap["client_id"].(string)
 	token := paramsMap["token"].(string)
-	logrus.WithFields(logrus.Fields{
-		"sessionID": sessionID,
-		"visionURL": visionURL,
-	}).Debug("绑定连接到MCP Manager")
+
+	utils.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
 	// 优化：检查XiaoZhiMCPClient是否需要重新启动
 	if m.XiaoZhiMCPClient == nil {

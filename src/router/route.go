@@ -27,14 +27,14 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	// 启动配置服务
 	cfgServer, err := cfg.NewDefaultCfgService(config, nil)
 	if err != nil {
-		utils.WithError(context.Background(), err).Error("配置服务初始化失败")
+		utils.WithError(groupCtx, err).Error("配置服务初始化失败")
 		return err
 	}
 	if err := cfgServer.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(context.Background(), err).Error("配置服务启动失败")
+		utils.WithError(groupCtx, err).Error("配置服务启动失败")
 		return err
 	}
 
-	utils.Info(context.Background(), "所有路由注册完成")
+	utils.Info(groupCtx, "所有路由注册完成")
 	return nil
 }
