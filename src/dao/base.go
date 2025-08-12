@@ -279,7 +279,7 @@ func (dao *BaseDAO) First(ctx context.Context, result interface{}, options Query
 	// 执行查询
 	if err := query.First(result).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return nil // 记录不存在不算错误
+			return gorm.ErrRecordNotFound // 返回原始错误，让调用者处理
 		}
 		utils.Error(ctx, fmt.Sprintf("查询单条记录失败: %v", err))
 		return fmt.Errorf("查询单条记录失败: %w", err)

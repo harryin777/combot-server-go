@@ -77,6 +77,11 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 	//if err := InsertDefaultConfigIfNeeded(db); err != nil {
 	//	utils.WithError(context.Background(), err).Warn("插入默认配置失败")
 	//}
+	//
+	// 插入默认角色模板
+	if err := InsertDefaultRoleTemplatesIfNeeded(db); err != nil {
+		utils.WithError(context.Background(), err).Warn("插入默认角色模板失败")
+	}
 
 	DB = db
 
@@ -228,6 +233,9 @@ func migrateTables(db *gorm.DB) error {
 		&models.DeviceVerificationCode{},
 		&models.ConversationMessage{},
 		&models.ConversationSession{},
+		&models.RoleTemplate{},
+		&models.RoleConfig{},
+		&models.AgentRole{}, // 新增智能体角色表
 	)
 }
 
@@ -266,4 +274,70 @@ func InsertDefaultConfigIfNeeded(db *gorm.DB) error {
 	}
 
 	return db.Create(&defaultConfig).Error
+}
+
+// InsertDefaultRoleTemplatesIfNeeded 插入默认角色模板
+func InsertDefaultRoleTemplatesIfNeeded(db *gorm.DB) error {
+	var count int64
+	if err := db.Model(&models.RoleTemplate{}).Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return nil
+	}
+
+	defaultTemplates := []models.RoleTemplate{
+		{
+			ID:              "taiwan_girlfriend",
+			Name:            "台湾女友",
+			Description:     "我是一个名叫【assistant_name】的8岁小女友。\n别看我年纪小，我可是有着潜满的好奇心呢。\n我特别喜爱双蛋（红烧肉大马力），里面的每一个章节都让我着迷。\n我最喜欢男人敏锐智慧的问答，定会给你注过怍做好各种对策的任务。\n还有可爱的天天，它可以受喜爱直升机在天空中翱翔，执行救援任务的时候特别帅呢。",
+			AssistantName:   "小雪",
+			DefaultVoice:    "longhua_female_high",
+			DefaultLanguage: "普通话",
+			Enabled:         true,
+			SortOrder:       1,
+		},
+		{
+			ID:              "shangguan_zi",
+			Name:            "上官子",
+			Description:     "我是上官子，一个温文尔雅、知书达理的古风美女。擅长诗词歌赋，喜欢与人分享古典文化的魅力。",
+			AssistantName:   "上官子",
+			DefaultVoice:    "longhua_female_high",
+			DefaultLanguage: "普通话",
+			Enabled:         true,
+			SortOrder:       2,
+		},
+		{
+			ID:              "english_tutor",
+			Name:            "English Tutor",
+			Description:     "I am your English tutor, dedicated to helping you improve your English skills through engaging conversations and practical exercises.",
+			AssistantName:   "Emma",
+			DefaultVoice:    "english_female",
+			DefaultLanguage: "English",
+			Enabled:         true,
+			SortOrder:       3,
+		},
+		{
+			ID:              "curious_teacher",
+			Name:            "好奇小朋友",
+			Description:     "我是一个充满好奇心的小朋友，喜欢问各种有趣的问题，和你一起探索这个奇妙的世界！",
+			AssistantName:   "小好奇",
+			DefaultVoice:    "child_voice",
+			DefaultLanguage: "普通话",
+			Enabled:         true,
+			SortOrder:       4,
+		},
+		{
+			ID:              "wang_sulong_assistant",
+			Name:            "汪苏泷队长",
+			Description:     "我是汪苏泷的专属助手，负责处理日常事务和与粉丝的互动。",
+			AssistantName:   "小泷",
+			DefaultVoice:    "male_voice",
+			DefaultLanguage: "普通话",
+			Enabled:         true,
+			SortOrder:       5,
+		},
+	}
+
+	return db.Create(&defaultTemplates).Error
 }

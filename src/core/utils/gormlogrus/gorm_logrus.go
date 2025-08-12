@@ -3,9 +3,11 @@ package gormlogrus
 import (
 	"context"
 	"time"
+	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
+	gormUtils "gorm.io/gorm/utils"
 )
 
 // GormLogrusLogger 实现 gorm 的 logger.Interface，使用 logrus 作为底层日志
@@ -25,22 +27,25 @@ func (l *GormLogrusLogger) LogMode(level logger.LogLevel) logger.Interface {
 	return &newlogger
 }
 
+// Info 打印信息
 func (l *GormLogrusLogger) Info(ctx context.Context, msg string, data ...interface{}) {
-	if l.LogLevel >= logger.Info {
-		logrus.WithContext(ctx).Infof(msg, data...)
-	}
+	fileLine := gormUtils.FileWithLineNum()
+	reqId := ctx.Value(utils.RequestIDKey)
+	logrus.WithField("@ReqId", reqId).Infof("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 
+// Warn 打印警告信息
 func (l *GormLogrusLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
-	if l.LogLevel >= logger.Warn {
-		logrus.WithContext(ctx).Warnf(msg, data...)
-	}
+	fileLine := gormUtils.FileWithLineNum()
+	reqId := ctx.Value(utils.RequestIDKey)
+	logrus.WithField("@ReqId", reqId).Warnf("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 
+// Error 打印错误信息
 func (l *GormLogrusLogger) Error(ctx context.Context, msg string, data ...interface{}) {
-	if l.LogLevel >= logger.Error {
-		logrus.WithContext(ctx).Errorf(msg, data...)
-	}
+	fileLine := gormUtils.FileWithLineNum()
+	reqId := ctx.Value(utils.RequestIDKey)
+	logrus.WithField("@ReqId", reqId).Errorf("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 
 func (l *GormLogrusLogger) Trace(ctx context.Context, begin time.Time, fc func() (string, int64), err error) {
@@ -48,16 +53,22 @@ func (l *GormLogrusLogger) Trace(ctx context.Context, begin time.Time, fc func()
 		return
 	}
 	duration := time.Since(begin)
-	msg, rows := fc()
-	entry := logrus.WithContext(ctx).WithFields(logrus.Fields{
+	reqId := ctx.Value("req-id")
+	sql, rows := fc()
+	fields := logrus.Fields{
+		"level":    "info",
+		"req_id":   reqId,
+		"msg":      sql,
 		"duration": duration,
 		"rows":     rows,
-	})
+		"time":     time.Now().Format(time.DateTime),
+	}
 	if err != nil && l.LogLevel >= logger.Error {
-		entry.WithField("error", err).Error(msg)
+		fields["error"] = err
+		logrus.WithContext(ctx).WithFields(fields).Log(logrus.ErrorLevel)
 	} else if duration > 200*time.Millisecond && l.LogLevel >= logger.Warn {
-		entry.Warn(msg)
+		logrus.WithContext(ctx).WithFields(fields).Log(logrus.WarnLevel)
 	} else if l.LogLevel >= logger.Info {
-		entry.Info(msg)
+		logrus.WithContext(ctx).WithFields(fields).Log(logrus.InfoLevel)
 	}
 }

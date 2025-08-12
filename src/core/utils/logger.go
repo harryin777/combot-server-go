@@ -93,16 +93,16 @@ func (f *Formatter) Format(entry *logrus.Entry) ([]byte, error) {
 
 	// 先放最想要的字段
 	data["level"] = entry.Level.String()
-	data["time"] = entry.Time.Format(time.RFC3339)
-	if reqID, ok := entry.Data["req-id"]; ok {
-		data["req-id"] = reqID
+	if reqID, ok := entry.Data[RequestIDKey]; ok {
+		data[RequestIDKey] = reqID
 	}
 	// 其它字段
+	data["time"] = entry.Time.Format(time.DateTime)
 	data["msg"] = entry.Message
 
 	// 再附加剩下的字段（排除已经加过的）
 	for k, v := range entry.Data {
-		if k != "req-id" {
+		if k != RequestIDKey {
 			data[k] = v
 		}
 	}

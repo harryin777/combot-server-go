@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"time"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/codes"
 	"xiaozhi-server-go/src/core/response"
@@ -52,13 +53,13 @@ func (h *ActiveHandler) BindDevice(c *gin.Context) {
 		return
 	}
 
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		response.Failed(c, codes.CodeUnauthorized, nil)
 		return
 	}
 
-	device, code, err := h.deviceService.BindDeviceToUser(c.Request.Context(), userID.(uint), req.VerificationCode, req.DeviceName)
+	device, code, err := h.deviceService.BindDeviceToUser(c.Request.Context(), uint(userID.(int64)), req.VerificationCode, req.DeviceName)
 	if err != nil {
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
@@ -80,10 +81,11 @@ type GetUserDevicesResponse struct {
 }
 
 type UserDevice struct {
-	ID         uint   `json:"id"`
-	DeviceID   string `json:"device_id"`
-	DeviceName string `json:"device_name"`
-	Activated  bool   `json:"activated"`
+	ID         uint      `json:"id"`
+	DeviceID   string    `json:"device_id"`
+	DeviceName string    `json:"device_name"`
+	Activated  bool      `json:"activated"`
+	CreatedAt  time.Time `json:"created_at"`
 }
 
 // GetUserDevices 获取用户的设备列表
@@ -97,13 +99,13 @@ type UserDevice struct {
 // @Failure 500 {object} map[string]interface{} "服务器内部错误"
 // @Router /api/devices [get]
 func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
-	userID, exists := c.Get("userID")
+	userID, exists := c.Get("user_id")
 	if !exists {
 		response.Failed(c, codes.CodeUnauthorized, nil)
 		return
 	}
 
-	devices, code, err := h.deviceService.GetUserDevices(c.Request.Context(), userID.(uint))
+	devices, code, err := h.deviceService.GetUserDevices(c.Request.Context(), uint(userID.(int64)))
 	if err != nil {
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
@@ -120,6 +122,7 @@ func (h *ActiveHandler) GetUserDevices(c *gin.Context) {
 			DeviceID:   device.DeviceID,
 			DeviceName: device.DeviceName,
 			Activated:  device.Activated,
+			CreatedAt:  device.CreatedAt,
 		}
 	}
 

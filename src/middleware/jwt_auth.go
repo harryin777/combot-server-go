@@ -5,6 +5,7 @@ import (
 	"xiaozhi-server-go/src/configs/database"
 	"xiaozhi-server-go/src/core/codes"
 	"xiaozhi-server-go/src/core/response"
+	"xiaozhi-server-go/src/core/utils"
 	"xiaozhi-server-go/src/models"
 
 	"github.com/gin-gonic/gin"
@@ -14,6 +15,8 @@ import (
 // JWTAuthMiddleware JWT身份验证中间件
 func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
+		// 打印请求 dump 信息
+		utils.DumpRequest(c.Request.Context(), c.Request)
 		// 获取Authorization头
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

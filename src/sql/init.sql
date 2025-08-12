@@ -131,6 +131,41 @@ CREATE TABLE `conversation_messages`
     KEY            `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话消息详情表';
 
+DROP TABLE IF EXISTS `role_templates`;
+CREATE TABLE `role_templates`
+(
+    `id`               VARCHAR(100) PRIMARY KEY COMMENT '角色模板ID',
+    `name`             VARCHAR(100) NOT NULL COMMENT '角色名称',
+    `description`      TEXT COMMENT '角色描述',
+    `assistant_name`   VARCHAR(100) NOT NULL COMMENT '助手名称',
+    `default_voice`    VARCHAR(100) NOT NULL COMMENT '默认音色',
+    `default_language` VARCHAR(50)  NOT NULL COMMENT '默认语言',
+    `enabled`          TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用',
+    `sort_order`       INT          NOT NULL DEFAULT 0 COMMENT '排序序号',
+    `created_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间'
+) COMMENT='角色模板结构';
+
+DROP TABLE IF EXISTS `agent_roles`;
+create table agent_roles
+(
+    id                    bigint auto_increment comment '主键ID'
+        primary key,
+    user_id               bigint                     not null comment '用户ID',
+    device_id             varchar(100)               not null comment '设备ID',
+    assistant_name        varchar(100)               not null comment '助手名称',
+    conversation_language varchar(50)                not null comment '对话语言',
+    role_description      text                       null comment '角色描述',
+    voice_model           varchar(100)               not null comment '语音模型',
+    current_memory        text                       null comment '当前记忆',
+    detailed_memory       text                       null comment '详细记忆',
+    temperature           decimal(3, 2) default 0.70 null comment '温度参数',
+    max_length            bigint        default 2000 null comment '最大长度',
+    created_at            datetime(3)                null comment '创建时间',
+    updated_at            datetime(3)                null comment '更新时间'
+);
+
+
 -- ==============================================
 -- 插入默认数据
 -- ==============================================
