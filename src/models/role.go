@@ -45,19 +45,19 @@ func (AgentRole) TableName() string {
 
 // RoleConfig 角色配置结构（保持向后兼容）
 type RoleConfig struct {
-	ID                   int64   `json:"id" gorm:"primaryKey"`
-	UserID               int64   `json:"user_id" gorm:"not null"`
-	DeviceID             string  `json:"device_id" gorm:"not null"`
-	AssistantName        string  `json:"assistant_name" gorm:"not null"`
-	ConversationLanguage string  `json:"conversation_language" gorm:"not null"`
-	RoleDescription      string  `json:"role_description" gorm:"type:text"`
-	VoiceModel           string  `json:"voice_model" gorm:"not null"`
-	CurrentMemory        string  `json:"current_memory" gorm:"type:text"`
-	DetailedMemory       string  `json:"detailed_memory" gorm:"type:text"`
-	Temperature          float64 `json:"temperature"`
-	MaxLength            int     `json:"max_length"`
-	CreatedAt            int64   `json:"created_at" gorm:"autoCreateTime"`
-	UpdatedAt            int64   `json:"updated_at" gorm:"autoUpdateTime"`
+	ID                   int64     `json:"id" gorm:"primaryKey"`
+	UserID               int64     `json:"user_id" gorm:"not null"`
+	DeviceID             string    `json:"device_id" gorm:"not null"`
+	AssistantName        string    `json:"assistant_name" gorm:"not null"`
+	ConversationLanguage string    `json:"conversation_language" gorm:"not null"`
+	RoleDescription      string    `json:"role_description" gorm:"type:text"`
+	VoiceModel           string    `json:"voice_model" gorm:"not null"`
+	CurrentMemory        string    `json:"current_memory" gorm:"type:text"`
+	DetailedMemory       string    `json:"detailed_memory" gorm:"type:text"`
+	Temperature          float64   `json:"temperature"`
+	MaxLength            int       `json:"max_length"`
+	CreatedAt            time.Time `json:"created_at" gorm:"autoCreateTime;comment:创建时间"`
+	UpdatedAt            time.Time `json:"updated_at" gorm:"autoUpdateTime;comment:更新时间"`
 }
 
 // SaveRoleConfigRequest 保存角色配置请求
