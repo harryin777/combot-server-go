@@ -4,7 +4,7 @@
 GOCMD=go
 GOBUILD=$(GOCMD) build
 GOCLEAN=$(GOCMD) clean
-BINARY_NAME=xiaozhi-server
+BINARY_NAME=combot-server
 BINARY_PATH=./src/main.go
 
 all: build
