@@ -22,8 +22,7 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	UserRouter(groupCtx, apiGroup, config)
 	ConversationRoutes(groupCtx, apiGroup, config)
 	VisionRouter(groupCtx, apiGroup, router, config)
-	RoleRouter(groupCtx, apiGroup, config)      // 添加角色管理路由
-	AgentRoleRouter(groupCtx, apiGroup, config) // 添加智能体角色管理路由
+	RoleRouter(groupCtx, apiGroup, config) // 添加角色管理路由
 
 	// 启动配置服务
 	cfgServer, err := cfg.NewDefaultCfgService(config, nil)

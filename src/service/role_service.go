@@ -47,10 +47,21 @@ func (s *roleService) GetRoleTemplate(ctx context.Context, templateID string) (*
 
 // SaveRoleConfig 保存角色配置
 func (s *roleService) SaveRoleConfig(ctx context.Context, userID int64, config *models.SaveRoleConfigRequest) (int, error) {
-	// 转换为数据库模型（移除template_id验证）
+	// 验证模板是否存在
+	template, err := s.roleDAO.GetRoleTemplateByID(ctx, config.TemplateID)
+	if err != nil {
+		utils.Errorf(ctx, "GetRoleTemplateByID error: %v", err)
+		return codes.CodeInternalError, err
+	}
+	if template == nil {
+		return codes.CodeNotFound, nil
+	}
+
+	// 转换为数据库模型
 	roleConfig := &models.RoleConfig{
 		UserID:               userID,
 		DeviceID:             config.DeviceID,
+		TemplateID:           config.TemplateID,
 		AssistantName:        config.AssistantName,
 		ConversationLanguage: config.ConversationLanguage,
 		RoleDescription:      config.RoleDescription,

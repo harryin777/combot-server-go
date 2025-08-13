@@ -74,8 +74,8 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 			SessionID:    session.SessionID,
 			Title:        session.Title,
 			CurrentRole:  session.CombotName,
-			StartTime:    session.StartTime.Format("2006-01-02 15:04:05"),
-			LastActivity: session.LastActivity.Format("2006-01-02 15:04:05"),
+			StartTime:    session.StartTime.Format("2006-01-02T15:04:05Z"),
+			LastActivity: session.LastActivity.Format("2006-01-02T15:04:05Z"),
 			Status:       string(rune(session.Status + 48)), // 转换枚举为字符串
 			MessageCount: session.MessageCount,
 		})
@@ -102,11 +102,11 @@ type GetConversationMessagesResponse struct {
 type GetConversationMessagesResponseMessage struct {
 	ID          uint   `json:"id" example:"1"`
 	SessionID   string `json:"session_id" example:"session_123"`
-	Role        int    `json:"role" example:"1"`
+	Role        string `json:"role" example:"user"`
 	Content     string `json:"content" example:"你好，今天天气怎么样？"`
-	MessageType int    `json:"message_type" example:"1"`
+	MessageType string `json:"message_type" example:"text"`
 	Round       int    `json:"round" example:"1"`
-	CreatedAt   string `json:"created_at" example:"2024-01-01 10:00:00"`
+	CreatedAt   string `json:"created_at" example:"2024-01-01T10:00:00Z"`
 }
 
 // GetConversationMessages 根据用户、机器人和sessionID获取详细对话历史（右侧对话内容）
@@ -135,11 +135,11 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 		responseMessages = append(responseMessages, GetConversationMessagesResponseMessage{
 			ID:          uint(message.ID),
 			SessionID:   message.SessionID,
-			Role:        int(message.Role), // 直接使用数字类型
+			Role:        string(rune(message.Role + 48)), // 转换枚举为字符串
 			Content:     message.Content,
-			MessageType: int(message.MessageType),                        // 直接使用数字类型
-			Round:       1,                                               // 使用默认值，因为模型中没有这个字段
-			CreatedAt:   message.CreatedAt.Format("2006-01-02 15:04:05"), // 使用本地时间格式，不加时区
+			MessageType: string(rune(message.MessageType + 48)), // 转换枚举为字符串
+			Round:       1,                                      // 使用默认值，因为模型中没有这个字段
+			CreatedAt:   message.CreatedAt.Format("2006-01-02T15:04:05Z"),
 		})
 	}
 

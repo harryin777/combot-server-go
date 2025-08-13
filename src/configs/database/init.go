@@ -78,10 +78,10 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 	//	utils.WithError(context.Background(), err).Warn("插入默认配置失败")
 	//}
 	//
-	// 插入默认角色模板
-	if err := InsertDefaultRoleTemplatesIfNeeded(db); err != nil {
-		utils.WithError(context.Background(), err).Warn("插入默认角色模板失败")
-	}
+	//// 插入默认角色模板
+	//if err := InsertDefaultRoleTemplatesIfNeeded(db); err != nil {
+	//	utils.WithError(context.Background(), err).Warn("插入默认角色模板失败")
+	//}
 
 	DB = db
 
@@ -235,7 +235,6 @@ func migrateTables(db *gorm.DB) error {
 		&models.ConversationSession{},
 		&models.RoleTemplate{},
 		&models.RoleConfig{},
-		&models.AgentRole{}, // 新增智能体角色表
 	)
 }
 
