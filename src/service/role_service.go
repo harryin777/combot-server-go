@@ -69,7 +69,7 @@ func (s *roleService) SaveRoleConfig(ctx context.Context, userID int64, config *
 		CurrentMemory:        config.CurrentMemory,
 		DetailedMemory:       config.DetailedMemory,
 		Temperature:          config.Temperature,
-		MaxLength:            config.MaxLength,
+		MaxLength:            int(config.MaxLength),
 	}
 
 	// 保存到数据库

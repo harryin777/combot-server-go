@@ -49,6 +49,70 @@ func (dao *RoleDAO) GetRoleTemplateByID(ctx context.Context, templateID string) 
 	return &template, nil
 }
 
+// ===== AgentRole 相关方法 =====
+
+// GetAgentRole 获取用户设备的智能体角色配置
+func (dao *RoleDAO) GetAgentRole(ctx context.Context, userID int64, deviceID string) (*models.AgentRole, error) {
+	var agentRole models.AgentRole
+	err := dao.First(ctx, &agentRole, QueryOptions{
+		Table: "agent_roles",
+		Where: map[string]interface{}{
+			"user_id":   userID,
+			"device_id": deviceID,
+		},
+	})
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, nil // 记录不存在返回nil
+		}
+		return nil, err
+	}
+	return &agentRole, nil
+}
+
+// CreateAgentRole 创建智能体角色配置
+func (dao *RoleDAO) CreateAgentRole(ctx context.Context, agentRole *models.AgentRole) error {
+	return dao.Create(ctx, agentRole)
+}
+
+// UpdateAgentRole 更新智能体角色配置
+func (dao *RoleDAO) UpdateAgentRole(ctx context.Context, userID int64, deviceID string, updates map[string]interface{}) error {
+	return dao.Update(ctx, "agent_roles", map[string]interface{}{
+		"user_id":   userID,
+		"device_id": deviceID,
+	}, updates)
+}
+
+// SaveAgentRole 保存智能体角色配置（存在则更新，不存在则创建）
+func (dao *RoleDAO) SaveAgentRole(ctx context.Context, agentRole *models.AgentRole) error {
+	// 先检查是否已存在该用户和设备的配置
+	existing, err := dao.GetAgentRole(ctx, agentRole.UserID, agentRole.DeviceID)
+	if err != nil {
+		return err
+	}
+
+	if existing == nil {
+		// 不存在，创建新记录
+		return dao.CreateAgentRole(ctx, agentRole)
+	} else {
+		// 已存在，更新记录
+		updates := map[string]interface{}{
+			"assistant_name":        agentRole.AssistantName,
+			"conversation_language": agentRole.ConversationLanguage,
+			"role_description":      agentRole.RoleDescription,
+			"voice_model":           agentRole.VoiceModel,
+			"current_memory":        agentRole.CurrentMemory,
+			"detailed_memory":       agentRole.DetailedMemory,
+			"temperature":           agentRole.Temperature,
+			"max_length":            agentRole.MaxLength,
+			"updated_at":            agentRole.UpdatedAt,
+		}
+		return dao.UpdateAgentRole(ctx, agentRole.UserID, agentRole.DeviceID, updates)
+	}
+}
+
+// ===== 保留原有的 RoleConfig 方法用于向后兼容 =====
+
 // CreateRoleTemplate 创建角色模板
 func (dao *RoleDAO) CreateRoleTemplate(ctx context.Context, template *models.RoleTemplate) error {
 	return dao.Create(ctx, template)

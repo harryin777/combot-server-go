@@ -235,6 +235,7 @@ func migrateTables(db *gorm.DB) error {
 		&models.ConversationSession{},
 		&models.RoleTemplate{},
 		&models.RoleConfig{},
+		&models.AgentRole{}, // 添加 AgentRole 模型
 	)
 }
 
