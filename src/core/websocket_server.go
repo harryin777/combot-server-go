@@ -184,10 +184,9 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	connCtx, connCancel := context.WithCancel(context.Background())
 	// 创建新的连接处理器
 	// 创建临时的 utils.Logger 实例
-	tempLogger := &utils.Logger{}
 	handler := NewConnectionHandler(ws.config, providerSet, r, connCtx)
 
-	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, tempLogger, conn, connCtx, connCancel)
+	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, conn, connCtx, connCancel)
 
 	// 设置TaskManager的回调（使用安全回调）
 	handler.taskMgr = ws.taskMgr

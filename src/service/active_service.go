@@ -103,11 +103,11 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, devi
 
 			if err := tx.Create(&device).Error; err != nil {
 				utils.Errorf(ctx, "创建设备记录失败: %v", err)
-				return fmt.Errorf("创建设备记录失败: %w", err)
+				return err
 			}
 		} else if err != nil {
 			utils.Errorf(ctx, "查询设备失败: %v", err)
-			return fmt.Errorf("查询设备失败: %w", err)
+			return err
 		}
 
 		// 存储新验证码
@@ -121,7 +121,7 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, devi
 
 		if err := tx.Create(verificationCode).Error; err != nil {
 			utils.Errorf(ctx, "保存验证码失败: %v", err)
-			return fmt.Errorf("保存验证码失败: %w", err)
+			return err
 		}
 
 		return nil
@@ -137,7 +137,9 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, devi
 		deviceID, code, expiresAt.Format("2006-01-02 15:04:05")))
 
 	return code, expiresAt.Unix(), codes.CodeSuccess, nil
-} // ValidateVerificationCode 验证验证码
+}
+
+// ValidateVerificationCode 验证验证码
 func (s *DeviceService) ValidateVerificationCode(ctx context.Context, code string) (*models.DeviceVerificationCode, int, error) {
 	var verificationCode models.DeviceVerificationCode
 
@@ -175,9 +177,9 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 		}
 
 		// 在生产环境中，这里应该验证HMAC签名
-		// if !s.VerifyHMAC(challenge, hmac, s.config.Security.HMACKey) {
-		//     return errors.New("HMAC验证失败")
-		// }
+		if !s.VerifyHMAC(ctx, challenge, hmac, s.config.Server.Device.HmacKey) {
+			return errors.New("HMAC验证失败")
+		}
 
 		// 生成新的Token
 		authToken := auth.NewAuthToken(s.config.Server.Token)

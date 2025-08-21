@@ -10,8 +10,8 @@ import (
 
 // ResourceFactory 资源工厂接口
 type ResourceFactory interface {
-	Create() (interface{}, error)
-	Destroy(resource interface{}) error
+	Create(ctx context.Context) (interface{}, error)
+	Destroy(ctx context.Context, resource interface{}) error
 }
 
 // PoolConfig 资源池配置
@@ -36,7 +36,7 @@ type ResourcePool struct {
 }
 
 // NewResourcePool 创建新的资源池
-func NewResourcePool(factory ResourceFactory, config PoolConfig) (*ResourcePool, error) {
+func NewResourcePool(ctx context.Context, factory ResourceFactory, config PoolConfig) (*ResourcePool, error) {
 	if factory == nil {
 		return nil, fmt.Errorf("factory不能为空")
 	}
@@ -53,7 +53,7 @@ func NewResourcePool(factory ResourceFactory, config PoolConfig) (*ResourcePool,
 
 	// 初始化最小数量的资源
 	for i := 0; i < config.MinSize; i++ {
-		resource, err := factory.Create()
+		resource, err := factory.Create(ctx)
 		if err != nil {
 			// 清理已创建的资源
 			pool.Close()

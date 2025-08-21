@@ -131,15 +131,15 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 		authToken := auth.NewAuthToken(config.Server.Token)
 		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
 			resp.Websocket.Token = token
-			utils.WithField(context.Background(), "device_id", deviceID).Info("为已激活设备生成了新token")
+			utils.WithField(c.Request.Context(), "device_id", deviceID).Info("为已激活设备生成了新token")
 		} else {
-			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Warn("生成token失败")
+			utils.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Warn("生成token失败")
 		}
 	} else {
 		// 设备未激活或不存在，生成验证码
 		code, expiresAt, retCode, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), deviceID, clientID)
 		if err != nil || retCode != codes.CodeSuccess {
-			utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("生成验证码失败")
+			utils.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Error("生成验证码失败")
 		} else {
 			resp.Activation = &struct {
 				Code      string `json:"code" example:"123456"`
@@ -152,7 +152,7 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 				Message:   "设备未激活，请输入验证码完成绑定",
 				TimeoutMs: (expiresAt - time.Now().Unix()) * 1000,
 			}
-			utils.WithField(context.Background(), "device_id", deviceID).Info("为未激活设备生成了验证码")
+			utils.WithField(c.Request.Context(), "device_id", deviceID).Info("为未激活设备生成了验证码")
 		}
 	}
 

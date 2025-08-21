@@ -41,7 +41,7 @@ type Client struct {
 }
 
 // NewClient 创建一个新的MCP客户端实例
-func NewClient(config *Config) (*Client, error) {
+func NewClient(ctx context.Context, config *Config) (*Client, error) {
 	if !config.Enabled {
 		return nil, fmt.Errorf("MCP client is disabled in config")
 	}
@@ -67,7 +67,7 @@ func NewClient(config *Config) (*Client, error) {
 		c.stdioClient = stdioClient
 		c.useStdioClient = true
 	} else {
-		utils.Warn(context.Background(), "Unsupported MCP client type, only stdio client is supported")
+		utils.Warn(ctx, "Unsupported MCP client type, only stdio client is supported")
 	}
 
 	return c, nil

@@ -14,7 +14,6 @@ type ConnectionContext struct {
 	providerSet *pool.ProviderSet
 	poolManager *pool.PoolManager
 	clientID    string
-	logger      *utils.Logger
 	conn        Connection
 	ctx         context.Context
 	cancel      context.CancelFunc
@@ -23,7 +22,7 @@ type ConnectionContext struct {
 
 // NewConnectionContext 创建新的连接上下文
 func NewConnectionContext(handler *ConnectionHandler, providerSet *pool.ProviderSet,
-	poolManager *pool.PoolManager, clientID string, logger *utils.Logger, conn Connection,
+	poolManager *pool.PoolManager, clientID string, conn Connection,
 	ctx context.Context, cancel context.CancelFunc) *ConnectionContext {
 
 	return &ConnectionContext{
@@ -31,7 +30,6 @@ func NewConnectionContext(handler *ConnectionHandler, providerSet *pool.Provider
 		providerSet: providerSet,
 		poolManager: poolManager,
 		clientID:    clientID,
-		logger:      logger,
 		conn:        conn,
 		ctx:         ctx,
 		cancel:      cancel,
@@ -50,19 +48,19 @@ func (c *ConnectionContext) GetContext() context.Context {
 }
 
 // CreateSafeCallback 创建安全的回调函数
-func (c *ConnectionContext) CreateSafeCallback() func(func(*ConnectionHandler)) func() {
+func (c *ConnectionContext) CreateSafeCallback(ctx context.Context) func(func(*ConnectionHandler)) func() {
 	return func(callback func(*ConnectionHandler)) func() {
 		return func() {
 			// 检查连接是否仍然活跃
 			if !c.IsActive() {
-				c.logger.Info(fmt.Sprintf("客户端 %s 连接已关闭，跳过回调", c.clientID))
+				utils.Infof(ctx, "客户端 %s 连接已关闭，跳过回调", c.clientID)
 				return
 			}
 
 			// 检查上下文是否已取消
 			select {
 			case <-c.ctx.Done():
-				c.logger.Info(fmt.Sprintf("客户端 %s 上下文已取消，跳过回调", c.clientID))
+				utils.Infof(ctx, "客户端 %s 上下文已取消，跳过回调", c.clientID)
 				return
 			default:
 			}
@@ -76,7 +74,7 @@ func (c *ConnectionContext) CreateSafeCallback() func(func(*ConnectionHandler)) 
 }
 
 // Close 关闭连接并归还资源
-func (c *ConnectionContext) Close() error {
+func (c *ConnectionContext) Close(ctx context.Context) error {
 	// 使用原子操作标记为已关闭
 	if !atomic.CompareAndSwapInt32(&c.closed, 0, 1) {
 		return nil // 已经关闭过了
@@ -101,9 +99,9 @@ func (c *ConnectionContext) Close() error {
 	if c.providerSet != nil && c.poolManager != nil {
 		if err := c.poolManager.ReturnProviderSet(c.ctx, c.providerSet); err != nil {
 			errs = append(errs, fmt.Errorf("归还资源失败: %v", err))
-			c.logger.Error(fmt.Sprintf("客户端 %s 归还资源失败: %v", c.clientID, err))
+			utils.Errorf(ctx, "客户端 %s 归还资源失败: %v", c.clientID, err)
 		} else {
-			c.logger.Info(fmt.Sprintf("客户端 %s 资源已成功归还到池中", c.clientID))
+			utils.Infof(ctx, "客户端 %s 资源已成功归还到池中", c.clientID)
 		}
 	}
 

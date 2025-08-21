@@ -29,15 +29,15 @@ type Manager struct {
 	clients               map[string]MCPClient
 	localClient           *LocalClient // 本地MCP客户端
 	tools                 []string
-	XiaoZhiMCPClient      *XiaoZhiMCPClient // XiaoZhiMCPClient用于处理小智MCP相关逻辑
-	bRegisteredXiaoZhiMCP bool              // 是否已注册小智MCP工具
-	isInitialized         bool              // 添加初始化状态标记
+	CombotMCPClient       *CombotMCPClient // XiaoZhiMCPClient用于处理小智MCP相关逻辑
+	bRegisteredXiaoZhiMCP bool             // 是否已注册小智MCP工具
+	isInitialized         bool             // 添加初始化状态标记
 	systemCfg             *configs.Config
 	mu                    sync.RWMutex
 }
 
 // NewManagerForPool 创建用于资源池的MCP管理器
-func NewManagerForPool(cfg *configs.Config) *Manager {
+func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	projectDir := utils.GetProjectDir()
 	configPath := filepath.Join(projectDir, ".mcp_server_settings.json")
 
@@ -55,7 +55,6 @@ func NewManagerForPool(cfg *configs.Config) *Manager {
 		systemCfg:             cfg,
 	}
 	// 预先初始化非连接相关的MCP服务器
-	ctx := context.Background()
 	if err := mgr.preInitializeServers(ctx); err != nil {
 		logrus.WithError(err).Error("预初始化MCP服务器失败")
 	}
@@ -70,7 +69,7 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 	m.localClient.Start(ctx)
 	m.clients["local"] = m.localClient
 
-	config := m.LoadConfig()
+	config := m.LoadConfig(ctx)
 	if config == nil {
 		return fmt.Errorf("no valid MCP server configuration found")
 	}
@@ -87,27 +86,18 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"name":  name,
-				"error": err,
-			}).Error("Failed to convert config for server")
+			utils.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
 			continue
 		}
 
-		client, err := NewClient(clientConfig)
+		client, err := NewClient(ctx, clientConfig)
 		if err != nil {
-			logrus.WithFields(logrus.Fields{
-				"name":  name,
-				"error": err,
-			}).Error("Failed to create MCP client for server")
+			utils.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
 			continue
 		}
 
-		if err := client.Start(context.Background()); err != nil {
-			logrus.WithFields(logrus.Fields{
-				"name":  name,
-				"error": err,
-			}).Error("Failed to start MCP client")
+		if err := client.Start(ctx); err != nil {
+			utils.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
 			continue
 		}
 		m.clients[name] = client
@@ -134,23 +124,23 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 	utils.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
 	// 优化：检查XiaoZhiMCPClient是否需要重新启动
-	if m.XiaoZhiMCPClient == nil {
-		m.XiaoZhiMCPClient = NewXiaoZhiMCPClient(conn, sessionID)
-		m.clients["xiaozhi"] = m.XiaoZhiMCPClient
-		m.XiaoZhiMCPClient.SetVisionURL(visionURL)
-		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
-		m.XiaoZhiMCPClient.SetToken(token)
+	if m.CombotMCPClient == nil {
+		m.CombotMCPClient = NewCombotMCPClient(conn, sessionID)
+		m.clients["xiaozhi"] = m.CombotMCPClient
+		m.CombotMCPClient.SetVisionURL(visionURL)
+		m.CombotMCPClient.SetID(deviceID, clientID)
+		m.CombotMCPClient.SetToken(token)
 
-		if err := m.XiaoZhiMCPClient.Start(context.Background()); err != nil {
+		if err := m.CombotMCPClient.Start(context.Background()); err != nil {
 			return fmt.Errorf("启动XiaoZhi MCP客户端失败: %v", err)
 		}
 	} else {
 		// 重新绑定连接而不是重新创建
-		m.XiaoZhiMCPClient.SetConnection(conn)
-		m.XiaoZhiMCPClient.SetID(deviceID, clientID)
-		m.XiaoZhiMCPClient.SetToken(token)
-		if !m.XiaoZhiMCPClient.IsReady() {
-			if err := m.XiaoZhiMCPClient.Start(context.Background()); err != nil {
+		m.CombotMCPClient.SetConnection(conn)
+		m.CombotMCPClient.SetID(deviceID, clientID)
+		m.CombotMCPClient.SetToken(token)
+		if !m.CombotMCPClient.IsReady() {
+			if err := m.CombotMCPClient.Start(context.Background()); err != nil {
 				return fmt.Errorf("重启XiaoZhi MCP客户端失败: %v", err)
 			}
 		}
@@ -168,8 +158,8 @@ func (m *Manager) registerAllToolsIfNeeded() {
 	}
 
 	// 检查是否已注册，避免重复注册
-	if !m.bRegisteredXiaoZhiMCP && m.XiaoZhiMCPClient != nil && m.XiaoZhiMCPClient.IsReady() {
-		tools := m.XiaoZhiMCPClient.GetAvailableTools()
+	if !m.bRegisteredXiaoZhiMCP && m.CombotMCPClient != nil && m.CombotMCPClient.IsReady() {
+		tools := m.CombotMCPClient.GetAvailableTools()
 		for _, tool := range tools {
 			toolName := tool.Function.Name
 			m.funcHandler.RegisterFunction(toolName, tool)
@@ -215,8 +205,8 @@ func (m *Manager) Reset() error {
 	m.tools = make([]string, 0)
 
 	// 对xiaozhi客户端进行连接重置而不是完全销毁
-	if m.XiaoZhiMCPClient != nil {
-		m.XiaoZhiMCPClient.ResetConnection() // 新增方法
+	if m.CombotMCPClient != nil {
+		m.CombotMCPClient.ResetConnection() // 新增方法
 	}
 
 	// 对外部MCP客户端进行连接重置
@@ -240,17 +230,14 @@ func (m *Manager) Cleanup() error {
 }
 
 // LoadConfig 加载MCP服务配置
-func (m *Manager) LoadConfig() map[string]interface{} {
+func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 	if m.configPath == "" {
 		return nil
 	}
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		logrus.WithFields(logrus.Fields{
-			"path":  m.configPath,
-			"error": err,
-		}).Error("Error loading MCP config")
+		utils.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -259,7 +246,7 @@ func (m *Manager) LoadConfig() map[string]interface{} {
 	}
 
 	if err := json.Unmarshal(data, &config); err != nil {
-		logrus.WithError(err).Error("Error parsing MCP config")
+		utils.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -268,13 +255,13 @@ func (m *Manager) LoadConfig() map[string]interface{} {
 
 func (m *Manager) HandleXiaoZhiMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
 	// 处理小智MCP消息
-	if m.XiaoZhiMCPClient == nil {
-		return fmt.Errorf("XiaoZhiMCPClient is not initialized")
+	if m.CombotMCPClient == nil {
+		return fmt.Errorf("CombotMCPClient is not initialized")
 	}
-	m.XiaoZhiMCPClient.HandleMCPMessage(ctx, msgMap)
-	if m.XiaoZhiMCPClient.IsReady() && !m.bRegisteredXiaoZhiMCP {
+	m.CombotMCPClient.HandleMCPMessage(ctx, msgMap)
+	if m.CombotMCPClient.IsReady() && !m.bRegisteredXiaoZhiMCP {
 		// 注册小智MCP工具
-		m.registerTools(m.XiaoZhiMCPClient.GetAvailableTools())
+		m.registerTools(m.CombotMCPClient.GetAvailableTools())
 		m.bRegisteredXiaoZhiMCP = true
 	}
 	return nil

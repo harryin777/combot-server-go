@@ -8,6 +8,7 @@ import (
 	"xiaozhi-server-go/src/core/utils"
 )
 
+// AddToolExit 添加退出对话的工具
 func (c *LocalClient) AddToolExit() error {
 
 	InputSchema := ToolInputSchema{
@@ -25,7 +26,7 @@ func (c *LocalClient) AddToolExit() error {
 		"当用户想结束对话或需要退出系统时调用",
 		InputSchema,
 		func(ctx context.Context, args map[string]any) (interface{}, error) {
-			utils.WithField(context.Background(), "say_goodbye", args["say_goodbye"]).Info("用户请求退出对话")
+			utils.Infof(ctx, "用户请求退出对话, say_goodbye: %v", args["say_goodbye"])
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
 				Result: types.ActionResponseCall{

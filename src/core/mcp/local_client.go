@@ -10,12 +10,21 @@ import (
 	"github.com/sashabaranov/go-openai"
 )
 
+const (
+	MFuncNameExit        = "exit"
+	MFuncNameTime        = "time"
+	MFuncNameChangeVoice = "change_voice"
+	MFuncNameChangeRole  = "change_role"
+	MFuncNamePlayMusic   = "play_music"
+)
+
+var FuncNamesMap = new(sync.Map)
+
 type HandlerFunc func(ctx context.Context, args map[string]interface{}) (interface{}, error)
 
 type LocalClient struct {
 	tools   []Tool
 	mu      sync.RWMutex
-	ctx     context.Context
 	handler map[string]HandlerFunc
 	cfg     *configs.Config
 }
@@ -30,50 +39,49 @@ func NewLocalClient(cfg *configs.Config) (*LocalClient, error) {
 	return c, nil
 }
 
-func (c *LocalClient) RegisterTools() {
+func (c *LocalClient) RegisterTools(ctx context.Context) {
 	if c.cfg == nil {
-		utils.Error(context.Background(), "RegisterTools: config is nil")
+		utils.Error(ctx, "RegisterTools: config is nil")
 		return
 	}
 
 	if c.cfg.LocalMCPFun == nil {
-		utils.Warn(context.Background(), "RegisterTools: LocalMCPFun is nil")
+		utils.Warn(ctx, "RegisterTools: LocalMCPFun is nil")
 		return
 	}
 
-	funcs := c.cfg.LocalMCPFun
-	if len(funcs) == 0 {
-		utils.Info(context.Background(), "RegisterTools: LocalMCPFun is empty")
+	if len(c.cfg.LocalMCPFun) == 0 {
+		utils.Info(ctx, "RegisterTools: LocalMCPFun is empty")
 		return
 	}
 
-	for _, funcName := range funcs {
-		if funcName == "exit" {
+	for _, funcName := range c.cfg.LocalMCPFun {
+		FuncNamesMap.Store(funcName, 1)
+		if funcName == MFuncNameExit {
 			c.AddToolExit()
-			utils.Info(context.Background(), "RegisterTools: exit tool registered")
-		} else if funcName == "time" {
+			utils.Info(ctx, "RegisterTools: exit tool registered")
+		} else if funcName == MFuncNameTime {
 			c.AddToolTime()
-			utils.Info(context.Background(), "RegisterTools: time tool registered")
-		} else if funcName == "change_voice" {
+			utils.Info(ctx, "RegisterTools: time tool registered")
+		} else if funcName == MFuncNameChangeVoice {
 			c.AddToolChangeVoice()
-			utils.Info(context.Background(), "RegisterTools: change_voice tool registered")
-		} else if funcName == "change_role" {
+			utils.Info(ctx, "RegisterTools: change_voice tool registered")
+		} else if funcName == MFuncNameChangeRole {
 			c.AddToolChangeRole()
-			utils.Info(context.Background(), "RegisterTools: change_role tool registered")
-		} else if funcName == "play_music" {
+			utils.Info(ctx, "RegisterTools: change_role tool registered")
+		} else if funcName == MFuncNamePlayMusic {
 			c.AddToolPlayMusic()
-			utils.Info(context.Background(), "RegisterTools: play_music tool registered")
+			utils.Info(ctx, "RegisterTools: play_music tool registered")
 		} else {
-			utils.WithFields(context.Background(), map[string]interface{}{"funcName": funcName}).Warn("RegisterTools: unknown function name")
+			utils.Warnf(ctx, "RegisterTools: unknown function name %v", funcName)
 		}
 	}
 }
 
 // Start 启动本地MCP客户端
 func (c *LocalClient) Start(ctx context.Context) error {
-	c.ctx = ctx
-	c.RegisterTools()
-	utils.Info(context.Background(), "Local MCP client started")
+	c.RegisterTools(ctx)
+	utils.Info(ctx, "Local MCP client started")
 	return nil
 }
 
@@ -84,18 +92,13 @@ func (c *LocalClient) Stop() {
 
 // HasTool 检查本地客户端是否有指定名称的工具
 func (c *LocalClient) HasTool(name string) bool {
-	c.mu.RLock()
-	defer c.mu.RUnlock()
 	// 如果有local_前缀，则去掉前缀
 	if len(name) > 6 && name[:6] == "local_" {
 		name = name[6:]
 	}
-	for _, tool := range c.tools {
-		if tool.Name == name {
-			return true
-		}
+	if _, ok := FuncNamesMap.Load(name); ok {
+		return true
 	}
-
 	return false
 }
 

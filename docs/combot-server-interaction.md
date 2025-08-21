@@ -34,7 +34,7 @@ sequenceDiagram
 
 #### 1.1 ComBot发起请求
 
-**代码位置**: `combot/main/ota.cc:74-100`
+**代码位置**: `combot/main/ota.cc:75-100`
 
 ```cpp
 bool Ota::CheckVersion() {
@@ -62,7 +62,7 @@ bool Ota::CheckVersion() {
 
 #### 1.2 HTTP请求头设置
 
-**代码位置**: `combot/main/ota.cc:51-67`
+**代码位置**: `combot/main/ota.cc:52-67`
 
 ```cpp
 std::unique_ptr<Http> Ota::SetupHttp() {
@@ -99,7 +99,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
 
 #### 2.1 响应解析
 
-**代码位置**: `combot/main/ota.cc:104-145`
+**代码位置**: `combot/main/ota.cc:120-145`
 
 ```cpp
 bool Ota::CheckVersion() {
@@ -266,7 +266,7 @@ void Application::CheckNewVersion(Ota& ota) {
 
 #### 4.2 Activate请求实现
 
-**代码位置**: `combot/main/ota.cc:442-477`
+**代码位置**: `combot/main/ota.cc:442-470`
 
 ```cpp
 esp_err_t Ota::Activate() {
@@ -418,11 +418,11 @@ std::string Ota::GetActivationPayload() {
 
 | 功能             | ComBot文件              | 关键行号 | Server文件                           |
 | ---------------- | ----------------------- | -------- | ------------------------------------ |
-| CheckVersion请求 | `main/ota.cc`         | 74-100   | `ota/handler.go:handleOtaPost`     |
-| HTTP头设置       | `main/ota.cc`         | 51-67    | 请求解析                             |
-| 响应解析         | `main/ota.cc`         | 104-145  | 响应生成                             |
-| 验证码播报       | `main/application.cc` | 177-206  | -                                    |
-| Activate请求     | `main/ota.cc`         | 442-477  | `ota/handler.go:handleOtaActivate` |
+| CheckVersion请求 | `main/ota.cc`         | 75-100   | `ota/handler.go:handleOtaPost`     |
+| HTTP头设置       | `main/ota.cc`         | 52-67    | 请求解析                             |
+| 响应解析         | `main/ota.cc`         | 120-145  | 响应生成                             |
+| 验证码播报       | `main/application.cc` | 177-205  | -                                    |
+| Activate请求     | `main/ota.cc`         | 442-470  | `ota/handler.go:handleOtaActivate` |
 | HMAC生成         | `main/ota.cc`         | 405-440  | HMAC验证                             |
 | 重试逻辑         | `main/application.cc` | 159-172  | 状态码处理                           |
 

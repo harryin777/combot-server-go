@@ -628,7 +628,7 @@ func (hc *HealthChecker) createWithRetry(ctx context.Context, factory ResourceFa
 		_, cancel := context.WithTimeout(ctx, hc.connConfig.Timeout)
 
 		// 创建实例
-		instance, err := factory.Create()
+		instance, err := factory.Create(ctx)
 		cancel()
 
 		if err != nil {

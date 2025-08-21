@@ -46,15 +46,14 @@ func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, 
 	}
 
 	// 检查配置是否包含所需的模块
-	selectedModule := config.SelectedModule
 
 	// 初始化ASR池
-	if asrType, ok := selectedModule["ASR"]; ok && asrType != "" {
+	if asrType, ok := config.SelectedModule["ASR"]; ok && asrType != "" {
 		asrFactory := NewASRFactory(asrType, config)
 		if asrFactory == nil {
 			return nil, fmt.Errorf("创建ASR工厂失败: 找不到配置 %s", asrType)
 		}
-		asrPool, err := NewResourcePool(asrFactory, poolConfig)
+		asrPool, err := NewResourcePool(ctx, asrFactory, poolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("初始化ASR资源池失败: %v", err)
 		}
@@ -64,48 +63,42 @@ func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, 
 	}
 
 	// 初始化LLM池
-	if llmType, ok := selectedModule["LLM"]; ok && llmType != "" {
+	if llmType, ok := config.SelectedModule["LLM"]; ok && llmType != "" {
 		llmFactory := NewLLMFactory(llmType, config)
 		if llmFactory == nil {
 			return nil, fmt.Errorf("创建LLM工厂失败: 找不到配置 %s", llmType)
 		}
-		llmPool, err := NewResourcePool(llmFactory, poolConfig)
+		llmPool, err := NewResourcePool(ctx, llmFactory, poolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("初始化LLM资源池失败: %v", err)
 		}
 		pm.llmPool = llmPool
 		_, cnt := llmPool.GetStats()
-		utils.WithFields(ctx, map[string]interface{}{
-			"type":  llmType,
-			"count": cnt,
-		}).Info("LLM资源池初始化成功")
+		utils.Infof(ctx, "LLM资源池初始化成功，类型: %v, 数量：%v", llmType, cnt)
 	}
 
 	// 初始化TTS池
-	if ttsType, ok := selectedModule["TTS"]; ok && ttsType != "" {
+	if ttsType, ok := config.SelectedModule["TTS"]; ok && ttsType != "" {
 		ttsFactory := NewTTSFactory(ttsType, config)
 		if ttsFactory == nil {
 			return nil, fmt.Errorf("创建TTS工厂失败: 找不到配置 %s", ttsType)
 		}
-		ttsPool, err := NewResourcePool(ttsFactory, poolConfig)
+		ttsPool, err := NewResourcePool(ctx, ttsFactory, poolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("初始化TTS资源池失败: %v", err)
 		}
 		pm.ttsPool = ttsPool
 		_, cnt := ttsPool.GetStats()
-		utils.WithFields(ctx, map[string]interface{}{
-			"type":  ttsType,
-			"count": cnt,
-		}).Info("TTS资源池初始化成功")
+		utils.Infof(ctx, "TTS资源池初始化成功，类型: %v, 数量：%v", ttsType, cnt)
 	}
 
 	// 初始化VLLLM池（可选）
-	if vlllmType, ok := selectedModule["VLLLM"]; ok && vlllmType != "" {
+	if vlllmType, ok := config.SelectedModule["VLLLM"]; ok && vlllmType != "" {
 		vlllmFactory := NewVLLLMFactory(vlllmType, config)
 		if vlllmFactory == nil {
 			utils.WithField(ctx, "type", vlllmType).Warn("创建VLLLM工厂失败: 找不到配置")
 		} else {
-			vlllmPool, err := NewResourcePool(vlllmFactory, poolConfig)
+			vlllmPool, err := NewResourcePool(ctx, vlllmFactory, poolConfig)
 			if err != nil {
 				utils.WithError(ctx, err).Warn("初始化VLLLM资源池失败（将继续使用普通LLM）")
 			} else {
@@ -114,10 +107,7 @@ func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, 
 		}
 		if pm.vlllmPool != nil {
 			_, cnt := pm.vlllmPool.GetStats()
-			utils.WithFields(ctx, map[string]interface{}{
-				"type":  vlllmType,
-				"count": cnt,
-			}).Info("VLLLM资源池初始化成功")
+			utils.Infof(ctx, "VLLLM资源池初始化成功，类型: %v, 数量：%v", vlllmType, cnt)
 		} else {
 			utils.Warn(ctx, "VLLLM资源池未初始化，将使用普通LLM")
 		}
@@ -134,13 +124,13 @@ func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, 
 	utils.Info(ctx, "开始初始化MCP资源池，请等待...")
 	mcpFactory := NewMCPFactory(config)
 	if mcpFactory != nil {
-		mcpPool, err := NewResourcePool(mcpFactory, poolConfig)
+		mcpPool, err := NewResourcePool(ctx, mcpFactory, poolConfig)
 		if err != nil {
 			return nil, fmt.Errorf("初始化MCP资源池失败: %v", err)
 		}
 		pm.mcpPool = mcpPool
 		_, cnt := mcpPool.GetStats()
-		utils.WithField(ctx, "count", cnt).Info("MCP资源池初始化成功")
+		utils.Infof(ctx, "MCP资源池初始化成功 count:%v", cnt)
 	} else {
 		utils.Warn(ctx, "创建MCP工厂失败，MCP功能将不可用")
 	}

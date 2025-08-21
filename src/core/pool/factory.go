@@ -1,6 +1,7 @@
 package pool
 
 import (
+	"context"
 	"fmt"
 	"xiaozhi-server-go/src/configs"
 	"xiaozhi-server-go/src/core/mcp"
@@ -25,11 +26,11 @@ type ProviderFactory struct {
 	params       map[string]interface{} // 可选参数
 }
 
-func (f *ProviderFactory) Create() (interface{}, error) {
-	return f.createProvider()
+func (f *ProviderFactory) Create(ctx context.Context) (interface{}, error) {
+	return f.createProvider(ctx)
 }
 
-func (f *ProviderFactory) Destroy(resource interface{}) error {
+func (f *ProviderFactory) Destroy(ctx context.Context, resource interface{}) error {
 	if provider, ok := resource.(providers.Provider); ok {
 		return provider.Cleanup()
 	}
@@ -43,7 +44,7 @@ func (f *ProviderFactory) Destroy(resource interface{}) error {
 	return nil
 }
 
-func (f *ProviderFactory) createProvider() (interface{}, error) {
+func (f *ProviderFactory) createProvider(ctx context.Context) (interface{}, error) {
 	switch f.providerType {
 	case "asr":
 		cfg := f.config.(*asr.Config)
@@ -64,7 +65,7 @@ func (f *ProviderFactory) createProvider() (interface{}, error) {
 		return vlllm.Create(cfg.Type, cfg)
 	case "mcp":
 		cfg := f.config.(*configs.Config)
-		return mcp.NewManagerForPool(cfg), nil
+		return mcp.NewManagerForPool(ctx, cfg), nil
 	default:
 		return nil, fmt.Errorf("未知的提供者类型: %s", f.providerType)
 	}
