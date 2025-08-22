@@ -139,11 +139,11 @@ func NewPoolManager(ctx context.Context, config *configs.Config) (*PoolManager, 
 }
 
 // GetProviderSet 获取一套提供者
-func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
+func (pm *PoolManager) GetProviderSet(ctx context.Context) (*ProviderSet, error) {
 	set := &ProviderSet{}
 
 	if pm.asrPool != nil {
-		asr, err := pm.asrPool.Get()
+		asr, err := pm.asrPool.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("获取ASR提供者失败: %v", err)
 		}
@@ -151,7 +151,7 @@ func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
 	}
 
 	if pm.llmPool != nil {
-		llm, err := pm.llmPool.Get()
+		llm, err := pm.llmPool.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("获取LLM提供者失败: %v", err)
 		}
@@ -159,7 +159,7 @@ func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
 	}
 
 	if pm.ttsPool != nil {
-		tts, err := pm.ttsPool.Get()
+		tts, err := pm.ttsPool.Get(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("获取TTS提供者失败: %v", err)
 		}
@@ -167,7 +167,7 @@ func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
 	}
 
 	if pm.vlllmPool != nil {
-		vlllmProvider, err := pm.vlllmPool.Get()
+		vlllmProvider, err := pm.vlllmPool.Get(ctx)
 		if err == nil {
 			// 直接转换，因为我们知道这是从 vlllm 工厂创建的
 			set.VLLLM = vlllmProvider.(*vlllm.Provider)
@@ -175,7 +175,7 @@ func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
 	}
 
 	if pm.mcpPool != nil {
-		mcpManager, err := pm.mcpPool.Get()
+		mcpManager, err := pm.mcpPool.Get(ctx)
 		if err == nil {
 			// 直接转换，因为我们知道这是从 mcp 工厂创建的
 			set.MCP = mcpManager.(*mcp.Manager)
@@ -186,21 +186,21 @@ func (pm *PoolManager) GetProviderSet() (*ProviderSet, error) {
 }
 
 // Close 关闭所有资源池
-func (pm *PoolManager) Close() {
+func (pm *PoolManager) Close(ctx context.Context) error {
 	if pm.asrPool != nil {
-		pm.asrPool.Close()
+		pm.asrPool.Close(ctx)
 	}
 	if pm.llmPool != nil {
-		pm.llmPool.Close()
+		pm.llmPool.Close(ctx)
 	}
 	if pm.ttsPool != nil {
-		pm.ttsPool.Close()
+		pm.ttsPool.Close(ctx)
 	}
 	if pm.vlllmPool != nil {
-		pm.vlllmPool.Close()
+		pm.vlllmPool.Close(ctx)
 	}
 	if pm.mcpPool != nil {
-		pm.mcpPool.Close()
+		pm.mcpPool.Close(ctx)
 	}
 }
 
@@ -216,12 +216,12 @@ func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) 
 	if set.ASR != nil && pm.asrPool != nil {
 		// 重置资源状态
 		if err := pm.asrPool.Reset(set.ASR); err != nil {
-			utils.WithError(ctx, err).Warn("重置ASR资源状态失败")
+			utils.Error(ctx, "重置ASR资源状态失败")
 		}
 		// 归还到池中
-		if err := pm.asrPool.Put(set.ASR); err != nil {
+		if err := pm.asrPool.Put(ctx, set.ASR); err != nil {
 			errs = append(errs, fmt.Errorf("归还ASR提供者失败: %v", err))
-			utils.WithError(ctx, err).Error("归还ASR提供者失败")
+			utils.Error(ctx, "归还ASR提供者失败")
 		} else {
 			utils.Debug(ctx, "ASR提供者已成功归还到池中")
 		}
@@ -232,7 +232,7 @@ func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) 
 		if err := pm.llmPool.Reset(set.LLM); err != nil {
 			utils.WithError(ctx, err).Warn("重置LLM资源状态失败")
 		}
-		if err := pm.llmPool.Put(set.LLM); err != nil {
+		if err := pm.llmPool.Put(ctx, set.LLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还LLM提供者失败: %v", err))
 			utils.WithError(ctx, err).Error("归还LLM提供者失败")
 		} else {
@@ -245,7 +245,7 @@ func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) 
 		if err := pm.ttsPool.Reset(set.TTS); err != nil {
 			utils.WithError(ctx, err).Warn("重置TTS资源状态失败")
 		}
-		if err := pm.ttsPool.Put(set.TTS); err != nil {
+		if err := pm.ttsPool.Put(ctx, set.TTS); err != nil {
 			errs = append(errs, fmt.Errorf("归还TTS提供者失败: %v", err))
 			utils.WithError(ctx, err).Error("归还TTS提供者失败")
 		} else {
@@ -258,7 +258,7 @@ func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) 
 		if err := pm.vlllmPool.Reset(set.VLLLM); err != nil {
 			utils.WithError(ctx, err).Warn("重置VLLLM资源状态失败")
 		}
-		if err := pm.vlllmPool.Put(set.VLLLM); err != nil {
+		if err := pm.vlllmPool.Put(ctx, set.VLLLM); err != nil {
 			errs = append(errs, fmt.Errorf("归还VLLLM提供者失败: %v", err))
 			utils.WithError(ctx, err).Error("归还VLLLM提供者失败")
 		} else {
@@ -271,7 +271,7 @@ func (pm *PoolManager) ReturnProviderSet(ctx context.Context, set *ProviderSet) 
 		if err := pm.mcpPool.Reset(set.MCP); err != nil {
 			utils.WithError(ctx, err).Warn("重置MCP资源状态失败")
 		}
-		if err := pm.mcpPool.Put(set.MCP); err != nil {
+		if err := pm.mcpPool.Put(ctx, set.MCP); err != nil {
 			errs = append(errs, fmt.Errorf("归还MCP提供者失败: %v", err))
 			utils.WithError(ctx, err).Error("归还MCP提供者失败")
 		} else {

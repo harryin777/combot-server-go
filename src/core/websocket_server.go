@@ -124,7 +124,7 @@ func (u *defaultUpgrader) Upgrade(w http.ResponseWriter, r *http.Request) (Conne
 }
 
 // Stop 停止WebSocket服务器
-func (ws *WebSocketServer) Stop() error {
+func (ws *WebSocketServer) Stop(ctx context.Context) error {
 	if ws.server != nil {
 		logrus.Info("正在关闭WebSocket服务器...")
 
@@ -144,7 +144,7 @@ func (ws *WebSocketServer) Stop() error {
 
 		// 关闭资源池
 		if ws.poolManager != nil {
-			ws.poolManager.Close()
+			ws.poolManager.Close(ctx)
 		}
 
 		// 关闭服务器

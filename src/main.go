@@ -116,7 +116,7 @@ func StartWSServer(config *configs.Config, g *errgroup.Group, groupCtx context.C
 		go func() {
 			<-groupCtx.Done()
 			utils.Info(groupCtx, "收到关闭信号，开始关闭WebSocket服务...")
-			if err := wsServer.Stop(); err != nil {
+			if err := wsServer.Stop(groupCtx); err != nil {
 				utils.WithError(groupCtx, err).Error("WebSocket服务关闭失败")
 			} else {
 				utils.Info(groupCtx, "WebSocket服务已优雅关闭")

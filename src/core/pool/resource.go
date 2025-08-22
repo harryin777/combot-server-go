@@ -56,7 +56,7 @@ func NewResourcePool(ctx context.Context, factory ResourceFactory, config PoolCo
 		resource, err := factory.Create(ctx)
 		if err != nil {
 			// 清理已创建的资源
-			pool.Close()
+			pool.Close(ctx)
 			return nil, fmt.Errorf("创建初始资源失败: %v", err)
 		}
 		pool.resources <- resource
@@ -70,7 +70,7 @@ func NewResourcePool(ctx context.Context, factory ResourceFactory, config PoolCo
 }
 
 // Get 获取资源
-func (p *ResourcePool) Get() (interface{}, error) {
+func (p *ResourcePool) Get(ctx context.Context) (interface{}, error) {
 	p.mu.RLock()
 	if p.closed {
 		p.mu.RUnlock()
@@ -88,7 +88,7 @@ func (p *ResourcePool) Get() (interface{}, error) {
 		// 没有可用资源，尝试创建新的
 		p.mu.Lock()
 		if p.totalCount < p.config.MaxSize {
-			resource, err := p.factory.Create()
+			resource, err := p.factory.Create(ctx)
 			if err != nil {
 				p.mu.Unlock()
 				return nil, fmt.Errorf("创建新资源失败: %v", err)
@@ -104,7 +104,7 @@ func (p *ResourcePool) Get() (interface{}, error) {
 }
 
 // Put 归还资源
-func (p *ResourcePool) Put(resource interface{}) error {
+func (p *ResourcePool) Put(ctx context.Context, resource interface{}) error {
 	if resource == nil {
 		return fmt.Errorf("资源不能为空")
 	}
@@ -114,7 +114,7 @@ func (p *ResourcePool) Put(resource interface{}) error {
 
 	if p.closed {
 		// 池已关闭，销毁资源
-		return p.factory.Destroy(resource)
+		return p.factory.Destroy(ctx, resource)
 	}
 
 	p.inUseCount--
@@ -125,7 +125,7 @@ func (p *ResourcePool) Put(resource interface{}) error {
 	default:
 		// 池已满，销毁多余资源
 		p.totalCount--
-		return p.factory.Destroy(resource)
+		return p.factory.Destroy(ctx, resource)
 	}
 }
 
@@ -158,7 +158,7 @@ func (p *ResourcePool) GetDetailedStats() map[string]int {
 }
 
 // Close 关闭资源池
-func (p *ResourcePool) Close() {
+func (p *ResourcePool) Close(ctx context.Context) {
 	p.closeOnce.Do(func() {
 		p.mu.Lock()
 		p.closed = true
@@ -168,8 +168,8 @@ func (p *ResourcePool) Close() {
 		// 清理所有资源
 		close(p.resources)
 		for resource := range p.resources {
-			if err := p.factory.Destroy(resource); err != nil {
-				utils.WithError(context.Background(), err).Error("销毁资源失败")
+			if err := p.factory.Destroy(ctx, resource); err != nil {
+				utils.WithError(ctx, err).Error("销毁资源失败")
 			}
 		}
 	})
@@ -177,7 +177,7 @@ func (p *ResourcePool) Close() {
 
 // maintain 维护资源池
 func (p *ResourcePool) maintain() {
-	ctx := context.Background()
+	ctx := utils.GenerateCtx(context.Background())
 	ticker := time.NewTicker(p.config.CheckInterval)
 	defer ticker.Stop()
 
@@ -186,13 +186,13 @@ func (p *ResourcePool) maintain() {
 		case <-p.stopChan:
 			return
 		case <-ticker.C:
-			p.refillPool()
+			p.refillPool(ctx)
 		}
 	}
 }
 
 // refillPool 重新填充资源池
-func (p *ResourcePool) refillPool() {
+func (p *ResourcePool) refillPool(ctx context.Context) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 
@@ -208,9 +208,9 @@ func (p *ResourcePool) refillPool() {
 		}
 
 		for i := 0; i < needed && p.totalCount < p.config.MaxSize; i++ {
-			resource, err := p.factory.Create()
+			resource, err := p.factory.Create(ctx)
 			if err != nil {
-				utils.WithError(context.Background(), err).Error("重新填充资源失败")
+				utils.WithError(ctx, err).Error("重新填充资源失败")
 				continue
 			}
 
@@ -219,7 +219,7 @@ func (p *ResourcePool) refillPool() {
 				p.totalCount++
 			default:
 				// 池已满，销毁资源
-				p.factory.Destroy(resource)
+				p.factory.Destroy(ctx, resource)
 			}
 		}
 	}
