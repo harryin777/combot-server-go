@@ -1,7 +1,7 @@
 package openai
 
 import (
-	"xiaozhi-server-go/src/core/providers/vlllm"
+	"combot-server-go/src/core/providers/vlllm"
 
 	"github.com/sirupsen/logrus"
 )

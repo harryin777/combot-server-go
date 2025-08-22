@@ -1,10 +1,10 @@
 package handlers
 
 import (
-	"xiaozhi-server-go/src/core/codes"
-	"xiaozhi-server-go/src/core/response"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/service"
+	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/response"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
 )

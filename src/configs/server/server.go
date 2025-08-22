@@ -1,9 +1,9 @@
 package server
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/utils"
 	"context"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
 )

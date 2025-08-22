@@ -4,12 +4,12 @@
 package main
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/pool"
+	"combot-server-go/src/core/utils"
 	"fmt"
 	"log"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/pool"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // MockProvider 模拟提供者实现

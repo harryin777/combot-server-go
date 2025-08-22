@@ -1,11 +1,11 @@
 package pool
 
 import (
+	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"sync"
 	"time"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // ResourceFactory 资源工厂接口
@@ -177,6 +177,7 @@ func (p *ResourcePool) Close() {
 
 // maintain 维护资源池
 func (p *ResourcePool) maintain() {
+	ctx := context.Background()
 	ticker := time.NewTicker(p.config.CheckInterval)
 	defer ticker.Stop()
 

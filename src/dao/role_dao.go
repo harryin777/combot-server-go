@@ -1,8 +1,8 @@
 package dao
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 
 	"gorm.io/gorm"
 )

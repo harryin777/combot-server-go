@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"xiaozhi-server-go/src/configs/database"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/configs/database"
+	"combot-server-go/src/core/utils"
 
 	"gorm.io/gorm"
 )

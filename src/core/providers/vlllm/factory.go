@@ -3,7 +3,7 @@ package vlllm
 import (
 	"fmt"
 
-	"xiaozhi-server-go/src/configs"
+	"combot-server-go/src/configs"
 
 	"github.com/sirupsen/logrus"
 )

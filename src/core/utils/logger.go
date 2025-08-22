@@ -11,7 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/configs"
+	"combot-server-go/src/configs"
 
 	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"

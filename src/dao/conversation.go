@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/models"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/models"
 
 	"gorm.io/gorm"
 )

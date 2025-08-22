@@ -1,6 +1,12 @@
 package service
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/configs/database"
+	"combot-server-go/src/core/auth"
+	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/models"
 	"context"
 	"crypto/hmac"
 	"crypto/rand"
@@ -9,12 +15,6 @@ import (
 	"errors"
 	"fmt"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
-	"xiaozhi-server-go/src/core/auth"
-	"xiaozhi-server-go/src/core/codes"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/models"
 
 	"gorm.io/gorm"
 )

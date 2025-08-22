@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/core/utils/gormlogrus"
-	"xiaozhi-server-go/src/models"
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/utils/gormlogrus"
+	"combot-server-go/src/models"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"

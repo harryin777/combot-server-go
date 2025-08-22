@@ -1,11 +1,11 @@
 package mcp
 
 import (
+	"combot-server-go/src/core/types"
+	"combot-server-go/src/core/utils"
 	"context"
 	"strings"
 	"time"
-	"xiaozhi-server-go/src/core/types"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // AddToolExit 添加退出对话的工具

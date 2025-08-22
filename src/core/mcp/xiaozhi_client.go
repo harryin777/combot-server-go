@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/core/auth"
-	"xiaozhi-server-go/src/core/types"
+	"combot-server-go/src/core/auth"
+	"combot-server-go/src/core/types"
 
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"

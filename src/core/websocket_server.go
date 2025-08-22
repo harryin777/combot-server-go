@@ -8,11 +8,11 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/auth"
-	"xiaozhi-server-go/src/core/pool"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/task"
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/auth"
+	"combot-server-go/src/core/pool"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/task"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"

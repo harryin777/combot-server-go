@@ -1,8 +1,8 @@
 package service
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 )
 
 // RoleService 定义角色服务接口

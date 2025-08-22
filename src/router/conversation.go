@@ -1,10 +1,10 @@
 package router
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/handlers"
+	"combot-server-go/src/middleware"
 	"context"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/handlers"
-	"xiaozhi-server-go/src/middleware"
 
 	"github.com/gin-gonic/gin"
 )

@@ -10,12 +10,12 @@ import (
 	"strings"
 	"time"
 
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/auth"
-	"xiaozhi-server-go/src/core/image"
-	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/auth"
+	"combot-server-go/src/core/image"
+	"combot-server-go/src/core/providers"
+	"combot-server-go/src/core/providers/vlllm"
+	"combot-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
 )

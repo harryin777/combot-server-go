@@ -3,7 +3,7 @@ package llm
 import (
 	"fmt"
 
-	"xiaozhi-server-go/src/core/types"
+	"combot-server-go/src/core/types"
 )
 
 // Config LLM配置结构

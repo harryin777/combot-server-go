@@ -1,17 +1,17 @@
 package pool
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/image"
+	"combot-server-go/src/core/providers"
+	"combot-server-go/src/core/providers/vlllm"
+	"combot-server-go/src/core/utils"
 	"context"
 	"encoding/base64"
 	"fmt"
 	"math"
 	"strings"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/image"
-	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // CheckMode 检查模式

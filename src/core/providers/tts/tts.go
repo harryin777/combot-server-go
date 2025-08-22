@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/providers"
+	"combot-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
 )

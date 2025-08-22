@@ -1,8 +1,8 @@
 package response
 
 import (
+	"combot-server-go/src/core/codes"
 	"net/http"
-	"xiaozhi-server-go/src/core/codes"
 
 	"github.com/gin-gonic/gin"
 )

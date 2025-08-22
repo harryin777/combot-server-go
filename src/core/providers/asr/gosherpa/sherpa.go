@@ -1,9 +1,9 @@
 package gosherpa
 
 import (
+	"combot-server-go/src/core/providers/asr"
 	"context"
 	"time"
-	"xiaozhi-server-go/src/core/providers/asr"
 
 	"github.com/gorilla/websocket"
 )

@@ -1,11 +1,11 @@
 package core
 
 import (
+	"combot-server-go/src/core/pool"
+	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"sync/atomic"
-	"xiaozhi-server-go/src/core/pool"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // ConnectionContext 连接上下文，用于跟踪资源分配

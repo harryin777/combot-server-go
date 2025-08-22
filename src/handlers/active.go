@@ -1,11 +1,11 @@
 package handlers
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/response"
+	"combot-server-go/src/service"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/codes"
-	"xiaozhi-server-go/src/core/response"
-	"xiaozhi-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
 )

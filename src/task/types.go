@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/utils"
 
 	"github.com/google/uuid"
 )

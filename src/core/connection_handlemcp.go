@@ -1,11 +1,11 @@
 package core
 
 import (
+	"combot-server-go/src/core/types"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/vision"
 	"context"
 	"encoding/json"
-	"xiaozhi-server-go/src/core/types"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/vision"
 )
 
 func (h *ConnectionHandler) initMCPResultHandlers() {

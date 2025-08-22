@@ -1,12 +1,12 @@
 package gosherpa
 
 import (
+	"combot-server-go/src/core/providers/tts"
 	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"time"
-	"xiaozhi-server-go/src/core/providers/tts"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"

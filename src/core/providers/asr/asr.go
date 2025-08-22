@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"xiaozhi-server-go/src/core/providers"
+	"combot-server-go/src/core/providers"
 )
 
 // Config ASR配置结构

@@ -1,8 +1,8 @@
 package service
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 )
 
 // LoginDevice 表示登录设备信息

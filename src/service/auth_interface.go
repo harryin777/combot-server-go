@@ -1,8 +1,8 @@
 package service
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 )
 
 // AuthService 定义认证服务接口

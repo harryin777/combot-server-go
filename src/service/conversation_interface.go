@@ -1,8 +1,8 @@
 package service
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 )
 
 // ConversationService 定义对话服务接口

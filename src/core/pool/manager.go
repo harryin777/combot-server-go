@@ -1,14 +1,14 @@
 package pool
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/mcp"
+	"combot-server-go/src/core/providers"
+	"combot-server-go/src/core/providers/vlllm"
+	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/mcp"
-	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/providers/vlllm"
-	"xiaozhi-server-go/src/core/utils"
 )
 
 // PoolManager 资源池管理器

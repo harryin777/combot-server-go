@@ -3,8 +3,8 @@ package chat
 import (
 	"encoding/json"
 
-	"xiaozhi-server-go/src/core/types"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/types"
+	"combot-server-go/src/core/utils"
 )
 
 type Message = types.Message

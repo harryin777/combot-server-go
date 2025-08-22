@@ -1,10 +1,10 @@
 package openai
 
 import (
+	"combot-server-go/src/core/providers/llm"
+	"combot-server-go/src/core/types"
 	"context"
 	"fmt"
-	"xiaozhi-server-go/src/core/providers/llm"
-	"xiaozhi-server-go/src/core/types"
 
 	"github.com/sashabaranov/go-openai"
 )

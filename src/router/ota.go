@@ -1,10 +1,10 @@
 package router
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/ota"
 	"context"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/ota"
 
 	"github.com/gin-gonic/gin"
 )

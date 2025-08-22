@@ -8,8 +8,8 @@ import (
 	"image"
 	"strings"
 
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/utils"
 
 	_ "image/gif"  // 注册GIF解码器
 	_ "image/jpeg" // 注册JPEG解码器

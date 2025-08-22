@@ -1,8 +1,8 @@
 package service
 
 import (
+	"combot-server-go/src/models"
 	"context"
-	"xiaozhi-server-go/src/models"
 )
 
 // ActiveService 定义设备激活服务接口

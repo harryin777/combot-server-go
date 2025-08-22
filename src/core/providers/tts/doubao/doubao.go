@@ -13,7 +13,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"xiaozhi-server-go/src/core/providers/tts"
+	"combot-server-go/src/core/providers/tts"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"

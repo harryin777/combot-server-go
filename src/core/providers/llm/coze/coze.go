@@ -1,6 +1,8 @@
 package coze
 
 import (
+	"combot-server-go/src/core/providers/llm"
+	"combot-server-go/src/core/types"
 	"context"
 	"encoding/json"
 	"errors"
@@ -9,8 +11,6 @@ import (
 	"github.com/sashabaranov/go-openai"
 	"io"
 	"sync"
-	"xiaozhi-server-go/src/core/providers/llm"
-	"xiaozhi-server-go/src/core/types"
 )
 
 type Provider struct {

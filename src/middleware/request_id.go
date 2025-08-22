@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"

@@ -1,16 +1,16 @@
 package service
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/configs/database"
+	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/utils"
+	"combot-server-go/src/models"
 	"context"
 	"errors"
 	"fmt"
 	"math/rand"
 	"time"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/configs/database"
-	"xiaozhi-server-go/src/core/codes"
-	"xiaozhi-server-go/src/core/utils"
-	"xiaozhi-server-go/src/models"
 
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/mojocn/base64Captcha"

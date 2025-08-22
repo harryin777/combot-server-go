@@ -1,8 +1,8 @@
 package ota
 
 import (
+	"combot-server-go/src/configs"
 	"context"
-	"xiaozhi-server-go/src/configs"
 
 	"github.com/gin-gonic/gin"
 )

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/utils"
 )
 
 // TaskManager manages async tasks and their execution

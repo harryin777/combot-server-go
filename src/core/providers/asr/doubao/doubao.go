@@ -14,8 +14,8 @@ import (
 	"sync"
 	"time"
 
-	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/core/providers/asr"
+	"combot-server-go/src/core/utils"
 
 	"github.com/gorilla/websocket"
 	"github.com/sirupsen/logrus"

@@ -1,15 +1,15 @@
 package pool
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/mcp"
+	"combot-server-go/src/core/providers"
+	"combot-server-go/src/core/providers/asr"
+	"combot-server-go/src/core/providers/llm"
+	"combot-server-go/src/core/providers/tts"
+	"combot-server-go/src/core/providers/vlllm"
 	"context"
 	"fmt"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/mcp"
-	"xiaozhi-server-go/src/core/providers"
-	"xiaozhi-server-go/src/core/providers/asr"
-	"xiaozhi-server-go/src/core/providers/llm"
-	"xiaozhi-server-go/src/core/providers/tts"
-	"xiaozhi-server-go/src/core/providers/vlllm"
 )
 
 /*

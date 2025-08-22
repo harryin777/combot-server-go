@@ -3,9 +3,9 @@ package router
 import (
 	"context"
 
-	"xiaozhi-server-go/src/configs"
-	cfg "xiaozhi-server-go/src/configs/server"
-	"xiaozhi-server-go/src/core/utils"
+	"combot-server-go/src/configs"
+	cfg "combot-server-go/src/configs/server"
+	"combot-server-go/src/core/utils"
 
 	"github.com/gin-gonic/gin"
 )

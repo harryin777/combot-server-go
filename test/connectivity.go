@@ -4,22 +4,22 @@
 package main
 
 import (
+	"combot-server-go/src/configs"
+	"combot-server-go/src/core/pool"
+	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"log"
-	"xiaozhi-server-go/src/configs"
-	"xiaozhi-server-go/src/core/pool"
-	"xiaozhi-server-go/src/core/utils"
 
 	// 导入所有providers以确保init函数被调用
-	_ "xiaozhi-server-go/src/core/providers/asr/doubao"
-	_ "xiaozhi-server-go/src/core/providers/llm/coze"
-	_ "xiaozhi-server-go/src/core/providers/llm/ollama"
-	_ "xiaozhi-server-go/src/core/providers/llm/openai"
-	_ "xiaozhi-server-go/src/core/providers/tts/doubao"
-	_ "xiaozhi-server-go/src/core/providers/tts/edge"
-	_ "xiaozhi-server-go/src/core/providers/vlllm/ollama"
-	_ "xiaozhi-server-go/src/core/providers/vlllm/openai"
+	_ "combot-server-go/src/core/providers/asr/doubao"
+	_ "combot-server-go/src/core/providers/llm/coze"
+	_ "combot-server-go/src/core/providers/llm/ollama"
+	_ "combot-server-go/src/core/providers/llm/openai"
+	_ "combot-server-go/src/core/providers/tts/doubao"
+	_ "combot-server-go/src/core/providers/tts/edge"
+	_ "combot-server-go/src/core/providers/vlllm/ollama"
+	_ "combot-server-go/src/core/providers/vlllm/openai"
 )
 
 func main() {

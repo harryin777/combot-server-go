@@ -1,9 +1,9 @@
 package gormlogrus
 
 import (
+	"combot-server-go/src/core/utils"
 	"context"
 	"time"
-	"xiaozhi-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
 	"gorm.io/gorm/logger"
