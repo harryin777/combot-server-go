@@ -7,6 +7,7 @@ import (
 // DeviceVerificationCode 设备验证码临时存储
 type DeviceVerificationCode struct {
 	ID               uint      `gorm:"primaryKey" json:"id"`
+	SerialNumber     string    `gorm:"index;size:64" json:"serial_number"`          // 设备序列号
 	DeviceID         string    `gorm:"index;size:17" json:"device_id"`              // MAC地址
 	ClientID         string    `gorm:"index;size:36" json:"client_id"`              // UUID
 	VerificationCode string    `gorm:"uniqueIndex;size:6" json:"verification_code"` // 6位验证码

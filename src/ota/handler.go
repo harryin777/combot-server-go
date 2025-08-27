@@ -137,7 +137,7 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 		}
 	} else {
 		// 设备未激活或不存在，生成验证码
-		code, expiresAt, retCode, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), deviceID, clientID)
+		code, expiresAt, retCode, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), serialNumber, deviceID, clientID)
 		if err != nil || retCode != codes.CodeSuccess {
 			utils.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Error("生成验证码失败")
 		} else {

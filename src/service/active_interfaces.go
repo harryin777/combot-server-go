@@ -11,8 +11,8 @@ type ActiveService interface {
 	IdentifyDevice(ctx context.Context, serialNumber, deviceID, clientID string) (*models.Device, int, error)
 
 	// GenerateDeviceVerificationCode 验证码管理
-	GenerateDeviceVerificationCode(ctx context.Context, deviceID, clientID string) (string, int64, int, error) // 生成设备验证码
-	ValidateVerificationCode(ctx context.Context, code string) (*models.DeviceVerificationCode, int, error)    // 验证验证码
+	GenerateDeviceVerificationCode(ctx context.Context, serialNumber, deviceID, clientID string) (string, int64, int, error) // 生成设备验证码
+	ValidateVerificationCode(ctx context.Context, code string) (*models.DeviceVerificationCode, int, error)                  // 验证验证码
 
 	// ActivateDevice 设备激活管理
 	ActivateDevice(ctx context.Context, deviceID uint, challenge, hmac string) (interface{}, int, error)                 // 激活设备

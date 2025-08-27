@@ -74,31 +74,46 @@ func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, device
 }
 
 // GenerateDeviceVerificationCode 生成设备验证码并确保设备记录存在
-func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, deviceID, clientID string) (string, int64, int, error) {
+func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, serialNumber, deviceID, clientID string) (string, int64, int, error) {
 	// 生成6位数字验证码
 	code := s.GenerateActivationCode(ctx)
 	expiresAt := time.Now().Add(5 * time.Minute) // 5分钟有效期
 
+	// 构建清理旧验证码的条件
+	cleanupQuery := "device_id = ? OR client_id = ?"
+	cleanupArgs := []interface{}{deviceID, clientID}
+	if len(serialNumber) > 0 {
+		cleanupQuery = "serial_number = ? OR " + cleanupQuery
+		cleanupArgs = append([]interface{}{serialNumber}, cleanupArgs...)
+	}
+
+	// 构建查找设备的条件
+	deviceQuery := "device_id = ? OR client_id = ?"
+	deviceArgs := []interface{}{deviceID, clientID}
+	if len(serialNumber) > 0 {
+		deviceQuery = "serial_number = ? OR " + deviceQuery
+		deviceArgs = append([]interface{}{serialNumber}, deviceArgs...)
+	}
+
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		// 清理该设备的旧验证码
-		tx.Where("device_id = ? OR client_id = ?", deviceID, clientID).
-			Delete(&models.DeviceVerificationCode{})
+		tx.Where(cleanupQuery, cleanupArgs...).Delete(&models.DeviceVerificationCode{})
 
 		// 确保设备记录存在（如果不存在则创建，但不激活）
 		var device models.Device
-		err := tx.Where("device_id = ? OR client_id = ?", deviceID, clientID).
-			First(&device).Error
+		err := tx.Where(deviceQuery, deviceArgs...).First(&device).Error
 
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 创建未激活的设备记录
 			device = models.Device{
-				DeviceID:   deviceID,
-				ClientID:   clientID,
-				UserID:     nil,   // 尚未绑定用户
-				DeviceName: "",    // 尚未命名
-				Activated:  false, // 尚未激活
-				Token:      "",    // 尚无token
-				LastSeen:   time.Now(),
+				SerialNumber: serialNumber,
+				DeviceID:     deviceID,
+				ClientID:     clientID,
+				UserID:       nil,   // 尚未绑定用户
+				DeviceName:   "",    // 尚未命名
+				Activated:    false, // 尚未激活
+				Token:        "",    // 尚无token
+				LastSeen:     time.Now(),
 			}
 
 			if err := tx.Create(&device).Error; err != nil {
@@ -112,6 +127,7 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, devi
 
 		// 存储新验证码
 		verificationCode := &models.DeviceVerificationCode{
+			SerialNumber:     serialNumber,
 			DeviceID:         deviceID,
 			ClientID:         clientID,
 			VerificationCode: code,
@@ -133,7 +149,7 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, devi
 	}
 
 	// 验证码直接在HTTP响应中返回给智能体，智能体收到后会立即播报给用户
-	utils.Info(nil, fmt.Sprintf("为设备 %s 生成验证码: %s，有效期至: %s",
+	utils.Info(ctx, fmt.Sprintf("为设备 %s 生成验证码: %s，有效期至: %s",
 		deviceID, code, expiresAt.Format("2006-01-02 15:04:05")))
 
 	return code, expiresAt.Unix(), codes.CodeSuccess, nil
@@ -241,20 +257,31 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 		}
 
 		// 查找或创建设备
-		err := tx.Where("device_id = ? OR client_id = ?", vcRecord.DeviceID, vcRecord.ClientID).
-			First(&device).Error
+		var deviceQuery string
+		var deviceArgs []interface{}
+
+		if len(vcRecord.SerialNumber) > 0 {
+			deviceQuery = "serial_number = ? OR device_id = ? OR client_id = ?"
+			deviceArgs = []interface{}{vcRecord.SerialNumber, vcRecord.DeviceID, vcRecord.ClientID}
+		} else {
+			deviceQuery = "device_id = ? OR client_id = ?"
+			deviceArgs = []interface{}{vcRecord.DeviceID, vcRecord.ClientID}
+		}
+
+		err := tx.Where(deviceQuery, deviceArgs...).First(&device).Error
 
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 创建新设备
 			device = models.Device{
-				DeviceID:    vcRecord.DeviceID,
-				ClientID:    vcRecord.ClientID,
-				UserID:      &userID,
-				DeviceName:  deviceName,
-				Activated:   true,
-				ActivatedAt: &[]time.Time{time.Now()}[0],
-				Token:       s.GenerateToken(ctx),
-				LastSeen:    time.Now(),
+				SerialNumber: vcRecord.SerialNumber,
+				DeviceID:     vcRecord.DeviceID,
+				ClientID:     vcRecord.ClientID,
+				UserID:       &userID,
+				DeviceName:   deviceName,
+				Activated:    true,
+				ActivatedAt:  &[]time.Time{time.Now()}[0],
+				Token:        s.GenerateToken(ctx),
+				LastSeen:     time.Now(),
 			}
 
 			if err := tx.Create(&device).Error; err != nil {
@@ -281,7 +308,7 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 			}
 		}
 
-		utils.Info(nil, fmt.Sprintf("设备 %s 成功绑定到用户 %d", device.DeviceID, userID))
+		utils.Info(ctx, fmt.Sprintf("设备 %s 成功绑定到用户 %d", device.DeviceID, userID))
 		return nil
 	})
 

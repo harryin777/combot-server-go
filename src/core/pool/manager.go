@@ -202,6 +202,8 @@ func (pm *PoolManager) Close(ctx context.Context) error {
 	if pm.mcpPool != nil {
 		pm.mcpPool.Close(ctx)
 	}
+
+	return nil
 }
 
 // ReturnProviderSet 归还提供者集合到池中
