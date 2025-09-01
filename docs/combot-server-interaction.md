@@ -8,24 +8,25 @@
 
 ```mermaid
 sequenceDiagram
-    participant C as ComBot智能体
+    participant C as ComBot
     participant S as Server
-    participant U as 用户
-    participant W as Web前端
+    participant U as User
+    participant W as WebFrontend
 
-    C->>S: 1. CheckVersion请求 (POST /api/ota/)
-    alt 设备未激活
-        S->>S: 生成验证码
-        S->>C: 返回包含验证码的响应
+    C->>S: "CheckVersion请求 (POST /api/ota/)"
+    S->>C: 返回WebSocket配置和Token
+  
+    alt DeviceNotActivated
+        S->>C: 额外返回验证码
         C->>U: 播报验证码 (TTS)
         U->>W: 输入验证码绑定设备
-        W->>S: 绑定请求 (POST /api/active/bind)
+        W->>S: "绑定请求 (POST /api/active/bind)"
         S->>W: 绑定成功
-    else 设备已激活
-        S->>C: 返回WebSocket配置和Token
+        C->>S: "Activate确认 (POST /api/ota/activate)"
+        S->>C: 激活确认响应
+    else DeviceActivated
+        C->>C: 使用WebSocket配置
     end
-    C->>S: 2. Activate确认 (POST /api/ota/activate)
-    S->>C: 激活确认响应
 ```
 
 ## 详细交互分析
@@ -146,6 +147,8 @@ bool Ota::CheckVersion() {
 
 基于ComBot代码分析，Server应返回以下格式的JSON:
 
+**未激活设备响应示例**:
+
 ```json
 {
   "server_time": {
@@ -165,6 +168,25 @@ bool Ota::CheckVersion() {
     "challenge": "dummy_challenge",
     "message": "设备未激活，请输入验证码完成绑定",
     "timeout_ms": 300000
+  }
+}
+```
+
+**已激活设备响应示例**:
+
+```json
+{
+  "server_time": {
+    "timestamp": 1688443200000,
+    "timezone_offset": 480
+  },
+  "firmware": {
+    "version": "1.0.3",
+    "url": "/ota_bin/1.0.3.bin"
+  },
+  "websocket": {
+    "url": "wss://example.com/ws",
+    "token": "Bearer eyJhbGciOiJIUzI1NiIs..."
   }
 }
 ```
@@ -364,16 +386,17 @@ std::string Ota::GetActivationPayload() {
 
 ### 1. OTA接口 (POST /api/ota/)
 
-#### 请求处理逻辑:
+#### 请求处理逻辑
 
 1. 从请求头获取设备标识: `Device-Id`, `Client-Id`, `Serial-Number`
 2. 查询设备是否已激活
-3. 如果未激活: 生成验证码并返回activation字段
-4. 如果已激活: 返回websocket配置和token
+3. **无论设备是否激活，都返回websocket配置和token**
+4. 如果未激活: 额外返回activation字段和验证码
+5. 如果已激活: 仅返回基本信息和websocket配置
 
-#### 响应格式要求:
+#### 响应格式要求
 
-- **未激活设备**: 必须包含 `activation`字段和验证码
+- **未激活设备**: 必须包含 `activation`字段、验证码、以及 `websocket`字段和token
 - **已激活设备**: 必须包含 `websocket`字段和token
 - **通用字段**: `server_time`, `firmware`
 
@@ -401,6 +424,7 @@ std::string Ota::GetActivationPayload() {
 
 - **非WebSocket**: 验证码通过HTTP响应直接返回
 - **即时播报**: ComBot收到响应后立即播报，无需异步推送
+- **WebSocket配置**: 无论设备是否激活，都在第一次CheckVersion时返回，确保ComBot能立即建立WebSocket连接
 
 ### 2. 重试机制
 

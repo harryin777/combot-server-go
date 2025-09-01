@@ -1,7 +1,10 @@
 package core
 
 import (
+	"combot-server-go/src/core/utils"
+	utils2 "combot-server-go/src/utils"
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"strings"
@@ -11,7 +14,6 @@ import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/auth"
 	"combot-server-go/src/core/pool"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/task"
 
 	"github.com/gorilla/websocket"
@@ -79,7 +81,7 @@ func (ws *WebSocketServer) Start(ctx context.Context) error {
 
 	// 启动服务器
 	if err := ws.server.ListenAndServe(); err != nil {
-		if err == http.ErrServerClosed {
+		if errors.Is(err, http.ErrServerClosed) {
 			logrus.Info("服务器已正常关闭")
 			return nil
 		}
@@ -130,8 +132,8 @@ func (ws *WebSocketServer) Stop(ctx context.Context) error {
 
 		// 关闭所有活动连接并归还资源
 		ws.activeConnections.Range(func(key, value interface{}) bool {
-			if ctx, ok := value.(*ConnectionContext); ok {
-				if err := ctx.Close(); err != nil {
+			if connCtx, ok := value.(*ConnectionContext); ok {
+				if err := connCtx.Close(ctx); err != nil {
 					logrus.Errorf("关闭连接上下文失败: %v", err)
 				}
 			} else if conn, ok := value.(Connection); ok {
@@ -171,38 +173,52 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	ctx := utils2.GetCtxWithReq(r.Context())
+
 	clientID := fmt.Sprintf("%p", conn)
 
 	// 从资源池获取提供者集合
-	providerSet, err := ws.poolManager.GetProviderSet()
+	providerSet, err := ws.poolManager.GetProviderSet(ctx)
 	if err != nil {
 		logrus.Errorf("获取提供者集合失败: %v", err)
 		conn.Close()
 		return
 	}
 
-	connCtx, connCancel := context.WithCancel(context.Background())
+	connCtx, connCancel := context.WithCancel(ctx)
 	// 创建新的连接处理器
 	// 创建临时的 utils.Logger 实例
 	handler := NewConnectionHandler(ws.config, providerSet, r, connCtx)
 
-	connContext := NewConnectionContext(handler, providerSet, ws.poolManager, clientID, conn, connCtx, connCancel)
+	connContext, err := NewConnectionContext(ConnectionConfig{
+		Handler:     handler,
+		ProviderSet: providerSet,
+		PoolManager: ws.poolManager,
+		ClientID:    clientID,
+		Conn:        conn,
+		Cancel:      connCancel,
+	})
+	if err != nil {
+		logrus.Errorf("创建连接上下文失败: %v", err)
+		conn.Close()
+		return
+	}
 
 	// 设置TaskManager的回调（使用安全回调）
 	handler.taskMgr = ws.taskMgr
-	handler.SetTaskCallback(connContext.CreateSafeCallback())
+	handler.SetTaskCallback(connContext.CreateSafeCallback(connCtx))
 
 	// 存储连接上下文
 	ws.activeConnections.Store(clientID, connContext)
 
-	logrus.Infof("客户端 %s 连接已建立，资源已分配", clientID)
+	utils.Infof(ctx, "客户端 %s 连接已建立，资源已分配", clientID)
 
 	// 启动连接处理，并在结束时清理资源
 	go func() {
 		defer func() {
 			// 连接结束时清理
 			ws.activeConnections.Delete(clientID)
-			if err := connContext.Close(); err != nil {
+			if err := connContext.Close(context.Background()); err != nil {
 				logrus.Errorf("清理连接上下文失败: %v", err)
 			}
 		}()

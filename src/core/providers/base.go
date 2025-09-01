@@ -18,16 +18,16 @@ type AsrEventListener interface {
 // ASRProvider 语音识别提供者接口
 type ASRProvider interface {
 	Provider
-	// 直接识别音频数据
+	// Transcribe 直接识别音频数据
 	Transcribe(ctx context.Context, audioData []byte) (string, error)
-	// 添加音频数据到缓冲区
+	// AddAudio 添加音频数据到缓冲区
 	AddAudio(data []byte) error
 
 	SetListener(listener AsrEventListener)
-	// 复位ASR状态
+	// Reset 复位ASR状态
 	Reset() error
 
-	// 获取当前静音计数
+	// GetSilenceCount 获取当前静音计数
 	GetSilenceCount() int
 
 	ResetStartListenTime()

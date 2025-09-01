@@ -218,7 +218,7 @@ func (hc *HealthChecker) checkASRProvider(ctx context.Context, asrType string, m
 		return result.Error
 	}
 
-	defer asrFactory.Destroy(testInstance)
+	defer asrFactory.Destroy(ctx, testInstance)
 
 	// 如果是功能性检查，执行实际的API调用
 	if mode == FunctionalCheck {
@@ -316,7 +316,7 @@ func (hc *HealthChecker) checkLLMProvider(ctx context.Context, llmType string, m
 		return result.Error
 	}
 
-	defer llmFactory.Destroy(testInstance)
+	defer llmFactory.Destroy(ctx, testInstance)
 
 	// 如果是功能性检查，执行实际的API调用
 	if mode == FunctionalCheck {
@@ -415,7 +415,7 @@ func (hc *HealthChecker) checkTTSProvider(ctx context.Context, ttsType string, m
 		return result.Error
 	}
 
-	defer ttsFactory.Destroy(testInstance)
+	defer ttsFactory.Destroy(ctx, testInstance)
 
 	// 如果是功能性检查，执行实际的API调用
 	if mode == FunctionalCheck {
@@ -499,7 +499,7 @@ func (hc *HealthChecker) checkVLLLMProvider(ctx context.Context, vlllmType strin
 		return result.Error
 	}
 
-	defer vlllmFactory.Destroy(testInstance)
+	defer vlllmFactory.Destroy(ctx, testInstance)
 
 	// 如果是功能性检查，执行实际的API调用
 	if mode == FunctionalCheck {

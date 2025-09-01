@@ -103,9 +103,9 @@ func LoadConfigAndLogger() (*configs.Config, error) {
 	return config, nil
 }
 
-func StartWSServer(config *configs.Config, g *errgroup.Group, groupCtx context.Context) (*core.WebSocketServer, error) {
+func StartWSServer(config *configs.Config, g *errgroup.Group, ctx context.Context) (*core.WebSocketServer, error) {
 	// 创建 WebSocket 服务
-	wsServer, err := core.NewWebSocketServer(groupCtx, config)
+	wsServer, err := core.NewWebSocketServer(ctx, config)
 	if err != nil {
 		return nil, err
 	}
@@ -114,26 +114,26 @@ func StartWSServer(config *configs.Config, g *errgroup.Group, groupCtx context.C
 	g.Go(func() error {
 		// 监听关闭信号
 		go func() {
-			<-groupCtx.Done()
-			utils.Info(groupCtx, "收到关闭信号，开始关闭WebSocket服务...")
-			if err := wsServer.Stop(groupCtx); err != nil {
-				utils.WithError(groupCtx, err).Error("WebSocket服务关闭失败")
+			<-ctx.Done()
+			utils.Info(ctx, "收到关闭信号，开始关闭WebSocket服务...")
+			if err := wsServer.Stop(ctx); err != nil {
+				utils.WithError(ctx, err).Error("WebSocket服务关闭失败")
 			} else {
-				utils.Info(groupCtx, "WebSocket服务已优雅关闭")
+				utils.Info(ctx, "WebSocket服务已优雅关闭")
 			}
 		}()
 
-		if err := wsServer.Start(groupCtx); err != nil {
-			if groupCtx.Err() != nil {
+		if err := wsServer.Start(ctx); err != nil {
+			if ctx.Err() != nil {
 				return nil // 正常关闭
 			}
-			utils.WithError(groupCtx, err).Error("WebSocket 服务运行失败")
+			utils.WithError(ctx, err).Error("WebSocket 服务运行失败")
 			return err
 		}
 		return nil
 	})
 
-	utils.Info(context.Background(), "WebSocket 服务已成功启动")
+	utils.Info(ctx, "WebSocket 服务已成功启动")
 	return wsServer, nil
 }
 

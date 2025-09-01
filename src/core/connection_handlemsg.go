@@ -38,6 +38,7 @@ func (h *ConnectionHandler) handleMessage(ctx context.Context, messageType int, 
 					}
 				}
 			} else {
+				utils.Warnf(ctx, "没有初始化Opus解码器，无法解码音频")
 				// 没有解码器，直接传递原始数据
 				h.clientAudioQueue <- message
 			}
