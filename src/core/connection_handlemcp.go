@@ -48,10 +48,10 @@ func (h *ConnectionHandler) mcp_handler_play_music(ctx context.Context, args int
 		utils.Infof(ctx, "mcp_handler_play_music: %s", songName)
 		if path, name, err := utils.GetMusicFilePathFuzzy(songName); err != nil {
 			utils.Errorf(ctx, "mcp_handler_play_music: Play failed: %v", err)
-			h.SystemSpeak("没有找到名为" + songName + "的歌曲")
+			h.SystemSpeak(ctx, "没有找到名为"+songName+"的歌曲")
 		} else {
 			//h.SystemSpeak("这就为您播放音乐: " + songName)
-			h.sendAudioMessage(path, name, h.tts_last_text_index, h.talkRound)
+			h.sendAudioMessage(ctx, path, name, h.tts_last_text_index, h.talkRound)
 		}
 	} else {
 		utils.Error(ctx, "mcp_handler_play_music: args is not a string")
@@ -63,9 +63,9 @@ func (h *ConnectionHandler) mcp_handler_change_voice(ctx context.Context, args i
 		utils.Infof(ctx, "mcp_handler_change_voice: %s", voice)
 		if err := h.providers.tts.SetVoice(voice); err != nil {
 			utils.Errorf(ctx, "mcp_handler_change_voice: SetVoice failed: %v", err)
-			h.SystemSpeak("切换语音失败，没有叫" + voice + "的音色")
+			h.SystemSpeak(ctx, "切换语音失败，没有叫"+voice+"的音色")
 		} else {
-			h.SystemSpeak("已切换到音色" + voice)
+			h.SystemSpeak(ctx, "已切换到音色"+voice)
 		}
 	} else {
 		utils.Error(ctx, "mcp_handler_change_voice: args is not a string")
@@ -104,7 +104,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 				}
 			}
 		}
-		h.SystemSpeak("已切换到新角色 " + role)
+		h.SystemSpeak(ctx, "已切换到新角色 "+role)
 	} else {
 		utils.Error(ctx, "mcp_handler_change_role: args is not a string")
 	}
@@ -113,7 +113,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 func (h *ConnectionHandler) mcp_handler_exit(ctx context.Context, args interface{}) {
 	if text, ok := args.(string); ok {
 		h.closeAfterChat = true
-		h.SystemSpeak(text)
+		h.SystemSpeak(ctx, text)
 	} else {
 		utils.Error(ctx, "mcp_handler_exit: args is not a string")
 	}
@@ -133,5 +133,5 @@ func (h *ConnectionHandler) mcp_handler_take_photo(ctx context.Context, args int
 
 	}
 
-	h.SystemSpeak(visionResponse.Result)
+	h.SystemSpeak(ctx, visionResponse.Result)
 }

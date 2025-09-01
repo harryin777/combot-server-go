@@ -2,6 +2,8 @@ package core
 
 import (
 	"combot-server-go/src/core/utils"
+	"context"
+	"encoding/binary"
 	"encoding/json"
 	"fmt"
 	"sync/atomic"
@@ -9,7 +11,7 @@ import (
 )
 
 // sendHelloMessage 发送欢迎消息
-func (h *ConnectionHandler) sendHelloMessage() error {
+func (h *ConnectionHandler) sendHelloMessage(ctx context.Context) error {
 	// 添加安全检查
 	if h.conn == nil {
 		return fmt.Errorf("连接对象未初始化，无法发送hello消息")
@@ -25,21 +27,59 @@ func (h *ConnectionHandler) sendHelloMessage() error {
 	hello["version"] = 1
 	hello["transport"] = "websocket"
 	hello["session_id"] = h.sessionID
-	hello["audio_params"] = map[string]interface{}{
+
+	// 音频参数协商 - 根据客户端参数调整服务器参数
+	audioParams := map[string]interface{}{
 		"format":         h.serverAudioFormat,
 		"sample_rate":    h.serverAudioSampleRate,
 		"channels":       h.serverAudioChannels,
 		"frame_duration": h.serverAudioFrameDuration,
 	}
+
+	// 如果客户端已发送音频参数，进行协商
+	if h.clientAudioSampleRate > 0 {
+		// 可以根据客户端能力调整服务器音频参数
+		// 例如：如果客户端支持更高采样率，服务器可以使用更高质量
+		if h.clientAudioSampleRate >= 24000 {
+			// 客户端支持24kHz，服务器可以使用24kHz提供更好音质
+			audioParams["sample_rate"] = 24000
+			h.serverAudioSampleRate = 24000
+		} else {
+			// 客户端只支持16kHz，服务器降级到16kHz
+			audioParams["sample_rate"] = 16000
+			h.serverAudioSampleRate = 16000
+		}
+	}
+
+	hello["audio_params"] = audioParams
+
+	// 添加服务器能力信息
+	capabilities := map[string]interface{}{
+		"mcp":        true,                     // 服务器支持MCP协议
+		"vlllm":      h.providers.vlllm != nil, // 是否支持视觉语言模型
+		"multi_turn": true,                     // 支持多轮对话
+		"functions":  true,                     // 支持函数调用
+	}
+	hello["capabilities"] = capabilities
+
+	// 如果客户端支持特定功能，添加相关配置
+	if h.clientSupportsMCP {
+		hello["mcp_config"] = map[string]interface{}{
+			"enabled": true,
+			"tools":   []string{"system", "display", "camera"}, // 可用的MCP工具
+		}
+	}
+
 	data, err := json.Marshal(hello)
 	if err != nil {
 		return fmt.Errorf("序列化欢迎消息失败: %v", err)
 	}
 
+	utils.Infof(ctx, "发送hello响应消息: %s", string(data))
 	return h.conn.WriteMessage(1, data)
 }
 
-func (h *ConnectionHandler) sendTTSMessage(state string, text string, textIndex int) error {
+func (h *ConnectionHandler) sendTTSMessage(ctx context.Context, state string, text string, textIndex int) error {
 	// 发送TTS状态结束通知
 	stateMsg := map[string]interface{}{
 		"type":        "tts",
@@ -77,11 +117,11 @@ func (h *ConnectionHandler) sendSTTMessage(text string) error {
 }
 
 // sendEmotionMessage 发送情绪消息
-func (h *ConnectionHandler) sendEmotionMessage(emotion string) error {
+func (h *ConnectionHandler) sendEmotionMessage(ctx context.Context, emotionType string, intensityLevel int) error {
 	data := map[string]interface{}{
 		"type":       "llm",
-		"text":       utils.GetEmotionEmoji(emotion),
-		"emotion":    emotion,
+		"text":       utils.GetEmotionEmoji(emotionType),
+		"emotion":    emotionType,
 		"session_id": h.sessionID,
 	}
 	jsonData, err := json.Marshal(data)
@@ -91,20 +131,20 @@ func (h *ConnectionHandler) sendEmotionMessage(emotion string) error {
 	return h.conn.WriteMessage(1, jsonData)
 }
 
-func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textIndex int, round int) {
+func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath string, text string, textIndex int, round int) {
 	bFinishSuccess := false
 	defer func() {
 		// 音频发送完成后，根据配置决定是否删除文件
-		h.deleteAudioFileIfNeeded(filepath, "音频发送完成")
+		h.deleteAudioFileIfNeeded(ctx, filepath, "音频发送完成")
 
-		utils.Info(h.ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.tts_last_text_index))
+		utils.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.tts_last_text_index))
 		h.providers.asr.ResetStartListenTime()
 		if textIndex == h.tts_last_text_index {
-			h.sendTTSMessage("stop", "", textIndex)
+			h.sendTTSMessage(ctx, "stop", "", textIndex)
 			if h.closeAfterChat {
 				h.Close()
 			} else {
-				h.clearSpeakStatus()
+				h.clearSpeakStatus(ctx)
 			}
 		}
 	}()
@@ -114,17 +154,17 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 	}
 	// 检查轮次
 	if round != h.talkRound {
-		utils.Info(h.ctx, fmt.Sprintf("sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
+		utils.Info(ctx, fmt.Sprintf("sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
 			round, h.talkRound, text))
 		// 即使跳过，也要根据配置删除音频文件
-		h.deleteAudioFileIfNeeded(filepath, "跳过过期轮次")
+		h.deleteAudioFileIfNeeded(ctx, filepath, "跳过过期轮次")
 		return
 	}
 
 	if atomic.LoadInt32(&h.serverVoiceStop) == 1 { // 服务端语音停止
-		utils.Info(h.ctx, fmt.Sprintf("sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text))
+		utils.Info(ctx, fmt.Sprintf("sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text))
 		// 服务端语音停止时也要根据配置删除音频文件
-		h.deleteAudioFileIfNeeded(filepath, "服务端语音停止")
+		h.deleteAudioFileIfNeeded(ctx, filepath, "服务端语音停止")
 		return
 	}
 
@@ -134,42 +174,42 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 
 	// 使用TTS提供者的方法将音频转为Opus格式
 	if h.serverAudioFormat == "pcm" {
-		utils.Info(h.ctx, "服务端音频格式为PCM，直接发送")
+		utils.Info(ctx, "服务端音频格式为PCM，直接发送")
 		audioData, duration, err = utils.AudioToPCMData(filepath)
 		if err != nil {
-			utils.Error(h.ctx, fmt.Sprintf("音频转PCM失败: %v", err))
+			utils.Error(ctx, fmt.Sprintf("音频转PCM失败: %v", err))
 			return
 		}
 	} else if h.serverAudioFormat == "opus" {
 		audioData, duration, err = utils.AudioToOpusData(filepath)
 		if err != nil {
-			utils.Error(h.ctx, fmt.Sprintf("音频转Opus失败: %v", err))
+			utils.Error(ctx, fmt.Sprintf("音频转Opus失败: %v", err))
 			return
 		}
 	}
 
 	// 发送TTS状态开始通知
-	if err := h.sendTTSMessage("sentence_start", text, textIndex); err != nil {
-		utils.Error(h.ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
+	if err := h.sendTTSMessage(ctx, "sentence_start", text, textIndex); err != nil {
+		utils.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
 		return
 	}
 
 	if textIndex == 1 {
 		now := time.Now()
 		spentTime := now.Sub(h.roundStartTime)
-		utils.Debugf(h.ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
+		utils.Debugf(ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	utils.Debugf(h.ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
+	utils.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
 
 	// 分时发送音频数据
-	if err := h.sendAudioFrames(audioData, text, round); err != nil {
-		utils.Error(h.ctx, fmt.Sprintf("分时发送音频数据失败: %v", err))
+	if err := h.sendAudioFrames(ctx, audioData, text, round); err != nil {
+		utils.Error(ctx, fmt.Sprintf("分时发送音频数据失败: %v", err))
 		return
 	}
 
 	// 发送TTS状态结束通知
-	if err := h.sendTTSMessage("sentence_end", text, textIndex); err != nil {
-		utils.Error(h.ctx, fmt.Sprintf("发送TTS结束状态失败: %v", err))
+	if err := h.sendTTSMessage(ctx, "sentence_end", text, textIndex); err != nil {
+		utils.Error(ctx, fmt.Sprintf("发送TTS结束状态失败: %v", err))
 		return
 	}
 
@@ -177,7 +217,7 @@ func (h *ConnectionHandler) sendAudioMessage(filepath string, text string, textI
 }
 
 // sendAudioFrames 分时发送音频帧，避免撑爆客户端缓冲区
-func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, round int) error {
+func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]byte, text string, round int) error {
 	if len(audioData) == 0 {
 		return nil
 	}
@@ -196,11 +236,11 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 	for i := 0; i < preBufferFrames; i++ {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			utils.Info(h.ctx, fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))
+			utils.Info(ctx, fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))
 			return nil
 		}
 
-		if err := h.conn.WriteMessage(2, audioData[i]); err != nil {
+		if err := h.sendAudioFrame(audioData[i], 0); err != nil {
 			return fmt.Errorf("发送预缓冲音频帧失败: %v", err)
 		}
 		playPosition += h.serverAudioFrameDuration
@@ -211,7 +251,7 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 	for i, chunk := range remainingFrames {
 		// 检查是否被打断或轮次变化
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			utils.Info(h.ctx, fmt.Sprintf("音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+			utils.Info(ctx, fmt.Sprintf("音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
 			return nil
 		}
 
@@ -239,7 +279,7 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 				case <-ticker.C:
 					// 检查中断条件
 					if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-						utils.Info(h.ctx, fmt.Sprintf("音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+						utils.Info(ctx, fmt.Sprintf("音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
 						return nil
 					}
 				case <-h.stopChan:
@@ -249,7 +289,7 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 		}
 
 		// 发送音频帧
-		if err := h.conn.WriteMessage(2, chunk); err != nil {
+		if err := h.sendAudioFrame(chunk, uint32(playPosition)); err != nil {
 			return fmt.Errorf("发送音频帧失败: %v", err)
 		}
 
@@ -257,6 +297,45 @@ func (h *ConnectionHandler) sendAudioFrames(audioData [][]byte, text string, rou
 	}
 	time.Sleep(preBufferTime) // 确保预缓冲时间已过
 	spentTime := time.Since(startTime).Milliseconds()
-	utils.Info(h.ctx, fmt.Sprintf("音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text))
+	utils.Info(ctx, fmt.Sprintf("音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text))
 	return nil
+}
+
+// sendAudioFrame 根据客户端协议版本发送音频帧
+func (h *ConnectionHandler) sendAudioFrame(audioData []byte, timestamp uint32) error {
+	var frameData []byte
+
+	switch h.clientProtocolVersion {
+	case 2:
+		// BinaryProtocol2: 16字节头部 + payload
+		frameData = make([]byte, 16+len(audioData))
+
+		// 填充头部 (大端序)
+		binary.BigEndian.PutUint16(frameData[0:2], uint16(h.clientProtocolVersion)) // version
+		binary.BigEndian.PutUint16(frameData[2:4], 0)                               // type (0=OPUS)
+		binary.BigEndian.PutUint32(frameData[4:8], 0)                               // reserved
+		binary.BigEndian.PutUint32(frameData[8:12], timestamp)                      // timestamp
+		binary.BigEndian.PutUint32(frameData[12:16], uint32(len(audioData)))        // payload_size
+
+		// 复制音频数据
+		copy(frameData[16:], audioData)
+
+	case 3:
+		// BinaryProtocol3: 4字节头部 + payload
+		frameData = make([]byte, 4+len(audioData))
+
+		// 填充头部 (大端序)
+		frameData[0] = 0                                                   // type (0=OPUS)
+		frameData[1] = 0                                                   // reserved
+		binary.BigEndian.PutUint16(frameData[2:4], uint16(len(audioData))) // payload_size
+
+		// 复制音频数据
+		copy(frameData[4:], audioData)
+
+	default:
+		// 协议版本1或默认：直接发送Opus数据
+		frameData = audioData
+	}
+
+	return h.conn.WriteMessage(2, frameData)
 }

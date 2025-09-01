@@ -223,7 +223,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 			}
 		}()
 
-		handler.Handle(conn)
+		handler.Handle(ctx, conn)
 	}()
 }
 

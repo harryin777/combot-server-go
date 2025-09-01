@@ -323,8 +323,8 @@ func (p *Provider) parseResponse(data []byte) (map[string]interface{}, error) {
 }
 
 // AddAudio 添加音频数据到缓冲区
-func (p *Provider) AddAudio(data []byte) error {
-	return p.AddAudioWithContext(context.Background(), data)
+func (p *Provider) AddAudio(ctx context.Context, data []byte) error {
+	return p.AddAudioWithContext(ctx, data)
 }
 
 // AddAudioWithContext 带上下文的音频数据添加
@@ -344,12 +344,12 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 	// 检查是否有实际数据需要发送
 	if len(data) > 0 && p.isStreaming {
 		// 直接发送音频数据
-		if err := p.sendAudioData(data, false); err != nil {
+		if err := p.sendAudioData(ctx, data, false); err != nil {
 			return err
 		} else {
 			p.sendDataCnt += 1
 			if p.sendDataCnt%20 == 0 {
-				logrus.WithField("length", len(data)).Debug("发送音频数据成功")
+				utils.Infof(ctx, "length: %v, 发送音频数据成功", len(data))
 			}
 		}
 	}
@@ -358,7 +358,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 }
 
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	logrus.Info("----开始流式识别----")
+	utils.Info(ctx, "----开始流式识别----")
 	p.ResetStartListenTime()
 	// 加锁保护连接初始化
 	p.connMutex.Lock()
@@ -404,12 +404,8 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 		if i < maxRetries {
 			backoffTime := time.Duration(500*(i+1)) * time.Millisecond
-			logrus.WithFields(logrus.Fields{
-				"attempt":     i + 1,
-				"maxRetries":  maxRetries + 1,
-				"error":       err,
-				"backoffTime": backoffTime,
-			}).Warn("WebSocket连接失败，将重试")
+			utils.Errorf(ctx, "WebSocket连接失败，将重试: %v, 重试次数: %d/%d", err, i+1, maxRetries+1)
+			// 等待一段时间后重试
 			time.Sleep(backoffTime)
 		}
 	}
@@ -458,7 +454,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("读取响应失败: %v", err)
 	} else {
-		logrus.WithField("length", len(response)).Debug("[DEBUG] 流式识别: 收到WebSocket消息")
+		utils.Infof(ctx, "[DEBUG] 流式识别: 收到WebSocket消息, 长度=%d", len(response))
 	}
 
 	initialResult, err := p.parseResponse(response)
@@ -474,11 +470,8 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		}
 	}
 
+	utils.Infof(ctx, "流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
 	p.isStreaming = true
-	logrus.WithFields(logrus.Fields{
-		"connectID": p.connectID,
-		"reqID":     p.reqID,
-	}).Debug("[DEBUG] 流式识别初始化成功")
 	// 开启一个协程来处理响应，读取最后的结果，读取完成后关闭协程
 	go func() {
 		p.ReadMessage()
@@ -610,12 +603,20 @@ func (p *Provider) closeConnection() {
 }
 
 // sendAudioData 直接发送音频数据，替代之前的sendCurrentBuffer
-func (p *Provider) sendAudioData(data []byte, isLast bool) error {
-	logrus.WithFields(logrus.Fields{
-		"length":      len(data),
-		"isLast":      isLast,
-		"sendDataCnt": p.sendDataCnt,
-	}).Debug("[DEBUG] sendAudioData")
+func (p *Provider) sendAudioData(ctx context.Context, data []byte, isLast bool) error {
+	utils.Infof(ctx, fmt.Sprintf("sendAudioData: 发送音频数据, 长度=%d, isLast=%t, 发送计数=%d",
+		len(data), isLast, p.sendDataCnt))
+
+	// 使用锁保护连接状态
+	p.connMutex.Lock()
+	defer p.connMutex.Unlock()
+
+	if p.err != nil {
+		return p.err
+	}
+	if !p.isStreaming {
+		return fmt.Errorf("流式识别未初始化")
+	}
 	// 如果没有数据且不是最后一帧，不发送
 	if len(data) == 0 && !isLast {
 		return nil
@@ -623,7 +624,7 @@ func (p *Provider) sendAudioData(data []byte, isLast bool) error {
 	defer func() {
 		if r := recover(); r != nil {
 			// 捕获WebSocket写入时的panic，避免程序崩溃
-			logrus.WithField("error", r).Error("发送音频数据时发生panic")
+			utils.Errorf(ctx, "发送音频数据时发生panic: %v", r)
 		}
 	}()
 
