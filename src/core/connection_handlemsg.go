@@ -7,9 +7,10 @@ import (
 	"combot-server-go/src/core/utils"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"strings"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // handleMessage 处理接收到的消息
@@ -73,7 +74,7 @@ func (h *ConnectionHandler) handleVisionMessage(msgMap map[string]interface{}) e
 func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text string) error {
 	// 解析JSON消息
 	var msgJSON interface{}
-	if err := json.Unmarshal([]byte(text), &msgJSON); err != nil {
+	if err := jsoniter.Unmarshal([]byte(text), &msgJSON); err != nil {
 		return h.conn.WriteMessage(1, []byte(text))
 	}
 

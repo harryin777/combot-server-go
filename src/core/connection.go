@@ -279,8 +279,8 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 	h.conn = conn
 
 	// 启动消息处理协程
-	go h.processClientAudioMessagesCoroutine(ctx) // 添加客户端音频消息处理协程
-	go h.processClientTextMessagesCoroutine(ctx)  // 添加客户端文本消息处理协程
+	go h.processClientAudioMessagesGoroutine(ctx) // 添加客户端音频消息处理协程
+	go h.processClientTextMessagesGoroutine(ctx)  // 添加客户端文本消息处理协程
 	go h.processTTSQueueCoroutine(ctx)            // 添加TTS队列处理协程
 	go h.sendAudioMessageCoroutine(ctx)           // 添加音频消息发送协程
 
@@ -326,8 +326,8 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 	}
 }
 
-// processClientTextMessagesCoroutine 处理文本消息队列
-func (h *ConnectionHandler) processClientTextMessagesCoroutine(ctx context.Context) {
+// processClientTextMessagesGoroutine 处理文本消息队列
+func (h *ConnectionHandler) processClientTextMessagesGoroutine(ctx context.Context) {
 	for {
 		select {
 		case <-h.stopChan:
@@ -340,8 +340,8 @@ func (h *ConnectionHandler) processClientTextMessagesCoroutine(ctx context.Conte
 	}
 }
 
-// processClientAudioMessagesCoroutine 处理音频消息队列
-func (h *ConnectionHandler) processClientAudioMessagesCoroutine(ctx context.Context) {
+// processClientAudioMessagesGoroutine 处理音频消息队列
+func (h *ConnectionHandler) processClientAudioMessagesGoroutine(ctx context.Context) {
 	for {
 		select {
 		case <-h.stopChan:
@@ -350,7 +350,7 @@ func (h *ConnectionHandler) processClientAudioMessagesCoroutine(ctx context.Cont
 			if h.closeAfterChat {
 				continue
 			}
-			if err := h.providers.asr.AddAudio(audioData, nil); err != nil {
+			if err := h.providers.asr.AddAudio(ctx, audioData); err != nil {
 				utils.Error(ctx, fmt.Sprintf("处理音频数据失败: %v", err))
 			}
 		}

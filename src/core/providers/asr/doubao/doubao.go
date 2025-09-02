@@ -18,6 +18,7 @@ import (
 	"combot-server-go/src/core/utils"
 
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 	"github.com/sirupsen/logrus"
 )
 
@@ -423,7 +424,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	// 发送初始请求
 	p.reqID = fmt.Sprintf("%d", time.Now().UnixNano())
 	request := p.constructRequest()
-	requestBytes, err := json.Marshal(request)
+	requestBytes, err := jsoniter.Marshal(request)
 	if err != nil {
 		return fmt.Errorf("构造请求数据失败: %v", err)
 	}
@@ -474,16 +475,16 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	p.isStreaming = true
 	// 开启一个协程来处理响应，读取最后的结果，读取完成后关闭协程
 	go func() {
-		p.ReadMessage()
+		p.ReadMessage(ctx)
 	}()
 	return nil
 }
 
-func (p *Provider) ReadMessage() {
-	logrus.Info("doubao流式识别协程已启动")
+func (p *Provider) ReadMessage(ctx context.Context) {
+	utils.Info(ctx, "doubao流式识别协程已启动")
 	defer func() {
 		if r := recover(); r != nil {
-			logrus.WithField("error", r).Error("流式识别协程发生错误")
+			utils.Errorf(ctx, "流式识别协程发生错误: %v", r)
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false // 标记流式识别结束
@@ -491,7 +492,7 @@ func (p *Provider) ReadMessage() {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		logrus.Info("doubao流式识别协程已结束")
+		utils.Info(ctx, "----流式识别协程已结束----")
 	}()
 
 	for {
@@ -499,7 +500,7 @@ func (p *Provider) ReadMessage() {
 		p.connMutex.Lock()
 		if !p.isStreaming || p.conn == nil {
 			p.connMutex.Unlock()
-			logrus.Info("流式识别已结束或连接已关闭，退出读取循环")
+			utils.Info(ctx, "流式识别已结束或连接已关闭，退出读取循环")
 			return
 		}
 		conn := p.conn
@@ -520,7 +521,7 @@ func (p *Provider) ReadMessage() {
 		}
 
 		if code, hasCode := result["code"]; hasCode {
-			logrus.WithField("result", result).Info("检测到code字段: 解析结果")
+			utils.Infof(ctx, "result : %v, 检测到code字段: 解析结果", result)
 			codeValue := code.(uint32)
 			if codeValue != 0 {
 				p.setErrorAndStop(fmt.Errorf("ASR服务端错误: Code=%d", codeValue))
@@ -538,7 +539,7 @@ func (p *Provider) ReadMessage() {
 					text = textData
 				}
 
-				logrus.WithField("text", text).Debug("[DEBUG] 流式识别: 识别成功")
+				utils.Infof(ctx, "流式识别: 识别成功, 文本长度=%d", len(text))
 
 				p.connMutex.Lock()
 				p.result = text
@@ -564,6 +565,7 @@ func (p *Provider) ReadMessage() {
 
 	}
 }
+
 func (p *Provider) setErrorAndStop(err error) {
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
