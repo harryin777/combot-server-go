@@ -1,12 +1,11 @@
 package utils
 
 import (
+	"context"
 	"encoding/json"
 	"math/rand"
 	"regexp"
 	"strings"
-
-	"github.com/sirupsen/logrus"
 )
 
 var (
@@ -67,12 +66,12 @@ func RemoveAllPunctuation(text string) string {
 	return cleaned
 }
 
-// extract_json_from_string 提取字符串中的 JSON 部分
-func Extract_json_from_string(input string) map[string]interface{} {
+// ExtractJsonFromString 提取字符串中的 JSON 部分
+func ExtractJsonFromString(ctx context.Context, input string) map[string]interface{} {
 	// 提取最外层的{}
 	start := strings.Index(input, "{")
 	if start == -1 {
-		logrus.Debug("没有找到JSON起始符号")
+		Error(ctx, "没有找到JSON起始符号")
 		return nil
 	}
 	bracketCount := 0
@@ -91,19 +90,19 @@ outer:
 		}
 	}
 	if end == -1 {
-		logrus.Debug("没有找到完整的JSON结构")
+		Error(ctx, "没有找到完整的JSON结构")
 		return nil
 	}
 	jsonStr := input[start : end+1]
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
-		logrus.WithError(err).Debug("JSON解析错误")
+		Errorf(ctx, "JSON解析错误: %v", err)
 		return nil
 	}
 	return jsonData
 }
 
-// joinStrings 连接字符串切片
+// JoinStrings 连接字符串切片
 func JoinStrings(strs []string) string {
 	var result string
 	for _, s := range strs {

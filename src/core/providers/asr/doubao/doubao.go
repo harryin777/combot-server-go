@@ -552,7 +552,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 					} else if text != "" {
 						p.BaseProvider.SilenceCount = 0 // 重置静音计数
 					}
-					if finished := listener.OnAsrResult(text); finished {
+					if finished := listener.OnAsrResult(ctx, text); finished {
 						return
 					}
 				}
@@ -606,8 +606,8 @@ func (p *Provider) closeConnection() {
 
 // sendAudioData 直接发送音频数据，替代之前的sendCurrentBuffer
 func (p *Provider) sendAudioData(ctx context.Context, data []byte, isLast bool) error {
-	utils.Infof(ctx, fmt.Sprintf("sendAudioData: 发送音频数据, 长度=%d, isLast=%t, 发送计数=%d",
-		len(data), isLast, p.sendDataCnt))
+	utils.Infof(ctx, "sendAudioData: 发送音频数据, 长度=%d, isLast=%t, 发送计数=%d",
+		len(data), isLast, p.sendDataCnt)
 
 	// 使用锁保护连接状态
 	p.connMutex.Lock()

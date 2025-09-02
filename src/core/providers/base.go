@@ -12,7 +12,7 @@ type Provider interface {
 }
 
 type AsrEventListener interface {
-	OnAsrResult(result string) bool
+	OnAsrResult(ctx context.Context, result string) bool
 }
 
 // ASRProvider 语音识别提供者接口

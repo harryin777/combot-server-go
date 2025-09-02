@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"sync/atomic"
 	"time"
+
+	jsoniter "github.com/json-iterator/go"
 )
 
 // sendHelloMessage 发送欢迎消息
@@ -89,8 +91,9 @@ func (h *ConnectionHandler) sendTTSMessage(ctx context.Context, state string, te
 		"index":       textIndex,
 		"audio_codec": "opus", // 标识使用Opus编码
 	}
-	data, err := json.Marshal(stateMsg)
+	data, err := jsoniter.Marshal(stateMsg)
 	if err != nil {
+		utils.Errorf(ctx, "序列化%s状态失败: %v", state, err)
 		return fmt.Errorf("序列化%s状态失败: %v", state, err)
 	}
 	if err := h.conn.WriteMessage(1, data); err != nil {

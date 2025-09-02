@@ -38,7 +38,7 @@ func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 			messageType, p, _ := conn.ReadMessage()
 			if messageType == websocket.TextMessage {
 				if listener := provider.GetListener(); listener != nil {
-					if finished := listener.OnAsrResult(string(p)); finished {
+					if finished := listener.OnAsrResult(context.Background(), string(p)); finished {
 
 					}
 				}

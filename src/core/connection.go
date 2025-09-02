@@ -27,6 +27,7 @@ import (
 	"combot-server-go/src/task"
 
 	"github.com/google/uuid"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Connection 统一连接接口
@@ -371,7 +372,7 @@ func (h *ConnectionHandler) sendAudioMessageCoroutine(ctx context.Context) {
 // OnAsrResult 实现 AsrEventListener 接口
 // 返回true则停止语音识别，返回false会继续语音识别
 func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool {
-	//utils.Info(ctx, fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
+	utils.Info(ctx, fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
 	if h.providers.asr.GetSilenceCount() >= 2 {
 		utils.Info(ctx, "检测到连续两次静音，结束对话")
 		h.closeAfterChat = true // 如果连续两次静音，则结束对话
@@ -422,12 +423,12 @@ func (h *ConnectionHandler) QuitIntent(ctx context.Context, text string) bool {
 	if exitCommands == nil {
 		return false
 	}
-	cleand_text := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
+	cleandText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
-		utils.Debug(ctx, fmt.Sprintf("检查退出命令: %s,%s", cmd, cleand_text))
+		utils.Debug(ctx, fmt.Sprintf("检查退出命令: %s,%s", cmd, cleandText))
 		//判断相等
-		if cleand_text == cmd {
+		if cleandText == cmd {
 			utils.Info(ctx, "收到客户端退出意图，准备结束对话")
 			h.Close() // 直接关闭连接
 			return true
@@ -446,9 +447,9 @@ func (h *ConnectionHandler) quickReplyWakeUpWords(ctx context.Context, text stri
 	}
 
 	repalyWords := h.config.QuickReplyWords
-	reply_text := utils.RandomSelectFromArray(repalyWords)
+	replyText := utils.RandomSelectFromArray(repalyWords)
 	h.tts_last_text_index = 1 // 重置文本索引
-	h.SpeakAndPlay(ctx, reply_text, 1, h.talkRound)
+	h.SpeakAndPlay(ctx, replyText, 1, h.talkRound)
 
 	return true
 }
@@ -469,7 +470,7 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	h.talkRound++
 	h.roundStartTime = time.Now()
 	currentRound := h.talkRound
-	utils.Info(ctx, fmt.Sprintf("开始新的对话轮次: %d", currentRound))
+	utils.Infof(ctx, "开始新的对话轮次: %d", currentRound)
 
 	// 判断是否需要验证
 	if h.isNeedAuth() {
@@ -535,44 +536,52 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	return h.genResponseByLLM(ctx, h.dialogueManager.GetLLMDialogue(), currentRound)
 }
 
+// genResponseByLLM 使用LLM生成回复的核心方法
+// 支持流式响应、实时播放、工具调用等完整的对话处理流程
 func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []providers.Message, round int) error {
+	// ========== 异常保护 ==========
+	// 防止panic导致整个连接断开，确保系统稳定性
 	defer func() {
 		if r := recover(); r != nil {
-			utils.Error(ctx, fmt.Sprintf("genResponseByLLM发生panic: %v", r))
+			utils.Errorf(ctx, "genResponseByLLM发生panic: %v", r)
 			errorMsg := "抱歉，处理您的请求时发生了错误"
 			h.tts_last_text_index = 1 // 重置文本索引
 			h.SpeakAndPlay(ctx, errorMsg, 1, round)
 		}
 	}()
 
-	llmStartTime := time.Now()
-	//utils.Info("开始生成LLM回复, round:%d ", round)
-	for _, msg := range messages {
-		_ = msg
-		//msg.Print()
-	}
-	// 使用LLM生成回复
+	// ========== 步骤1: 初始化和性能监控 ==========
+	llmStartTime := time.Now() // 记录开始时间，用于计算首次响应延迟
+	utils.Infof(ctx, "开始生成LLM回复, round:%d ", round)
+
+	// 获取所有可用的工具函数，支持MCP和本地函数调用
 	tools := h.functionRegister.GetAllFunctions()
+
+	// 调用LLM提供者的流式接口，获取响应通道
 	responses, err := h.providers.llm.ResponseWithFunctions(ctx, h.sessionID, messages, tools)
 	if err != nil {
 		return fmt.Errorf("LLM生成回复失败: %v", err)
 	}
 
-	// 处理回复
-	var responseMessage []string
-	processedChars := 0
-	textIndex := 0
+	// ========== 步骤2: 初始化流式处理状态 ==========
+	var responseMessage []string      // 累积的响应消息片段
+	processedChars, textIndex := 0, 0 // 已处理字符数和文本片段索引
 
+	// 重置服务端语音停止标志，准备新的语音输出
 	atomic.StoreInt32(&h.serverVoiceStop, 0)
 
-	// 处理流式响应
-	toolCallFlag := false
+	// ========== 步骤3: 工具调用检测和状态管理 ==========
+	toolCallFlag := false // 标记是否检测到工具调用
 	var functionName, functionID, functionArguments, contentArguments string
 
+	// ========== 步骤4: 流式响应处理主循环 ==========
+	// 逐块处理LLM返回的数据，实现边生成边播放的用户体验
 	for response := range responses {
-		content := response.Content
-		toolCall := response.ToolCalls
+		content := response.Content    // 本次接收到的文本内容
+		toolCall := response.ToolCalls // 本次接收到的工具调用信息
 
+		// ========== 错误处理 ==========
+		// 检查LLM返回的错误信息，及时向用户反馈
 		if response.Error != "" {
 			utils.Error(ctx, fmt.Sprintf("LLM响应错误: %s", response.Error))
 			errorMsg := "抱歉，服务暂时不可用，请稍后再试"
@@ -581,17 +590,22 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			return fmt.Errorf("LLM响应错误: %s", response.Error)
 		}
 
+		// ========== 内容累积 ==========
+		// 累积所有接收到的内容，用于工具调用检测和完整文本构建
 		if content != "" {
-			// 累加content_arguments
 			contentArguments += content
 		}
 
+		// ========== 工具调用检测 ==========
+		// 方式1: 通过文本标签检测工具调用开始
 		if !toolCallFlag && strings.HasPrefix(contentArguments, "<tool_call>") {
 			toolCallFlag = true
 		}
 
+		// 方式2: 通过API返回的ToolCalls字段检测
 		if len(toolCall) > 0 {
 			toolCallFlag = true
+			// 累积工具调用的相关信息
 			if toolCall[0].ID != "" {
 				functionID = toolCall[0].ID
 			}
@@ -603,109 +617,156 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			}
 		}
 
+		// ========== 文本内容处理 ==========
 		if content != "" {
+			// 服务异常检测：快速识别服务问题并反馈用户
 			if strings.Contains(content, "服务响应异常") {
-				utils.Error(ctx, fmt.Sprintf("检测到LLM服务异常: %s", content))
+				utils.Errorf(ctx, "检测到LLM服务异常: %s", content)
 				errorMsg := "抱歉，服务暂时不可用，请稍后再试"
 				h.tts_last_text_index = 1 // 重置文本索引
 				h.SpeakAndPlay(ctx, errorMsg, 1, round)
 				return fmt.Errorf("LLM服务异常")
 			}
 
+			// 工具调用时跳过文本处理：避免播放技术性内容
 			if toolCallFlag {
 				continue
 			}
 
+			// ========== 实时文本分段处理 ==========
+			// 将新内容加入响应消息列表
 			responseMessage = append(responseMessage, content)
-			// 处理分段
+
+			// 构建完整文本并提取未处理部分
 			fullText := utils.JoinStrings(responseMessage)
 			if len(fullText) <= processedChars {
+				// 异常情况：文本长度不增长，记录警告并跳过
 				utils.Warn(ctx, fmt.Sprintf("文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars))
 				continue
 			}
-			currentText := fullText[processedChars:]
+			currentText := fullText[processedChars:] // 提取未处理的文本部分
 
-			// 按标点符号分割
+			// ========== 智能分段和实时播放 ==========
+			// 按标点符号分割文本，实现自然的语音停顿
 			if segment, chars := utils.SplitAtLastPunctuation(currentText); chars > 0 {
-				textIndex++
-				if textIndex == 1 {
-					now := time.Now()
-					llmSpentTime := now.Sub(llmStartTime)
-					utils.Info(ctx, fmt.Sprintf("LLM回复耗时 %s 生成第一句话【%s】, round: %d", llmSpentTime, segment, round))
-				} else {
-					utils.Info(ctx, fmt.Sprintf("LLM回复分段: %s, index: %d, round:%d", segment, textIndex, round))
-				}
+				textIndex++ // 分段序号递增
 				h.tts_last_text_index = textIndex
+
+				// ========== 性能监控和日志记录 ==========
+				if textIndex == 1 {
+					// 记录首次响应时间：关键性能指标
+					llmSpentTime := time.Since(llmStartTime)
+					utils.Infof(ctx, "LLM首段回复耗时 %v，内容：【%s】(round: %d)",
+						llmSpentTime, segment, round)
+				} else {
+					// 记录后续分段信息
+					utils.Infof(ctx, "LLM回复分段[%d]: %s (round: %d)",
+						textIndex, segment, round)
+				}
+
+				// ========== 语音合成和播放 ==========
+				// 异步处理TTS，不阻塞LLM响应接收
 				err := h.SpeakAndPlay(ctx, segment, textIndex, round)
 				if err != nil {
 					utils.Error(ctx, fmt.Sprintf("播放LLM回复分段失败: %v", err))
 				}
+
+				// 更新已处理字符数，避免重复处理
 				processedChars += chars
 			}
 		}
 	}
 
+	// ========== 步骤5: 工具调用处理 ==========
+	// 当检测到工具调用时，解析参数并执行相应的工具函数
 	if toolCallFlag {
 		bHasError := false
+
+		// ========== 工具调用参数解析 ==========
+		// 如果没有从API直接获取到函数信息，尝试从累积的文本中解析
 		if functionID == "" {
-			a := utils.Extract_json_from_string(contentArguments)
+			// 从文本内容中提取JSON格式的工具调用信息
+			a := utils.ExtractJsonFromString(ctx, contentArguments)
 			if a != nil {
-				functionName = a["name"].(string)
-				argumentsJson, err := json.Marshal(a["arguments"])
-				if err != nil {
-					utils.Error(ctx, fmt.Sprintf("函数调用参数解析失败: %v", err))
+				// 安全的类型断言，避免panic
+				if name, ok := a["name"].(string); ok {
+					functionName = name
+				} else {
+					utils.Error(ctx, "工具调用缺少name字段")
+					bHasError = true
 				}
-				functionArguments = string(argumentsJson)
-				functionID = uuid.New().String()
+
+				// 序列化参数为JSON字符串
+				if !bHasError {
+					argumentsJson, err := json.Marshal(a["arguments"])
+					if err != nil {
+						utils.Error(ctx, fmt.Sprintf("函数调用参数序列化失败: %v", err))
+						bHasError = true
+					} else {
+						functionArguments = string(argumentsJson)
+						functionID = uuid.New().String() // 生成唯一ID
+					}
+				}
 			} else {
 				bHasError = true
-			}
-			if bHasError {
-				utils.Error(ctx, fmt.Sprintf("函数调用参数解析失败: %v", err))
+				utils.Error(ctx, "无法从内容中解析工具调用信息")
 			}
 		}
+
+		// ========== 工具调用执行 ==========
 		if !bHasError {
-			// 清空responseMessage
+			// 清空响应消息：工具调用时不保存中间文本内容
 			responseMessage = []string{}
+
+			// 解析函数参数
 			arguments := make(map[string]interface{})
-			if err := json.Unmarshal([]byte(functionArguments), &arguments); err != nil {
+			if err := jsoniter.Unmarshal([]byte(functionArguments), &arguments); err != nil {
 				utils.Error(ctx, fmt.Sprintf("函数调用参数解析失败: %v", err))
 			}
+
+			// 构造函数调用数据，用于后续的对话历史记录
 			functionCallData := map[string]interface{}{
 				"id":        functionID,
 				"name":      functionName,
 				"arguments": functionArguments,
 			}
-			utils.Info(ctx, fmt.Sprintf("函数调用: %v", arguments))
+			utils.Infof(ctx, "执行工具调用: %s, 参数: %v", functionName, arguments)
+
+			// ========== MCP工具调用处理 ==========
 			if h.mcpManager.IsMCPTool(functionName) {
-				// 处理MCP函数调用
+				// 执行MCP (Model Context Protocol) 工具
 				result, err := h.mcpManager.ExecuteTool(ctx, functionName, arguments)
 				if err != nil {
-					utils.Error(ctx, fmt.Sprintf("MCP函数调用失败: %v", err))
+					utils.Errorf(ctx, "MCP函数调用失败: %v", err)
 					if result == nil {
 						result = "MCP工具调用失败"
 					}
 				}
-				// 判断result 是否是types.ActionResponse类型
+
+				// ========== 处理工具调用结果 ==========
 				if actionResult, ok := result.(types.ActionResponse); ok {
+					// 结果已经是ActionResponse类型，直接处理
 					h.handleFunctionResult(ctx, actionResult, functionCallData, textIndex)
 				} else {
-					utils.Info(ctx, fmt.Sprintf("MCP函数调用结果: %v", result))
+					// 包装为ActionResponse类型，请求LLM处理结果
+					utils.Infof(ctx, "MCP函数调用结果: %v", result)
 					actionResult := types.ActionResponse{
-						Action: types.ActionTypeReqLLM, // 动作类型
-						Result: result,                 // 动作产生的结果
+						Action: types.ActionTypeReqLLM, // 请求LLM基于结果生成回复
+						Result: result,                 // 工具执行的原始结果
 					}
 					h.handleFunctionResult(ctx, actionResult, functionCallData, textIndex)
 				}
-
 			} else {
-				// 处理普通函数调用
-				//h.functionRegister.CallFunction(functionName, functionCallData)
+				// ========== 普通函数调用处理 ==========
+				// 预留接口：处理非MCP的本地函数调用
+				// h.functionRegister.CallFunction(functionName, functionCallData)
+				utils.Infof(ctx, "普通函数调用暂未实现: %s", functionName)
 			}
 		}
 	}
 
-	// 处理剩余文本
+	// ========== 步骤6: 处理剩余文本 ==========
+	// 处理流式响应结束后可能剩余的未播放文本
 	fullResponse := utils.JoinStrings(responseMessage)
 	if len(fullResponse) > processedChars {
 		remainingText := fullResponse[processedChars:]
@@ -716,13 +777,14 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			h.SpeakAndPlay(ctx, remainingText, textIndex, round)
 		}
 	} else {
-		utils.Debug(ctx, fmt.Sprintf("无剩余文本需要处理: fullResponse长度=%d, processedChars=%d", len(fullResponse), processedChars))
+		utils.Debugf(ctx, "无剩余文本需要处理: fullResponse长度=%d, processedChars=%d", len(fullResponse), processedChars)
 	}
 
-	// 分析回复并发送相应的情绪
+	// 获取完整响应内容，用于对话历史和情绪分析
 	content := utils.JoinStrings(responseMessage)
 
-	// 添加助手回复到对话历史
+	// ========== 步骤7: 对话历史管理 ==========
+	// 只有非工具调用的响应才保存为assistant消息
 	if !toolCallFlag {
 		assistantMessage := chat.Message{
 			Role:    "assistant",
@@ -730,7 +792,8 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		}
 		h.dialogueManager.Put(assistantMessage)
 
-		// 保存助手回复到数据库
+		// ========== 异步数据库保存 ==========
+		// 使用goroutine异步保存，避免阻塞用户交互
 		go func() {
 			_, _, err := h.conversationService.SaveConversation(
 				ctx,
@@ -744,11 +807,13 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 				h.currentAIRole,
 			)
 			if err != nil {
-				utils.Error(ctx, fmt.Sprintf("保存助手回复到数据库失败: %v", err))
+				utils.Errorf(ctx, "保存助手回复到数据库失败: %v", err)
 			}
 		}()
 	}
 
+	// ========== 流程完成 ==========
+	// 返回nil表示处理成功，整个LLM响应流程完成
 	return nil
 }
 
@@ -946,7 +1011,7 @@ func (h *ConnectionHandler) processTTSTask(ctx context.Context, text string, tex
 
 }
 
-// speakAndPlay 合成并播放语音
+// SpeakAndPlay 合成并播放语音
 func (h *ConnectionHandler) SpeakAndPlay(ctx context.Context, text string, textIndex int, round int) error {
 	defer func() {
 		// 将任务加入队列，不阻塞当前流程
