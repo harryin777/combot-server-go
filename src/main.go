@@ -6,6 +6,7 @@
 package main
 
 import (
+	"combot-server-go/src/log"
 	"context"
 	"fmt"
 	"net/http"
@@ -18,7 +19,6 @@ import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/configs/database"
 	"combot-server-go/src/core"
-	"combot-server-go/src/core/log"
 	_ "combot-server-go/src/docs"
 	"combot-server-go/src/middleware"
 

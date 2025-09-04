@@ -1,11 +1,11 @@
 package router
 
 import (
+	"combot-server-go/src/log"
 	"context"
 
 	"combot-server-go/src/configs"
 	cfg "combot-server-go/src/configs/server"
-	"combot-server-go/src/core/log"
 
 	"github.com/gin-gonic/gin"
 )

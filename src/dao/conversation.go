@@ -1,11 +1,11 @@
 package dao
 
 import (
+	"combot-server-go/src/log"
 	"context"
 	"fmt"
 	"time"
 
-	"combot-server-go/src/core/log"
 	"combot-server-go/src/models"
 
 	"gorm.io/gorm"

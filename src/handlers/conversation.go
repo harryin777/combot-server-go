@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
+	"combot-server-go/src/log"
 	"combot-server-go/src/service"
 
 	"github.com/gin-gonic/gin"

@@ -1,6 +1,7 @@
-package log
+package utils
 
 import (
+	"combot-server-go/src/log"
 	"context"
 	"os"
 	"time"
@@ -27,5 +28,5 @@ func MinDuration(a, b time.Duration) time.Duration {
 
 // GenerateCtx 生成一个新的上下文，并附加一个唯一的请求ID
 func GenerateCtx(ctx context.Context) context.Context {
-	return context.WithValue(ctx, RequestIDKey, uuid.New().String())
+	return context.WithValue(ctx, log.RequestIDKey, uuid.New().String())
 }

@@ -2,8 +2,8 @@ package router
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
 	"combot-server-go/src/handlers"
+	"combot-server-go/src/log"
 	"combot-server-go/src/middleware"
 	"context"
 

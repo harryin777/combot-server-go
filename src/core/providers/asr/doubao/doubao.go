@@ -2,6 +2,8 @@ package doubao
 
 import (
 	"bytes"
+	log2 "combot-server-go/src/log"
+	"combot-server-go/src/utils"
 	"compress/gzip"
 	"context"
 	"encoding/binary"
@@ -14,7 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/providers/asr"
 
 	"github.com/gorilla/websocket"
@@ -138,7 +139,7 @@ func (p *Provider) TestTranscribe() (string, error) {
 	// 读取音频文件
 	audioFile := "700.mp3" // 替换为实际的音频文件路径
 
-	pcmData, err := log.MP3ToPCMData(audioFile)
+	pcmData, err := utils.MP3ToPCMData(audioFile)
 	if err != nil {
 		logrus.WithError(err).Error("MP3转PCM失败")
 	}
@@ -353,7 +354,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 		} else {
 			p.sendDataCnt += 1
 			if p.sendDataCnt%20 == 0 {
-				log.Infof(ctx, "length: %v, 发送音频数据成功", len(data))
+				log2.Infof(ctx, "length: %v, 发送音频数据成功", len(data))
 			}
 		}
 	}
@@ -362,7 +363,7 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 }
 
 func (p *Provider) StartStreaming(ctx context.Context) error {
-	log.Info(ctx, "----开始流式识别----")
+	log2.Info(ctx, "----开始流式识别----")
 	p.ResetStartListenTime()
 	// 加锁保护连接初始化
 	p.connMutex.Lock()
@@ -408,7 +409,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 		if i < maxRetries {
 			backoffTime := time.Duration(500*(i+1)) * time.Millisecond
-			log.Errorf(ctx, "WebSocket连接失败，将重试: %v, 重试次数: %d/%d", err, i+1, maxRetries+1)
+			log2.Errorf(ctx, "WebSocket连接失败，将重试: %v, 重试次数: %d/%d", err, i+1, maxRetries+1)
 			// 等待一段时间后重试
 			time.Sleep(backoffTime)
 		}
@@ -459,7 +460,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		return fmt.Errorf("读取响应失败: %v", err)
 	}
 
-	log.Infof(ctx, "[DEBUG] 流式识别: 收到WebSocket消息, 长度=%d", len(response))
+	log2.Infof(ctx, "[DEBUG] 流式识别: 收到WebSocket消息, 长度=%d", len(response))
 
 	initialResult, err := p.parseResponse(response)
 	if err != nil {
@@ -474,7 +475,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		}
 	}
 
-	log.Infof(ctx, "流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
+	log2.Infof(ctx, "流式识别初始化成功, connectID=%s, reqID=%s", p.connectID, p.reqID)
 	p.isStreaming = true
 	// 开启一个协程来处理响应，读取最后的结果，读取完成后关闭协程
 	go func() {
@@ -485,10 +486,10 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 }
 
 func (p *Provider) ReadMessage(ctx context.Context) {
-	log.Info(ctx, "doubao流式识别协程已启动")
+	log2.Info(ctx, "doubao流式识别协程已启动")
 	defer func() {
 		if r := recover(); r != nil {
-			log.Errorf(ctx, "流式识别协程发生错误: %v", r)
+			log2.Errorf(ctx, "流式识别协程发生错误: %v", r)
 		}
 		p.connMutex.Lock()
 		p.isStreaming = false // 标记流式识别结束
@@ -496,7 +497,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 			p.closeConnection()
 		}
 		p.connMutex.Unlock()
-		log.Info(ctx, "----流式识别协程已结束----")
+		log2.Info(ctx, "----流式识别协程已结束----")
 	}()
 
 	for {
@@ -504,7 +505,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 		p.connMutex.Lock()
 		if !p.isStreaming || p.conn == nil {
 			p.connMutex.Unlock()
-			log.Info(ctx, "流式识别已结束或连接已关闭，退出读取循环")
+			log2.Info(ctx, "流式识别已结束或连接已关闭，退出读取循环")
 			return
 		}
 		conn := p.conn
@@ -525,7 +526,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 		}
 
 		if code, hasCode := result["code"]; hasCode {
-			log.Infof(ctx, "result : %v, 检测到code字段: 解析结果", result)
+			log2.Infof(ctx, "result : %v, 检测到code字段: 解析结果", result)
 			codeValue := code.(uint32)
 			if codeValue != 0 {
 				p.setErrorAndStop(fmt.Errorf("ASR服务端错误: Code=%d", codeValue))
@@ -543,7 +544,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 					text = textData
 				}
 
-				log.Infof(ctx, "流式识别: 识别成功, 文本长度=%d", len(text))
+				log2.Infof(ctx, "流式识别: 识别成功, 文本长度=%d", len(text))
 
 				p.connMutex.Lock()
 				p.result = text
@@ -610,7 +611,7 @@ func (p *Provider) closeConnection() {
 
 // sendAudioData 直接发送音频数据，替代之前的sendCurrentBuffer
 func (p *Provider) sendAudioData(ctx context.Context, data []byte, isLast bool) error {
-	log.Infof(ctx, "sendAudioData: 发送音频数据, 长度=%d, isLast=%t, 发送计数=%d",
+	log2.Infof(ctx, "sendAudioData: 发送音频数据, 长度=%d, isLast=%t, 发送计数=%d",
 		len(data), isLast, p.sendDataCnt)
 
 	// 使用锁保护连接状态
@@ -630,7 +631,7 @@ func (p *Provider) sendAudioData(ctx context.Context, data []byte, isLast bool) 
 	defer func() {
 		if r := recover(); r != nil {
 			// 捕获WebSocket写入时的panic，避免程序崩溃
-			log.Errorf(ctx, "发送音频数据时发生panic: %v", r)
+			log2.Errorf(ctx, "发送音频数据时发生panic: %v", r)
 		}
 	}()
 

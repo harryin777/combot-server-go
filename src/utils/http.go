@@ -1,7 +1,8 @@
-package log
+package utils
 
 import (
 	"bytes"
+	"combot-server-go/src/log"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -65,5 +66,5 @@ func DumpRequest(ctx context.Context, req *http.Request) {
 	buf.WriteString("================\n")
 
 	// 输出到日志
-	Infof(ctx, buf.String())
+	log.Infof(ctx, buf.String())
 }

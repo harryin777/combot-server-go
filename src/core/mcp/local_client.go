@@ -2,7 +2,7 @@ package mcp
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
+	"combot-server-go/src/log"
 	"context"
 	"fmt"
 	"sync"

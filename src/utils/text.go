@@ -1,6 +1,7 @@
-package log
+package utils
 
 import (
+	"combot-server-go/src/log"
 	"context"
 	"encoding/json"
 	"math/rand"
@@ -71,7 +72,7 @@ func ExtractJsonFromString(ctx context.Context, input string) map[string]interfa
 	// 提取最外层的{}
 	start := strings.Index(input, "{")
 	if start == -1 {
-		Error(ctx, "没有找到JSON起始符号")
+		log.Error(ctx, "没有找到JSON起始符号")
 		return nil
 	}
 	bracketCount := 0
@@ -90,13 +91,13 @@ outer:
 		}
 	}
 	if end == -1 {
-		Error(ctx, "没有找到完整的JSON结构")
+		log.Error(ctx, "没有找到完整的JSON结构")
 		return nil
 	}
 	jsonStr := input[start : end+1]
 	var jsonData map[string]interface{}
 	if err := json.Unmarshal([]byte(jsonStr), &jsonData); err != nil {
-		Errorf(ctx, "JSON解析错误: %v", err)
+		log.Errorf(ctx, "JSON解析错误: %v", err)
 		return nil
 	}
 	return jsonData

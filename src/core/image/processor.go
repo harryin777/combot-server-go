@@ -1,6 +1,7 @@
 package image
 
 import (
+	"combot-server-go/src/log"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -13,7 +14,6 @@ import (
 	"time"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
 
 	"github.com/google/uuid"
 )

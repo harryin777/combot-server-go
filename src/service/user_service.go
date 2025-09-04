@@ -4,7 +4,7 @@ import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/configs/database"
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/log"
+	"combot-server-go/src/log"
 	"combot-server-go/src/models"
 	"context"
 	"errors"

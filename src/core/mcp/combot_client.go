@@ -1,7 +1,7 @@
 package mcp
 
 import (
-	"combot-server-go/src/core/log"
+	"combot-server-go/src/log"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -164,10 +164,6 @@ func (c *CombotMCPClient) HasTool(name string) bool {
 	return false
 }
 
-func sanitizeToolName(name string) string {
-	return strings.ReplaceAll(name, ".", "_")
-}
-
 // GetAvailableTools 获取所有可用工具
 func (c *CombotMCPClient) GetAvailableTools() []openai.Tool {
 	c.mu.RLock()
@@ -178,7 +174,7 @@ func (c *CombotMCPClient) GetAvailableTools() []openai.Tool {
 		result = append(result, openai.Tool{
 			Type: "function",
 			Function: &openai.FunctionDefinition{
-				Name:        sanitizeToolName(tool.Name),
+				Name:        strings.ReplaceAll(tool.Name, ".", "_"),
 				Description: tool.Description,
 				Parameters: map[string]interface{}{
 					"type":       tool.InputSchema.Type,
@@ -354,7 +350,7 @@ func (c *CombotMCPClient) SendMCPInitializeMessage(ctx context.Context) error {
 }
 
 // SendMCPToolsListRequest 发送MCP工具列表请求
-func (c *CombotMCPClient) SendMCPToolsListRequest() error {
+func (c *CombotMCPClient) SendMCPToolsListRequest(ctx context.Context) error {
 	// 构造MCP工具列表请求
 	mcpMessage := map[string]interface{}{
 		"type":       "mcp",
@@ -366,12 +362,12 @@ func (c *CombotMCPClient) SendMCPToolsListRequest() error {
 		},
 	}
 
-	data, err := json.Marshal(mcpMessage)
+	data, err := jsoniter.Marshal(mcpMessage)
 	if err != nil {
 		return fmt.Errorf("序列化MCP工具列表请求失败: %v", err)
 	}
 
-	logrus.Debug("发送MCP工具列表请求")
+	log.Infof(ctx, "发送MCP工具列表请求: %v", string(data))
 	return c.conn.WriteMessage(msgTypeText, data)
 }
 
@@ -445,7 +441,7 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 			}
 
 			// 初始化完成后，请求工具列表
-			return c.SendMCPToolsListRequest()
+			return c.SendMCPToolsListRequest(ctx)
 		} else if idInt == mcpToolsListID { // 如果是tools/list响应
 			log.Debug(ctx, "收到MCP工具列表响应")
 
@@ -503,7 +499,7 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 
 					c.tools = append(c.tools, newTool)
 					// 建立名称映射关系
-					sanitizedName := sanitizeToolName(name)
+					sanitizedName := strings.ReplaceAll(name, ".", "_")
 					c.toolNameMap[sanitizedName] = name
 					log.Infof(ctx, "工具 %d: name=%s, description=%s, inputSchema=%v", i+1, name, desc, inputSchema)
 				}

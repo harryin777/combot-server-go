@@ -2,8 +2,9 @@ package mcp
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/types"
+	log2 "combot-server-go/src/log"
+	"combot-server-go/src/utils"
 	"context"
 	"fmt"
 	"os"
@@ -29,8 +30,8 @@ type Manager struct {
 	clients              map[string]MCPClient
 	localClient          *LocalClient // 本地MCP客户端
 	tools                []string
-	CombotMCPClient      *CombotMCPClient // XiaoZhiMCPClient用于处理小智MCP相关逻辑
-	bRegisteredCombotMCP bool             // 是否已注册小智MCP工具
+	CombotMCPClient      *CombotMCPClient // CombotMCPClient用于处理CombotMCP相关逻辑
+	bRegisteredCombotMCP bool             // 是否已注册CombotMCP工具
 	isInitialized        bool             // 添加初始化状态标记
 	systemCfg            *configs.Config
 	mu                   sync.RWMutex
@@ -38,7 +39,7 @@ type Manager struct {
 
 // NewManagerForPool 创建用于资源池的MCP管理器
 func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
-	projectDir := log.GetProjectDir()
+	projectDir := utils.GetProjectDir()
 	configPath := filepath.Join(projectDir, ".mcp_server_settings.json")
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -56,7 +57,7 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(ctx); err != nil {
-		log.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
+		log2.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
 	}
 
 	return mgr
@@ -79,25 +80,25 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 		srvConfigMap, ok := srvConfig.(map[string]interface{})
 
 		if !ok {
-			log.Warnf(ctx, "Invalid configuration format for server, name %v", name)
+			log2.Warnf(ctx, "Invalid configuration format for server, name %v", name)
 			continue
 		}
 
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			log.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
+			log2.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		client, err := NewClient(ctx, clientConfig)
 		if err != nil {
-			log.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
+			log2.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		if err := client.Start(ctx); err != nil {
-			log.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
+			log2.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
 			continue
 		}
 		m.clients[name] = client
@@ -121,7 +122,7 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 	clientID := paramsMap["client_id"].(string)
 	token := paramsMap["token"].(string)
 
-	log.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
+	log2.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
 	// 优化：检查CombotMCPClient是否需要重新启动
 	if m.CombotMCPClient == nil {
@@ -147,12 +148,12 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 	}
 
 	// 重新注册工具（只注册尚未注册的）
-	m.registerAllToolsIfNeeded()
+	m.registerAllToolsIfNeeded(ctx)
 	return nil
 }
 
 // 新增方法：只在需要时注册工具
-func (m *Manager) registerAllToolsIfNeeded() {
+func (m *Manager) registerAllToolsIfNeeded(ctx context.Context) {
 	if m.funcHandler == nil {
 		return
 	}
@@ -164,11 +165,11 @@ func (m *Manager) registerAllToolsIfNeeded() {
 			for _, tool := range tools {
 				toolName := tool.Function.Name
 				if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-					log.Errorf(context.Background(), "注册 CombotMCP 工具失败: %s, error: %v", toolName, err)
+					log2.Errorf(ctx, "注册 CombotMCP 工具失败: %s, error: %v", toolName, err)
 					continue
 				}
 				m.tools = append(m.tools, toolName)
-				log.Infof(context.Background(), "已注册 CombotMCP 工具: %s", toolName)
+				log2.Infof(ctx, "已注册 CombotMCP 工具: %s", toolName)
 			}
 			m.bRegisteredCombotMCP = true
 		}
@@ -176,17 +177,17 @@ func (m *Manager) registerAllToolsIfNeeded() {
 
 	// 注册其他外部MCP客户端工具
 	for name, client := range m.clients {
-		if name != "combot" && client.IsReady() { // 修正：应该是 "combot" 而不是 "xiaozhi"
+		if name != "combot" && client.IsReady() {
 			tools := client.GetAvailableTools()
 			for _, tool := range tools {
 				toolName := tool.Function.Name
 				if !m.isToolRegistered(toolName) {
 					if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-						log.Errorf(context.Background(), "注册外部MCP工具失败: %s, error: %v", toolName, err)
+						log2.Errorf(ctx, "注册外部MCP工具失败: %s, error: %v", toolName, err)
 						continue
 					}
 					m.tools = append(m.tools, toolName)
-					log.Infof(context.Background(), "已注册外部MCP工具: %s", toolName)
+					log2.Infof(ctx, "已注册外部MCP工具: %s", toolName)
 				}
 			}
 		}
@@ -247,7 +248,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		log.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
+		log2.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -256,14 +257,14 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 	}
 
 	if err := jsoniter.Unmarshal(data, &config); err != nil {
-		log.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
+		log2.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
 	return config.MCPServers
 }
 
-func (m *Manager) HandleXiaoZhiMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
+func (m *Manager) HandleCombotMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
 	// 处理MCP消息
 	if m.CombotMCPClient == nil {
 		return fmt.Errorf("CombotMCPClient is not initialized")
@@ -278,7 +279,7 @@ func (m *Manager) HandleXiaoZhiMCPMessage(ctx context.Context, msgMap map[string
 	// 检查是否刚刚变为ready状态，如果是则注册工具
 	if m.CombotMCPClient.IsReady() && !m.bRegisteredCombotMCP {
 		// 使用已有的注册工具方法
-		m.registerAllToolsIfNeeded()
+		m.registerAllToolsIfNeeded(ctx)
 	}
 
 	return nil
@@ -386,7 +387,7 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 
 // ExecuteTool 执行工具调用
 func (m *Manager) ExecuteTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	log.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
+	log2.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
 
 	// 快速查找工具对应的客户端，缩小锁的范围
 	m.mu.RLock()

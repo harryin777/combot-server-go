@@ -1,7 +1,7 @@
 package core
 
 import (
-	"combot-server-go/src/core/log"
+	"combot-server-go/src/log"
 	utils2 "combot-server-go/src/utils"
 	"context"
 	"errors"

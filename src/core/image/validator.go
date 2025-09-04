@@ -2,6 +2,7 @@ package image
 
 import (
 	"bytes"
+	"combot-server-go/src/log"
 	"context"
 	"encoding/base64"
 	"fmt"
@@ -9,8 +10,6 @@ import (
 	"strings"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
-
 	_ "image/gif"  // 注册GIF解码器
 	_ "image/jpeg" // 注册JPEG解码器
 	_ "image/png"  // 注册PNG解码器

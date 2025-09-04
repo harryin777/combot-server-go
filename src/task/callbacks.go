@@ -1,7 +1,7 @@
 package task
 
 import (
-	"combot-server-go/src/core/log"
+	"combot-server-go/src/log"
 	"context"
 )
 

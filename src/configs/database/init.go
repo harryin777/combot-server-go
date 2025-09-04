@@ -1,14 +1,14 @@
 package database
 
 import (
+	"combot-server-go/src/log"
+	"combot-server-go/src/log/gormlogrus"
 	"context"
 	"fmt"
 	"strings"
 	"time"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/log"
-	"combot-server-go/src/core/log/gormlogrus"
 	"combot-server-go/src/models"
 
 	"gorm.io/driver/mysql"

@@ -1,9 +1,8 @@
 package middleware
 
 import (
+	"combot-server-go/src/log"
 	"context"
-
-	"combot-server-go/src/core/log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
