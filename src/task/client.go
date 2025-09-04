@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 )
 
 // ClientManager manages client contexts and resources
@@ -114,7 +114,7 @@ func (rq *ResourceQuota) CheckAndResetDailyQuota() {
 	if rq.LastResetDate.Before(today) {
 		rq.TotalUsedQuota = 0
 		rq.LastResetDate = today
-		utils.WithField(context.Background(), "date", today.Format("2006-01-02")).Info("每日配额已重置")
+		log.WithField(context.Background(), "date", today.Format("2006-01-02")).Info("每日配额已重置")
 	}
 }
 

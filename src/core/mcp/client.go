@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/types"
-	"combot-server-go/src/core/utils"
 
 	mcpclient "github.com/mark3labs/mcp-go/client"
 	"github.com/mark3labs/mcp-go/mcp"
@@ -67,7 +67,7 @@ func NewClient(ctx context.Context, config *Config) (*Client, error) {
 		c.stdioClient = stdioClient
 		c.useStdioClient = true
 	} else {
-		utils.Warn(ctx, "Unsupported MCP client type, only stdio client is supported")
+		log.Warn(ctx, "Unsupported MCP client type, only stdio client is supported")
 	}
 
 	return c, nil
@@ -96,7 +96,7 @@ func (c *Client) Start(ctx context.Context) error {
 			return fmt.Errorf("failed to initialize stdio MCP client: %w", err)
 		}
 		c.name = initResult.ServerInfo.Name
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"name":    initResult.ServerInfo.Name,
 			"version": initResult.ServerInfo.Version,
 			"command": c.config.Command,
@@ -152,7 +152,7 @@ func (c *Client) fetchTools(ctx context.Context) error {
 			toolNames += fmt.Sprintf("%s, ", tool.Name)
 			//log.Printf("Added tool: %s - %s %v; %v; %v", tool.Name, tool.Description, tool.InputSchema, tool.RawInputSchema, tool.Annotations)
 		}
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"name":      c.name,
 			"toolNames": toolNames,
 		}).Info("Fetching available tools")
@@ -168,12 +168,12 @@ func (c *Client) fetchTools(ctx context.Context) error {
 func (c *Client) Stop() {
 	if c.useStdioClient {
 		if c.stdioClient != nil {
-			utils.Info(context.Background(), "Stopping MCP stdio client")
+			log.Info(context.Background(), "Stopping MCP stdio client")
 			c.stdioClient.Close()
 		}
 	} else {
 		if c.client != nil {
-			utils.Info(context.Background(), "Stopping MCP client")
+			log.Info(context.Background(), "Stopping MCP client")
 			c.client.Close()
 		}
 	}

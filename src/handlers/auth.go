@@ -3,8 +3,8 @@ package handlers
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
@@ -86,7 +86,7 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 
 	id, img, code, err := h.authService.GetCaptcha(c.Request.Context(), req.Width, req.Height)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to generate captcha")
+		log.WithError(c.Request.Context(), err).Error("Failed to generate captcha")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -113,14 +113,14 @@ func (h *AuthHandler) GetCaptcha(c *gin.Context) {
 func (h *AuthHandler) SendSMS(c *gin.Context) {
 	var req SMSRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid SMS request")
+		log.WithError(c.Request.Context(), err).Error("Invalid SMS request")
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	_, code, err := h.authService.SendSMS(c.Request.Context(), req.CountryCode, req.Phone, req.CaptchaID, req.CaptchaValue)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Failed to send SMS")
+		log.WithError(c.Request.Context(), err).Error("Failed to send SMS")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -148,14 +148,14 @@ func (h *AuthHandler) SendSMS(c *gin.Context) {
 func (h *AuthHandler) PhoneAuth(c *gin.Context) {
 	var req PhoneAuthRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid phone auth request")
+		log.WithError(c.Request.Context(), err).Error("Invalid phone auth request")
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	user, token, code, err := h.authService.PhoneAuth(c.Request.Context(), req.CountryCode, req.Phone, req.SMSCode)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Phone authentication failed")
+		log.WithError(c.Request.Context(), err).Error("Phone authentication failed")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}

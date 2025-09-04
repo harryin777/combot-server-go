@@ -5,8 +5,8 @@ package main
 
 import (
 	"combot-server-go/src/configs"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/pool"
-	"combot-server-go/src/core/utils"
 	"fmt"
 	"log"
 	"time"
@@ -65,7 +65,7 @@ func main() {
 	config.Log.LogLevel = "debug"
 	config.Log.LogDir = "./logs"
 	config.Log.LogFile = "test.log"
-	logger, err := utils.NewLogger(config)
+	logger, err := log.NewLogger(config)
 	if err != nil {
 		log.Fatal(err)
 	}

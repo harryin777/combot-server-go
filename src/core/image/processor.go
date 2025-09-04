@@ -13,7 +13,7 @@ import (
 	"time"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	"github.com/google/uuid"
 )
@@ -81,7 +81,7 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 			Format: imageData.Format,
 		}
 
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"url":    imageData.URL,
 			"format": imageData.Format,
 		}).Info("URL图片处理成功")
@@ -91,7 +91,7 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 		atomic.AddInt64(&p.metrics.Base64Direct, 1)
 		finalImageData = imageData
 
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"format":      imageData.Format,
 			"data_length": len(imageData.Data),
 		}).Debug("Base64图片处理开始")
@@ -105,7 +105,7 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 		atomic.AddInt64(&p.metrics.FailedValidations, 1)
 		if validationResult.SecurityRisk != "" {
 			atomic.AddInt64(&p.metrics.SecurityIncidents, 1)
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"error":         validationResult.Error.Error(),
 				"security_risk": validationResult.SecurityRisk,
 				"format":        finalImageData.Format,
@@ -114,7 +114,7 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 		return "", fmt.Errorf("图片验证失败: %v", validationResult.Error)
 	}
 
-	utils.WithFields(context.Background(), map[string]interface{}{
+	log.WithFields(context.Background(), map[string]interface{}{
 		"format":    validationResult.Format,
 		"width":     validationResult.Width,
 		"height":    validationResult.Height,
@@ -136,7 +136,7 @@ func (p *ImageProcessor) processURLImage(ctx context.Context, url string, format
 	// 确保在函数结束时删除临时文件
 	defer func() {
 		if err := os.Remove(tempPath); err != nil && !os.IsNotExist(err) {
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"path":  tempPath,
 				"error": err.Error(),
 			}).Warn("删除临时文件失败")
@@ -157,7 +157,7 @@ func (p *ImageProcessor) processURLImage(ctx context.Context, url string, format
 	// 转换为base64
 	base64Data := base64.StdEncoding.EncodeToString(imageData)
 
-	utils.WithFields(context.Background(), map[string]interface{}{
+	log.WithFields(context.Background(), map[string]interface{}{
 		"url":         url,
 		"temp_path":   tempPath,
 		"file_size":   len(imageData),
@@ -218,7 +218,7 @@ func (p *ImageProcessor) downloadImage(ctx context.Context, url string, tempPath
 		return fmt.Errorf("下载文件失败: %v", err)
 	}
 
-	utils.WithFields(context.Background(), map[string]interface{}{
+	log.WithFields(context.Background(), map[string]interface{}{
 		"url":          url,
 		"content_type": contentType,
 		"size":         written,
@@ -285,7 +285,7 @@ func (p *ImageProcessor) Cleanup() error {
 		// 删除超过1小时的临时文件
 		if now.Sub(info.ModTime()) > time.Hour {
 			if err := os.Remove(filePath); err != nil {
-				utils.WithFields(context.Background(), map[string]interface{}{
+				log.WithFields(context.Background(), map[string]interface{}{
 					"path":  filePath,
 					"error": err.Error(),
 				}).Warn("删除过期临时文件失败")
@@ -296,7 +296,7 @@ func (p *ImageProcessor) Cleanup() error {
 	}
 
 	if cleanedCount > 0 {
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"cleaned_count": cleanedCount,
 		}).Info("清理临时文件完成")
 	}

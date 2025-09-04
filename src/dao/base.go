@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"combot-server-go/src/configs/database"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	"gorm.io/gorm"
 )
@@ -124,7 +124,7 @@ func (dao *BaseDAO) Query(ctx context.Context, result interface{}, options Query
 
 	// 执行查询
 	if err := query.Find(result).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("查询数据失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("查询数据失败: %v", err))
 		return fmt.Errorf("查询数据失败: %w", err)
 	}
 
@@ -171,7 +171,7 @@ func (dao *BaseDAO) Count(ctx context.Context, options QueryOptions) (int64, err
 
 	var count int64
 	if err := query.Count(&count).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("计数查询失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("计数查询失败: %v", err))
 		return 0, fmt.Errorf("计数查询失败: %w", err)
 	}
 
@@ -181,7 +181,7 @@ func (dao *BaseDAO) Count(ctx context.Context, options QueryOptions) (int64, err
 // Create 创建单条记录
 func (dao *BaseDAO) Create(ctx context.Context, data interface{}) error {
 	if err := dao.db.Create(data).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("创建记录失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("创建记录失败: %v", err))
 		return fmt.Errorf("创建记录失败: %w", err)
 	}
 	return nil
@@ -190,7 +190,7 @@ func (dao *BaseDAO) Create(ctx context.Context, data interface{}) error {
 // CreateInBatches 批量创建记录
 func (dao *BaseDAO) CreateInBatches(ctx context.Context, data interface{}, batchSize int) error {
 	if err := dao.db.CreateInBatches(data, batchSize).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("批量创建记录失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("批量创建记录失败: %v", err))
 		return fmt.Errorf("批量创建记录失败: %w", err)
 	}
 	return nil
@@ -206,7 +206,7 @@ func (dao *BaseDAO) Update(ctx context.Context, table string, where map[string]i
 	}
 
 	if err := query.Updates(updates).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("更新记录失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("更新记录失败: %v", err))
 		return fmt.Errorf("更新记录失败: %w", err)
 	}
 
@@ -223,7 +223,7 @@ func (dao *BaseDAO) Delete(ctx context.Context, table string, where map[string]i
 	}
 
 	if err := query.Delete(nil).Error; err != nil {
-		utils.Error(ctx, fmt.Sprintf("删除记录失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("删除记录失败: %v", err))
 		return fmt.Errorf("删除记录失败: %w", err)
 	}
 
@@ -281,7 +281,7 @@ func (dao *BaseDAO) First(ctx context.Context, result interface{}, options Query
 		if err == gorm.ErrRecordNotFound {
 			return gorm.ErrRecordNotFound // 返回原始错误，让调用者处理
 		}
-		utils.Error(ctx, fmt.Sprintf("查询单条记录失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("查询单条记录失败: %v", err))
 		return fmt.Errorf("查询单条记录失败: %w", err)
 	}
 

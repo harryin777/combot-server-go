@@ -4,7 +4,7 @@ import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/auth"
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/service"
 	"context"
 	"net/http"
@@ -131,15 +131,15 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 		authToken := auth.NewAuthToken(config.Server.Token)
 		if token, err := authToken.GenerateToken(device.DeviceID); err == nil {
 			resp.Websocket.Token = token
-			utils.WithField(c.Request.Context(), "device_id", deviceID).Info("为已激活设备生成了新token")
+			log.WithField(c.Request.Context(), "device_id", deviceID).Info("为已激活设备生成了新token")
 		} else {
-			utils.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Warn("生成token失败")
+			log.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Warn("生成token失败")
 		}
 	} else {
 		// 设备未激活或不存在，生成验证码
 		code, expiresAt, retCode, err := deviceService.GenerateDeviceVerificationCode(c.Request.Context(), serialNumber, deviceID, clientID)
 		if err != nil || retCode != codes.CodeSuccess {
-			utils.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Error("生成验证码失败")
+			log.WithError(c.Request.Context(), err).WithField("device_id", deviceID).Error("生成验证码失败")
 		} else {
 			resp.Activation = &struct {
 				Code      string `json:"code" example:"123456"`
@@ -152,7 +152,7 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 				Message:   "设备未激活，请输入验证码完成绑定",
 				TimeoutMs: (expiresAt - time.Now().Unix()) * 1000,
 			}
-			utils.WithField(c.Request.Context(), "device_id", deviceID).Info("为未激活设备生成了验证码")
+			log.WithField(c.Request.Context(), "device_id", deviceID).Info("为未激活设备生成了验证码")
 		}
 	}
 
@@ -227,7 +227,7 @@ func handleOtaActivate(c *gin.Context, config *configs.Config) {
 	// 检查设备是否已被用户绑定（有UserID表示已绑定）
 	if device.UserID == nil {
 		// 设备还未被用户绑定，返回202让ComBot继续重试
-		utils.WithField(context.Background(), "device_id", deviceID).Debug("设备尚未绑定到用户，返回202状态码")
+		log.WithField(context.Background(), "device_id", deviceID).Debug("设备尚未绑定到用户，返回202状态码")
 		c.Status(http.StatusAccepted) // 202 Accepted - ComBot会重试
 		return
 	}
@@ -235,12 +235,12 @@ func handleOtaActivate(c *gin.Context, config *configs.Config) {
 	// 激活设备
 	_, retCode, err := deviceService.ActivateDevice(c.Request.Context(), device.ID, req.Challenge, req.Hmac)
 	if err != nil || retCode != codes.CodeSuccess {
-		utils.WithError(context.Background(), err).WithField("device_id", deviceID).Error("设备激活失败")
+		log.WithError(context.Background(), err).WithField("device_id", deviceID).Error("设备激活失败")
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "激活失败"})
 		return
 	}
 
-	utils.WithField(context.Background(), "device_id", deviceID).Info("设备激活成功")
+	log.WithField(context.Background(), "device_id", deviceID).Info("设备激活成功")
 	c.JSON(http.StatusOK, gin.H{"message": "激活成功"})
 }
 

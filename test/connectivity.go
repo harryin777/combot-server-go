@@ -5,8 +5,8 @@ package main
 
 import (
 	"combot-server-go/src/configs"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/pool"
-	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"log"
@@ -33,7 +33,7 @@ func main() {
 	log.Printf("使用配置文件: %s", path)
 
 	// 初始化全局日志记录器
-	err = utils.InitGlobalLogger(config)
+	err = log.InitGlobalLogger(config)
 	if err != nil {
 		log.Fatalf("初始化日志记录器失败: %v", err)
 	}
@@ -41,7 +41,7 @@ func main() {
 	// 创建连通性检查配置
 	connConfig, err := pool.ConfigFromYAML(&config.ConnectivityCheck)
 	if err != nil {
-		utils.Warnf(context.Background(), "解析连通性检查配置失败，使用默认配置: %v", err)
+		log.Warnf(context.Background(), "解析连通性检查配置失败，使用默认配置: %v", err)
 		connConfig = pool.DefaultConnectivityConfig()
 	}
 

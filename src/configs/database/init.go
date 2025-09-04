@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
-	"combot-server-go/src/core/utils/gormlogrus"
+	"combot-server-go/src/core/log"
+	"combot-server-go/src/core/log/gormlogrus"
 	"combot-server-go/src/models"
 
 	"gorm.io/driver/mysql"
@@ -31,7 +31,7 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 		return nil, "", fmt.Errorf("数据库配置未找到：请在配置文件中配置 database 部分")
 	}
 	dsn, dbType = buildDSNFromConfig(&config.Database)
-	utils.Info(context.Background(), "使用配置文件中的数据库配置")
+	log.Info(context.Background(), "使用配置文件中的数据库配置")
 
 	var (
 		db  *gorm.DB
@@ -64,7 +64,7 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 	// 配置连接池
 	if config != nil {
 		if err := configureConnectionPool(db, &config.Database); err != nil {
-			utils.WithError(context.Background(), err).Warn("配置数据库连接池失败")
+			log.WithError(context.Background(), err).Warn("配置数据库连接池失败")
 		}
 	}
 
@@ -119,7 +119,7 @@ func buildDSNFromConfig(dbConfig *configs.DatabaseConfig) (string, string) {
 		return path, "sqlite"
 
 	default:
-		utils.Errorf(context.Background(), "不支持的数据库类型: %s", dbConfig.Type)
+		log.Errorf(context.Background(), "不支持的数据库类型: %s", dbConfig.Type)
 		return "", ""
 	}
 }
@@ -189,14 +189,14 @@ func configureConnectionPool(db *gorm.DB, dbConfig *configs.DatabaseConfig) erro
 		if duration, err := time.ParseDuration(dbConfig.ConnMaxLifetime); err == nil {
 			sqlDB.SetConnMaxLifetime(duration)
 		} else {
-			utils.Warnf(context.Background(), "解析连接最大生存时间失败: %v，使用默认值1小时", err)
+			log.Warnf(context.Background(), "解析连接最大生存时间失败: %v，使用默认值1小时", err)
 			sqlDB.SetConnMaxLifetime(time.Hour)
 		}
 	} else {
 		sqlDB.SetConnMaxLifetime(time.Hour) // 默认1小时
 	}
 
-	utils.Infof(context.Background(), "数据库连接池配置完成: MaxOpen=%d, MaxIdle=%d, ConnMaxLifetime=%s",
+	log.Infof(context.Background(), "数据库连接池配置完成: MaxOpen=%d, MaxIdle=%d, ConnMaxLifetime=%s",
 		dbConfig.MaxOpenConns, dbConfig.MaxIdleConns, dbConfig.ConnMaxLifetime)
 
 	return nil
@@ -208,17 +208,17 @@ func logDatabaseConnection(db *gorm.DB, dbType string) {
 	case "mysql":
 		var version string
 		db.Raw("SELECT VERSION()").Scan(&version)
-		utils.Infof(context.Background(), "MySQL 数据库连接成功，版本: %s", version)
+		log.Infof(context.Background(), "MySQL 数据库连接成功，版本: %s", version)
 	case "postgres":
 		var version string
 		db.Raw("SELECT version()").Scan(&version)
-		utils.Infof(context.Background(), "PostgreSQL 数据库连接成功，版本: %s", version)
+		log.Infof(context.Background(), "PostgreSQL 数据库连接成功，版本: %s", version)
 	case "sqlite":
 		var version string
 		db.Raw("SELECT sqlite_version()").Scan(&version)
-		utils.Infof(context.Background(), "SQLite 数据库连接成功，版本: %s", version)
+		log.Infof(context.Background(), "SQLite 数据库连接成功，版本: %s", version)
 	default:
-		utils.Info(context.Background(), "数据库连接成功，未识别的数据库类型")
+		log.Info(context.Background(), "数据库连接成功，未识别的数据库类型")
 	}
 }
 

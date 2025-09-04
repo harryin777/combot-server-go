@@ -2,8 +2,8 @@ package handlers
 
 import (
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
@@ -51,14 +51,14 @@ type GetUserConversationsResponseSession struct {
 func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 	var req GetUserConversationsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
+		log.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	sessions, code, err := h.conversationService.GetUserConversations(c.Request.Context(), req.UserID, req.DeviceID, req.Limit, req.Offset)
 	if err != nil {
-		utils.Error(c.Request.Context(), "获取用户对话列表失败: "+err.Error())
+		log.Error(c.Request.Context(), "获取用户对话列表失败: "+err.Error())
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -113,14 +113,14 @@ type GetConversationMessagesResponseMessage struct {
 func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 	var req GetConversationMessagesRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
+		log.Error(c.Request.Context(), "参数绑定失败: "+err.Error())
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	messages, code, err := h.conversationService.GetConversationMessages(c.Request.Context(), req.SessionID, req.Limit, req.Offset)
 	if err != nil {
-		utils.Error(c.Request.Context(), "获取对话详情失败: "+err.Error())
+		log.Error(c.Request.Context(), "获取对话详情失败: "+err.Error())
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}

@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	"github.com/google/uuid"
 )
@@ -43,7 +43,7 @@ func RegisterTaskExecutor(taskType TaskType, executor TaskExecutor) {
 	taskRegistry.mu.Lock()
 	defer taskRegistry.mu.Unlock()
 	taskRegistry.executors[taskType] = executor
-	utils.WithField(context.Background(), "taskType", taskType).Info("注册任务类型")
+	log.WithField(context.Background(), "taskType", taskType).Info("注册任务类型")
 }
 
 // GetTaskExecutor retrieves the executor for a specific task type
@@ -99,7 +99,7 @@ func (t *Task) Execute() {
 		if r := recover(); r != nil {
 			t.Status = TaskStatusFailed
 			t.Error = fmt.Errorf("task panicked: %v", r)
-			utils.WithFields(t.Context, map[string]interface{}{
+			log.WithFields(t.Context, map[string]interface{}{
 				"taskID": t.ID,
 				"panic":  r,
 			}).Error("任务执行时发生panic")
@@ -111,7 +111,7 @@ func (t *Task) Execute() {
 
 	select {
 	case <-t.Context.Done():
-		utils.WithField(t.Context, "taskID", t.ID).Info("任务因连接断开而取消")
+		log.WithField(t.Context, "taskID", t.ID).Info("任务因连接断开而取消")
 		return
 	default:
 	}

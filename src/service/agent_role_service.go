@@ -3,7 +3,7 @@ package service
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/dao"
 	"combot-server-go/src/models"
 	"context"
@@ -39,7 +39,7 @@ func NewAgentRoleService(config *configs.Config) AgentRoleService {
 func (s *agentRoleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTemplate, int, error) {
 	templates, err := s.roleDAO.GetRoleTemplates(ctx)
 	if err != nil {
-		utils.Errorf(ctx, "获取角色模板列表失败: %v", err)
+		log.Errorf(ctx, "获取角色模板列表失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	return templates, codes.CodeSuccess, nil
@@ -49,7 +49,7 @@ func (s *agentRoleService) GetRoleTemplates(ctx context.Context) ([]models.RoleT
 func (s *agentRoleService) GetRoleTemplate(ctx context.Context, templateID string) (*models.RoleTemplate, int, error) {
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, templateID)
 	if err != nil {
-		utils.Errorf(ctx, "获取角色模板详情失败: %v", err)
+		log.Errorf(ctx, "获取角色模板详情失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if template == nil {
@@ -62,7 +62,7 @@ func (s *agentRoleService) GetRoleTemplate(ctx context.Context, templateID strin
 func (s *agentRoleService) GetAgentRole(ctx context.Context, userID int64, deviceID string) (*models.AgentRole, int, error) {
 	agentRole, err := s.roleDAO.GetAgentRole(ctx, userID, deviceID)
 	if err != nil {
-		utils.Errorf(ctx, "获取智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "获取智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if agentRole == nil {
@@ -76,7 +76,7 @@ func (s *agentRoleService) CreateAgentRole(ctx context.Context, userID int64, re
 	// 检查是否已存在该用户和设备的配置
 	existing, err := s.roleDAO.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {
-		utils.Errorf(ctx, "检查智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "检查智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if existing != nil {
@@ -87,7 +87,7 @@ func (s *agentRoleService) CreateAgentRole(ctx context.Context, userID int64, re
 	if req.TemplateID != "" {
 		template, err := s.roleDAO.GetRoleTemplateByID(ctx, req.TemplateID)
 		if err != nil {
-			utils.Errorf(ctx, "验证角色模板失败: %v", err)
+			log.Errorf(ctx, "验证角色模板失败: %v", err)
 			return nil, codes.CodeInternalError, err
 		}
 		if template == nil {
@@ -121,11 +121,11 @@ func (s *agentRoleService) CreateAgentRole(ctx context.Context, userID int64, re
 	}
 
 	if err := s.roleDAO.SaveAgentRole(ctx, agentRole); err != nil {
-		utils.Errorf(ctx, "创建智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "创建智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 
-	utils.Infof(ctx, "成功创建智能体角色配置，用户ID: %d, 设备ID: %s", userID, req.DeviceID)
+	log.Infof(ctx, "成功创建智能体角色配置，用户ID: %d, 设备ID: %s", userID, req.DeviceID)
 	return agentRole, codes.CodeSuccess, nil
 }
 
@@ -134,7 +134,7 @@ func (s *agentRoleService) UpdateAgentRole(ctx context.Context, userID int64, re
 	// 检查配置是否存在
 	existing, err := s.roleDAO.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {
-		utils.Errorf(ctx, "获取智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "获取智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if existing == nil {
@@ -145,7 +145,7 @@ func (s *agentRoleService) UpdateAgentRole(ctx context.Context, userID int64, re
 	if req.TemplateID != "" {
 		template, err := s.roleDAO.GetRoleTemplateByID(ctx, req.TemplateID)
 		if err != nil {
-			utils.Errorf(ctx, "验证角色模板失败: %v", err)
+			log.Errorf(ctx, "验证角色模板失败: %v", err)
 			return nil, codes.CodeInternalError, err
 		}
 		if template == nil {
@@ -178,16 +178,16 @@ func (s *agentRoleService) UpdateAgentRole(ctx context.Context, userID int64, re
 	}
 
 	if err := s.roleDAO.SaveAgentRole(ctx, agentRole); err != nil {
-		utils.Errorf(ctx, "更新智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "更新智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 
-	utils.Infof(ctx, "成功更新智能体角色配置，用户ID: %d, 设备ID: %s", userID, req.DeviceID)
+	log.Infof(ctx, "成功更新智能体角色配置，用户ID: %d, 设备ID: %s", userID, req.DeviceID)
 
 	// 重新获取更新后的配置返回
 	updatedRole, err := s.roleDAO.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {
-		utils.Errorf(ctx, "获取更新后的智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "获取更新后的智能体角色配置失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 

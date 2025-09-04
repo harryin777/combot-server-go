@@ -3,8 +3,8 @@ package handlers
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/service"
 
 	"github.com/gin-gonic/gin"
@@ -46,14 +46,14 @@ type UsernamePasswordLoginResponse struct {
 func (h *UserHandler) UsernamePasswordLogin(c *gin.Context) {
 	var req UsernamePasswordLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid username password login request")
+		log.Errorf(c.Request.Context(), "Invalid username password login request, err : %v", err)
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
 
 	user, token, code, err := h.userService.UsernamePasswordLogin(c.Request.Context(), req.Username, req.Password)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Username password login failed")
+		log.Errorf(c.Request.Context(), "Username password login failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -87,7 +87,7 @@ type UpdateProfileRequest struct {
 func (h *UserHandler) UpdateProfile(c *gin.Context) {
 	var req UpdateProfileRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid update profile request")
+		log.Errorf(c.Request.Context(), "Invalid update profile request, err : %v", err)
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
@@ -107,7 +107,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 
 	_, code, err := h.userService.UpdateUserProfile(c.Request.Context(), userIDInt64, req.Username, req.Phone)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Update profile failed")
+		log.Errorf(c.Request.Context(), "Update profile failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -138,7 +138,7 @@ type ChangePasswordRequest struct {
 func (h *UserHandler) ChangePassword(c *gin.Context) {
 	var req ChangePasswordRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid change password request")
+		log.Errorf(c.Request.Context(), "Invalid change password request, err : %v", err)
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
@@ -158,7 +158,7 @@ func (h *UserHandler) ChangePassword(c *gin.Context) {
 
 	_, code, err := h.userService.ChangePassword(c.Request.Context(), userIDInt64, req.OldPassword, req.NewPassword)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Change password failed")
+		log.Errorf(c.Request.Context(), "Change password failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -198,7 +198,7 @@ func (h *UserHandler) GetLoginDevices(c *gin.Context) {
 
 	devices, code, err := h.userService.GetLoginDevices(c.Request.Context(), userIDInt64)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Get login devices failed")
+		log.Errorf(c.Request.Context(), "Get login devices failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -228,7 +228,7 @@ type LogoutDeviceRequest struct {
 func (h *UserHandler) LogoutDevice(c *gin.Context) {
 	var req LogoutDeviceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid logout device request")
+		log.Errorf(c.Request.Context(), "Invalid logout device request, err : %v", err)
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
@@ -248,7 +248,7 @@ func (h *UserHandler) LogoutDevice(c *gin.Context) {
 
 	_, code, err := h.userService.LogoutDevice(c.Request.Context(), userIDInt64, req.DeviceIdentifier)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Logout device failed")
+		log.Errorf(c.Request.Context(), "Logout device failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -278,7 +278,7 @@ type DeleteAccountRequest struct {
 func (h *UserHandler) DeleteAccount(c *gin.Context) {
 	var req DeleteAccountRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Invalid delete account request")
+		log.Errorf(c.Request.Context(), "Invalid delete account request, err : %v", err)
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
@@ -298,7 +298,7 @@ func (h *UserHandler) DeleteAccount(c *gin.Context) {
 
 	_, code, err := h.userService.DeleteAccount(c.Request.Context(), userIDInt64, req.Password)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("Delete account failed")
+		log.Errorf(c.Request.Context(), "Delete account failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}

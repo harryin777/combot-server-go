@@ -2,7 +2,7 @@ package router
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/handlers"
 	"combot-server-go/src/middleware"
 	"context"
@@ -30,5 +30,5 @@ func UserRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *configs.
 		authenticated.DELETE("/delete-account", userHandler.DeleteAccount)
 	}
 
-	utils.Info(ctx, "User HTTP服务路由注册完成")
+	log.Info(ctx, "User HTTP服务路由注册完成")
 }

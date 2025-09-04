@@ -5,8 +5,8 @@ import (
 
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/models"
 	"combot-server-go/src/service"
 
@@ -41,7 +41,7 @@ func (h *AgentRoleHandler) GetRoleTemplates(c *gin.Context) {
 
 	templates, code, err := h.agentRoleService.GetRoleTemplates(ctx)
 	if err != nil {
-		utils.Errorf(ctx, "获取角色模板列表失败: %v", err)
+		log.Errorf(ctx, "获取角色模板列表失败: %v", err)
 		c.JSON(http.StatusInternalServerError, response.Response{
 			Code:    code,
 			Message: "获取角色模板列表失败",
@@ -75,7 +75,7 @@ func (h *AgentRoleHandler) GetRoleTemplate(c *gin.Context) {
 
 	var req models.GetRoleTemplateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Errorf(ctx, "参数绑定失败: %v", err)
+		log.Errorf(ctx, "参数绑定失败: %v", err)
 		c.JSON(http.StatusBadRequest, response.Response{
 			Code:    codes.CodeInvalidRequest,
 			Message: "请求参数格式错误",
@@ -93,7 +93,7 @@ func (h *AgentRoleHandler) GetRoleTemplate(c *gin.Context) {
 
 	template, code, err := h.agentRoleService.GetRoleTemplate(ctx, req.TemplateID)
 	if err != nil {
-		utils.Errorf(ctx, "获取角色模板详情失败: %v", err)
+		log.Errorf(ctx, "获取角色模板详情失败: %v", err)
 		c.JSON(http.StatusInternalServerError, response.Response{
 			Code:    code,
 			Message: "获取角色模板详情失败",
@@ -145,7 +145,7 @@ func (h *AgentRoleHandler) GetAgentRole(c *gin.Context) {
 
 	userID, ok := userIDInterface.(int64)
 	if !ok {
-		utils.Errorf(ctx, "用户ID类型转换失败")
+		log.Errorf(ctx, "用户ID类型转换失败")
 		c.JSON(http.StatusUnauthorized, response.Response{
 			Code:    codes.CodeUnauthorized,
 			Message: "用户身份验证失败",
@@ -155,7 +155,7 @@ func (h *AgentRoleHandler) GetAgentRole(c *gin.Context) {
 
 	var req models.GetAgentRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Errorf(ctx, "参数绑定失败: %v", err)
+		log.Errorf(ctx, "参数绑定失败: %v", err)
 		c.JSON(http.StatusBadRequest, response.Response{
 			Code:    codes.CodeInvalidRequest,
 			Message: "请求参数格式错误",
@@ -173,7 +173,7 @@ func (h *AgentRoleHandler) GetAgentRole(c *gin.Context) {
 
 	agentRole, code, err := h.agentRoleService.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {
-		utils.Errorf(ctx, "获取智能体角色配置失败: %v", err)
+		log.Errorf(ctx, "获取智能体角色配置失败: %v", err)
 		c.JSON(http.StatusInternalServerError, response.Response{
 			Code:    code,
 			Message: "获取智能体角色配置失败",
@@ -225,7 +225,7 @@ func (h *AgentRoleHandler) CreateAgentRole(c *gin.Context) {
 
 	userID, ok := userIDInterface.(int64)
 	if !ok {
-		utils.Errorf(ctx, "用户ID类型转换失败")
+		log.Errorf(ctx, "用户ID类型转换失败")
 		c.JSON(http.StatusUnauthorized, response.Response{
 			Code:    codes.CodeUnauthorized,
 			Message: "用户身份验证失败",
@@ -235,7 +235,7 @@ func (h *AgentRoleHandler) CreateAgentRole(c *gin.Context) {
 
 	var req models.CreateAgentRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Errorf(ctx, "参数绑定失败: %v", err)
+		log.Errorf(ctx, "参数绑定失败: %v", err)
 		c.JSON(http.StatusBadRequest, response.Response{
 			Code:    codes.CodeInvalidRequest,
 			Message: "请求参数格式错误",
@@ -274,7 +274,7 @@ func (h *AgentRoleHandler) CreateAgentRole(c *gin.Context) {
 				Message: "指定的角色模板不存在",
 			})
 		default:
-			utils.Errorf(ctx, "创建智能体角色配置失败: %v", err)
+			log.Errorf(ctx, "创建智能体角色配置失败: %v", err)
 			c.JSON(http.StatusInternalServerError, response.Response{
 				Code:    code,
 				Message: "创建智能体角色配置失败",
@@ -319,7 +319,7 @@ func (h *AgentRoleHandler) UpdateAgentRole(c *gin.Context) {
 
 	userID, ok := userIDInterface.(int64)
 	if !ok {
-		utils.Errorf(ctx, "用户ID类型转换失败")
+		log.Errorf(ctx, "用户ID类型转换失败")
 		c.JSON(http.StatusUnauthorized, response.Response{
 			Code:    codes.CodeUnauthorized,
 			Message: "用户身份验证失败",
@@ -329,7 +329,7 @@ func (h *AgentRoleHandler) UpdateAgentRole(c *gin.Context) {
 
 	var req models.UpdateAgentRoleRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.Errorf(ctx, "参数绑定失败: %v", err)
+		log.Errorf(ctx, "参数绑定失败: %v", err)
 		c.JSON(http.StatusBadRequest, response.Response{
 			Code:    codes.CodeInvalidRequest,
 			Message: "请求参数格式错误",
@@ -363,7 +363,7 @@ func (h *AgentRoleHandler) UpdateAgentRole(c *gin.Context) {
 				Message: "智能体角色配置不存在",
 			})
 		default:
-			utils.Errorf(ctx, "更新智能体角色配置失败: %v", err)
+			log.Errorf(ctx, "更新智能体角色配置失败: %v", err)
 			c.JSON(http.StatusInternalServerError, response.Response{
 				Code:    code,
 				Message: "更新智能体角色配置失败",

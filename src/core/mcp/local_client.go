@@ -2,7 +2,7 @@ package mcp
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"context"
 	"fmt"
 	"sync"
@@ -41,17 +41,17 @@ func NewLocalClient(cfg *configs.Config) *LocalClient {
 
 func (c *LocalClient) RegisterTools(ctx context.Context) {
 	if c.cfg == nil {
-		utils.Error(ctx, "RegisterTools: config is nil")
+		log.Error(ctx, "RegisterTools: config is nil")
 		return
 	}
 
 	if c.cfg.LocalMCPFun == nil {
-		utils.Warn(ctx, "RegisterTools: LocalMCPFun is nil")
+		log.Warn(ctx, "RegisterTools: LocalMCPFun is nil")
 		return
 	}
 
 	if len(c.cfg.LocalMCPFun) == 0 {
-		utils.Info(ctx, "RegisterTools: LocalMCPFun is empty")
+		log.Info(ctx, "RegisterTools: LocalMCPFun is empty")
 		return
 	}
 
@@ -59,21 +59,21 @@ func (c *LocalClient) RegisterTools(ctx context.Context) {
 		FuncNamesMap.Store(funcName, 1)
 		if funcName == MFuncNameExit {
 			c.AddToolExit(ctx)
-			utils.Info(ctx, "RegisterTools: exit tool registered")
+			log.Info(ctx, "RegisterTools: exit tool registered")
 		} else if funcName == MFuncNameTime {
 			c.AddToolTime(ctx)
-			utils.Info(ctx, "RegisterTools: time tool registered")
+			log.Info(ctx, "RegisterTools: time tool registered")
 		} else if funcName == MFuncNameChangeVoice {
 			c.AddToolChangeVoice(ctx)
-			utils.Info(ctx, "RegisterTools: change_voice tool registered")
+			log.Info(ctx, "RegisterTools: change_voice tool registered")
 		} else if funcName == MFuncNameChangeRole {
 			c.AddToolChangeRole(ctx)
-			utils.Info(ctx, "RegisterTools: change_role tool registered")
+			log.Info(ctx, "RegisterTools: change_role tool registered")
 		} else if funcName == MFuncNamePlayMusic {
 			c.AddToolPlayMusic(ctx)
-			utils.Info(ctx, "RegisterTools: play_music tool registered")
+			log.Info(ctx, "RegisterTools: play_music tool registered")
 		} else {
-			utils.Warnf(ctx, "RegisterTools: unknown function name %v", funcName)
+			log.Warnf(ctx, "RegisterTools: unknown function name %v", funcName)
 		}
 	}
 }
@@ -81,7 +81,7 @@ func (c *LocalClient) RegisterTools(ctx context.Context) {
 // Start 启动本地MCP客户端
 func (c *LocalClient) Start(ctx context.Context) error {
 	c.RegisterTools(ctx)
-	utils.Info(ctx, "Local MCP client started")
+	log.Info(ctx, "Local MCP client started")
 	return nil
 }
 

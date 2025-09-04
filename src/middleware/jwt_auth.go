@@ -3,8 +3,8 @@ package middleware
 import (
 	"combot-server-go/src/configs/database"
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/models"
 	"strings"
 
@@ -16,7 +16,7 @@ import (
 func JWTAuthMiddleware(secretKey string) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// 打印请求 dump 信息
-		utils.DumpRequest(c.Request.Context(), c.Request)
+		log.DumpRequest(c.Request.Context(), c.Request)
 		// 获取Authorization头
 		authHeader := c.GetHeader("Authorization")
 		if authHeader == "" {

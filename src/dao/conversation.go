@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/models"
 
 	"gorm.io/gorm"
@@ -101,10 +101,10 @@ func (dao *ConversationDAO) UpdateOrCreateSession(ctx context.Context, sessionID
 			}
 
 			if err := tx.Create(&session).Error; err != nil {
-				utils.Errorf(ctx, "创建新会话失败: %v", err)
+				log.Errorf(ctx, "创建新会话失败: %v", err)
 				return fmt.Errorf("创建新会话失败: %w", err)
 			} else {
-				utils.Debugf(ctx, "创建新会话成功: sessionID=%s, title=%s", sessionID, title)
+				log.Debugf(ctx, "创建新会话成功: sessionID=%s, title=%s", sessionID, title)
 			}
 		}
 

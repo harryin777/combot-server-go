@@ -5,7 +5,7 @@ import (
 	"combot-server-go/src/configs/database"
 	"combot-server-go/src/core/auth"
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/models"
 	"context"
 	"crypto/hmac"
@@ -41,7 +41,7 @@ func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, device
 			return &device, codes.CodeSuccess, nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return nil, codes.CodeInternalError, err
 		}
 	}
@@ -53,7 +53,7 @@ func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, device
 			return &device, codes.CodeSuccess, nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return nil, codes.CodeInternalError, err
 		}
 	}
@@ -65,7 +65,7 @@ func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, device
 			return &device, codes.CodeSuccess, nil
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return nil, codes.CodeInternalError, err
 		}
 	}
@@ -117,11 +117,11 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, seri
 			}
 
 			if err := tx.Create(&device).Error; err != nil {
-				utils.Errorf(ctx, "创建设备记录失败: %v", err)
+				log.Errorf(ctx, "创建设备记录失败: %v", err)
 				return err
 			}
 		} else if err != nil {
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return err
 		}
 
@@ -136,7 +136,7 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, seri
 		}
 
 		if err := tx.Create(verificationCode).Error; err != nil {
-			utils.Errorf(ctx, "保存验证码失败: %v", err)
+			log.Errorf(ctx, "保存验证码失败: %v", err)
 			return err
 		}
 
@@ -144,12 +144,12 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, seri
 	})
 
 	if err != nil {
-		utils.Errorf(ctx, "生成设备验证码失败: %v", err)
+		log.Errorf(ctx, "生成设备验证码失败: %v", err)
 		return "", 0, codes.CodeInternalError, err
 	}
 
 	// 验证码直接在HTTP响应中返回给智能体，智能体收到后会立即播报给用户
-	utils.Info(ctx, fmt.Sprintf("为设备 %s 生成验证码: %s，有效期至: %s",
+	log.Info(ctx, fmt.Sprintf("为设备 %s 生成验证码: %s，有效期至: %s",
 		deviceID, code, expiresAt.Format("2006-01-02 15:04:05")))
 
 	return code, expiresAt.Unix(), codes.CodeSuccess, nil
@@ -163,16 +163,16 @@ func (s *DeviceService) ValidateVerificationCode(ctx context.Context, code strin
 		First(&verificationCode).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			utils.Warnf(ctx, "验证码不存在或已使用: %s", code)
+			log.Warnf(ctx, "验证码不存在或已使用: %s", code)
 			return nil, codes.CodeInvalidRequest, nil
 		}
-		utils.Errorf(ctx, "查询验证码失败: %v", err)
+		log.Errorf(ctx, "查询验证码失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 
 	// 检查验证码是否过期
 	if verificationCode.IsExpired() {
-		utils.Warnf(ctx, "验证码已过期: %s", code)
+		log.Warnf(ctx, "验证码已过期: %s", code)
 		return nil, codes.CodeInvalidRequest, nil
 	}
 
@@ -185,10 +185,10 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 		var device models.Device
 		if err := tx.Where("id = ?", deviceID).First(&device).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				utils.Warnf(ctx, "设备不存在: %d", deviceID)
+				log.Warnf(ctx, "设备不存在: %d", deviceID)
 				return fmt.Errorf("设备不存在: %w", err)
 			}
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return fmt.Errorf("设备不存在: %w", err)
 		}
 
@@ -201,7 +201,7 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 		authToken := auth.NewAuthToken(s.config.Server.Token)
 		token, err := authToken.GenerateToken(device.DeviceID)
 		if err != nil {
-			utils.Errorf(ctx, "生成Token失败: %v", err)
+			log.Errorf(ctx, "生成Token失败: %v", err)
 			return fmt.Errorf("生成Token失败: %w", err)
 		}
 
@@ -217,11 +217,11 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 		}
 
 		if err := tx.Model(&device).Updates(updates).Error; err != nil {
-			utils.Errorf(ctx, "更新设备激活状态失败: %v", err)
+			log.Errorf(ctx, "更新设备激活状态失败: %v", err)
 			return fmt.Errorf("更新设备激活状态失败: %w", err)
 		}
 
-		utils.Infof(ctx, "设备 %s 激活成功", device.DeviceID)
+		log.Infof(ctx, "设备 %s 激活成功", device.DeviceID)
 		return nil
 	})
 
@@ -241,7 +241,7 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 	// 验证验证码
 	vcRecord, code, err := s.ValidateVerificationCode(ctx, verificationCode)
 	if err != nil {
-		utils.Errorf(ctx, "验证验证码失败: %v", err)
+		log.Errorf(ctx, "验证验证码失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if code != codes.CodeSuccess {
@@ -252,7 +252,7 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 	err = database.DB.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		// 标记验证码为已使用
 		if err := tx.Model(vcRecord).Update("used", true).Error; err != nil {
-			utils.Errorf(ctx, "更新验证码状态失败: %v", err)
+			log.Errorf(ctx, "更新验证码状态失败: %v", err)
 			return fmt.Errorf("更新验证码状态失败: %w", err)
 		}
 
@@ -285,11 +285,11 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 			}
 
 			if err := tx.Create(&device).Error; err != nil {
-				utils.Errorf(ctx, "创建设备失败: %v", err)
+				log.Errorf(ctx, "创建设备失败: %v", err)
 				return fmt.Errorf("创建设备失败: %w", err)
 			}
 		} else if err != nil {
-			utils.Errorf(ctx, "查询设备失败: %v", err)
+			log.Errorf(ctx, "查询设备失败: %v", err)
 			return fmt.Errorf("查询设备失败: %w", err)
 		} else {
 			// 更新现有设备
@@ -303,17 +303,17 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 			}
 
 			if err := tx.Model(&device).Updates(updates).Error; err != nil {
-				utils.Errorf(ctx, "更新设备失败: %v", err)
+				log.Errorf(ctx, "更新设备失败: %v", err)
 				return fmt.Errorf("更新设备失败: %w", err)
 			}
 		}
 
-		utils.Info(ctx, fmt.Sprintf("设备 %s 成功绑定到用户 %d", device.DeviceID, userID))
+		log.Info(ctx, fmt.Sprintf("设备 %s 成功绑定到用户 %d", device.DeviceID, userID))
 		return nil
 	})
 
 	if err != nil {
-		utils.Errorf(ctx, "绑定设备到用户失败: %v", err)
+		log.Errorf(ctx, "绑定设备到用户失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 
@@ -328,7 +328,7 @@ func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]mode
 		Find(&devices).Error
 
 	if err != nil {
-		utils.Errorf(ctx, "查询用户设备列表失败: %v", err)
+		log.Errorf(ctx, "查询用户设备列表失败: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 

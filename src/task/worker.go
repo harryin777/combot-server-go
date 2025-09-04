@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 )
 
 // WorkerPool manages a pool of workers for executing tasks
@@ -157,7 +157,7 @@ func (wp *WorkerPool) workerFinished(worker *Worker) {
 		// 工作者重新加入空闲队列
 	default:
 		// 这种情况不应该发生，但为了安全起见
-		utils.WithField(context.Background(), "workerID", worker.id).Warn("Failed to return worker to idle pool")
+		log.WithField(context.Background(), "workerID", worker.id).Warn("Failed to return worker to idle pool")
 	}
 }
 
@@ -253,6 +253,6 @@ func (w *Worker) assignTask(task *Task) {
 		// 任务成功分配
 	default:
 		// 这种情况不应该发生，因为 taskChan 有缓冲
-		utils.WithField(context.Background(), "workerID", w.id).Warn("Failed to assign task to worker")
+		log.WithField(context.Background(), "workerID", w.id).Warn("Failed to assign task to worker")
 	}
 }

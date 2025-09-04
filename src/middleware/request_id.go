@@ -3,7 +3,7 @@ package middleware
 import (
 	"context"
 
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -16,10 +16,10 @@ func RequestIDMiddleware() gin.HandlerFunc {
 		reqID := uuid.New().String()
 
 		// 添加到gin的context中
-		c.Set(utils.RequestIDKey, reqID)
+		c.Set(log.RequestIDKey, reqID)
 
 		// 将request ID添加到标准context中，供日志使用
-		ctx := context.WithValue(c.Request.Context(), utils.RequestIDKey, reqID)
+		ctx := context.WithValue(c.Request.Context(), log.RequestIDKey, reqID)
 		c.Request = c.Request.WithContext(ctx)
 
 		// 添加到响应头中，便于调试

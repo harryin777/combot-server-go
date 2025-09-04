@@ -9,7 +9,7 @@ import (
 	"strings"
 
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	_ "image/gif"  // 注册GIF解码器
 	_ "image/jpeg" // 注册JPEG解码器
@@ -73,7 +73,7 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 	if int64(len(data)) > v.config.MaxFileSize {
 		result.Error = fmt.Errorf("文件大小超限: %d bytes，最大允许: %d bytes", len(data), v.config.MaxFileSize)
 		result.SecurityRisk = "文件过大，可能是DoS攻击"
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"size":     len(data),
 			"max_size": v.config.MaxFileSize,
 			"format":   declaredFormat,
@@ -92,7 +92,7 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 	if v.config.EnableDeepScan && v.scanForMaliciousContent(data) {
 		result.Error = fmt.Errorf("检测到潜在恶意内容")
 		result.SecurityRisk = "可能包含恶意载荷"
-		utils.WithFields(context.Background(), map[string]interface{}{
+		log.WithFields(context.Background(), map[string]interface{}{
 			"format": declaredFormat,
 			"size":   len(data),
 		}).Warn("检测到可疑内容")
@@ -105,7 +105,7 @@ func (v *ImageSecurityValidator) deepValidateImage(data []byte, declaredFormat s
 		// 图片解码失败，再检查文件头是否匹配
 		if declaredFormat != "" && !v.validateFileSignature(data, declaredFormat) {
 			// 记录警告但不直接失败，有些图片可能格式稍有不同但仍是有效的
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"declared_format": declaredFormat,
 				"actual_header":   fmt.Sprintf("%x", data[:min(len(data), 16)]),
 			}).Warn("文件头验证失败，但继续尝试解码")
@@ -161,12 +161,12 @@ func (v *ImageSecurityValidator) scanForMaliciousContent(data []byte) bool {
 	// 如果能够正常解码为图片，那么即使包含一些可疑字节序列，也很可能是安全的
 	reader := bytes.NewReader(data)
 	if _, _, err := image.DecodeConfig(reader); err == nil {
-		utils.Debug(context.Background(), "文件能够正常解码为图片，跳过大部分恶意内容检测")
+		log.Debug(context.Background(), "文件能够正常解码为图片，跳过大部分恶意内容检测")
 		// 对于能正常解码的图片，只进行最基本的检查
 		return v.basicSecurityCheck(data)
 	}
 
-	utils.Info(context.Background(), "文件无法解码为标准图片格式，进行完整的安全检测")
+	log.Info(context.Background(), "文件无法解码为标准图片格式，进行完整的安全检测")
 	return v.fullSecurityCheck(data)
 }
 
@@ -182,7 +182,7 @@ func (v *ImageSecurityValidator) basicSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			}).Warn("文件开头检测到可执行文件签名")
@@ -196,7 +196,7 @@ func (v *ImageSecurityValidator) basicSecurityCheck(data []byte) bool {
 		return v.checkSVGScripts(dataStr)
 	}
 
-	utils.Debug(context.Background(), "基本安全检查通过")
+	log.Debug(context.Background(), "基本安全检查通过")
 	return false
 }
 
@@ -213,7 +213,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range executableSignatures {
 		if bytes.HasPrefix(data, signature) {
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"signature_type": signatureNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			}).Warn("文件开头检测到可执行文件签名")
@@ -231,7 +231,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 
 	for i, signature := range compressionSignatures {
 		if bytes.HasPrefix(data, signature) {
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"signature_type": compressionNames[i],
 				"signature_hex":  fmt.Sprintf("%x", signature),
 			}).Warn("文件开头检测到压缩文件签名")
@@ -245,7 +245,7 @@ func (v *ImageSecurityValidator) fullSecurityCheck(data []byte) bool {
 		return v.checkSVGScripts(dataStr)
 	}
 
-	utils.Info(context.Background(), "完整安全检查通过")
+	log.Info(context.Background(), "完整安全检查通过")
 	return false
 }
 
@@ -268,7 +268,7 @@ func (v *ImageSecurityValidator) checkSVGScripts(dataStr string) bool {
 	dataStrLower := strings.ToLower(dataStr)
 	for _, suspicious := range suspiciousStrings {
 		if strings.Contains(dataStrLower, suspicious) {
-			utils.WithFields(context.Background(), map[string]interface{}{
+			log.WithFields(context.Background(), map[string]interface{}{
 				"suspicious_content": suspicious,
 			}).Warn("在SVG中检测到可疑脚本内容")
 			return true
@@ -318,7 +318,7 @@ func (v *ImageSecurityValidator) validateImageDecoding(data []byte, format strin
 	result.Height = config.Height
 	result.FileSize = int64(len(data))
 
-	utils.WithFields(context.Background(), map[string]interface{}{
+	log.WithFields(context.Background(), map[string]interface{}{
 		"format": result.Format,
 		"width":  result.Width,
 		"height": result.Height,

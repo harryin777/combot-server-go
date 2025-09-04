@@ -1,8 +1,8 @@
 package core
 
 import (
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/types"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/vision"
 	"context"
 	"encoding/json"
@@ -22,11 +22,11 @@ func (h *ConnectionHandler) initMCPResultHandlers() {
 func (h *ConnectionHandler) handleMCPResultCall(ctx context.Context, result types.ActionResponse) {
 	// 先取result
 	if result.Action != types.ActionTypeCallHandler {
-		utils.Errorf(ctx, "handleMCPResultCall: result.Action is not ActionTypeCallHandler, but %d", result.Action)
+		log.Errorf(ctx, "handleMCPResultCall: result.Action is not ActionTypeCallHandler, but %d", result.Action)
 		return
 	}
 	if result.Result == nil {
-		utils.Error(ctx, "handleMCPResultCall: result.Result is nil")
+		log.Error(ctx, "handleMCPResultCall: result.Result is nil")
 		return
 	}
 
@@ -36,39 +36,39 @@ func (h *ConnectionHandler) handleMCPResultCall(ctx context.Context, result type
 			// 调用对应的处理函数
 			handler(ctx, Caller.Args)
 		} else {
-			utils.Errorf(ctx, "handleMCPResultCall: no handler found for function %s", Caller.FuncName)
+			log.Errorf(ctx, "handleMCPResultCall: no handler found for function %s", Caller.FuncName)
 		}
 	} else {
-		utils.Error(ctx, "handleMCPResultCall: result.Result is not a map[string]interface{}")
+		log.Error(ctx, "handleMCPResultCall: result.Result is not a map[string]interface{}")
 	}
 }
 
 func (h *ConnectionHandler) mcp_handler_play_music(ctx context.Context, args interface{}) {
 	if songName, ok := args.(string); ok {
-		utils.Infof(ctx, "mcp_handler_play_music: %s", songName)
-		if path, name, err := utils.GetMusicFilePathFuzzy(songName); err != nil {
-			utils.Errorf(ctx, "mcp_handler_play_music: Play failed: %v", err)
+		log.Infof(ctx, "mcp_handler_play_music: %s", songName)
+		if path, name, err := log.GetMusicFilePathFuzzy(songName); err != nil {
+			log.Errorf(ctx, "mcp_handler_play_music: Play failed: %v", err)
 			h.SystemSpeak(ctx, "没有找到名为"+songName+"的歌曲")
 		} else {
 			//h.SystemSpeak("这就为您播放音乐: " + songName)
 			h.sendAudioMessage(ctx, path, name, h.ttsLastTextIndex, h.talkRound)
 		}
 	} else {
-		utils.Error(ctx, "mcp_handler_play_music: args is not a string")
+		log.Error(ctx, "mcp_handler_play_music: args is not a string")
 	}
 }
 
 func (h *ConnectionHandler) mcp_handler_change_voice(ctx context.Context, args interface{}) {
 	if voice, ok := args.(string); ok {
-		utils.Infof(ctx, "mcp_handler_change_voice: %s", voice)
+		log.Infof(ctx, "mcp_handler_change_voice: %s", voice)
 		if err := h.providers.tts.SetVoice(voice); err != nil {
-			utils.Errorf(ctx, "mcp_handler_change_voice: SetVoice failed: %v", err)
+			log.Errorf(ctx, "mcp_handler_change_voice: SetVoice failed: %v", err)
 			h.SystemSpeak(ctx, "切换语音失败，没有叫"+voice+"的音色")
 		} else {
 			h.SystemSpeak(ctx, "已切换到音色"+voice)
 		}
 	} else {
-		utils.Error(ctx, "mcp_handler_change_voice: args is not a string")
+		log.Error(ctx, "mcp_handler_change_voice: args is not a string")
 	}
 }
 
@@ -77,7 +77,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 		role := params["role"]
 		prompt := params["prompt"]
 
-		utils.Infof(ctx, "mcp_handler_change_role: %s", role)
+		log.Infof(ctx, "mcp_handler_change_role: %s", role)
 		h.dialogueManager.SetSystemMessage(prompt)
 		h.dialogueManager.KeepRecentMessages(5) // 保留最近5条消息
 
@@ -106,7 +106,7 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 		}
 		h.SystemSpeak(ctx, "已切换到新角色 "+role)
 	} else {
-		utils.Error(ctx, "mcp_handler_change_role: args is not a string")
+		log.Error(ctx, "mcp_handler_change_role: args is not a string")
 	}
 }
 
@@ -115,7 +115,7 @@ func (h *ConnectionHandler) mcp_handler_exit(ctx context.Context, args interface
 		h.closeAfterChat = true
 		h.SystemSpeak(ctx, text)
 	} else {
-		utils.Error(ctx, "mcp_handler_exit: args is not a string")
+		log.Error(ctx, "mcp_handler_exit: args is not a string")
 	}
 }
 
@@ -124,11 +124,11 @@ func (h *ConnectionHandler) mcp_handler_take_photo(ctx context.Context, args int
 	resultStr, _ := args.(string)
 	var visionResponse vision.VisionResponse
 	if err := json.Unmarshal([]byte(resultStr), &visionResponse); err != nil {
-		utils.Errorf(ctx, "解析VisionResponse失败: %v", err)
+		log.Errorf(ctx, "解析VisionResponse失败: %v", err)
 	}
 
 	if !visionResponse.Success {
-		utils.Errorf(ctx, "拍照失败: %s", visionResponse.Message)
+		log.Errorf(ctx, "拍照失败: %s", visionResponse.Message)
 		h.genResponseByLLM(context.Background(), h.dialogueManager.GetLLMDialogue(), h.talkRound)
 
 	}

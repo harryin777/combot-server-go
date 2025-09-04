@@ -5,7 +5,7 @@ import (
 
 	"combot-server-go/src/configs"
 	cfg "combot-server-go/src/configs/server"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 
 	"github.com/gin-gonic/gin"
 )
@@ -28,14 +28,14 @@ func SetupRoutes(groupCtx context.Context, router *gin.Engine, config *configs.C
 	// 启动配置服务
 	cfgServer, err := cfg.NewDefaultCfgService(config, nil)
 	if err != nil {
-		utils.WithError(groupCtx, err).Error("配置服务初始化失败")
+		log.WithError(groupCtx, err).Error("配置服务初始化失败")
 		return err
 	}
 	if err := cfgServer.Start(groupCtx, router, apiGroup); err != nil {
-		utils.WithError(groupCtx, err).Error("配置服务启动失败")
+		log.WithError(groupCtx, err).Error("配置服务启动失败")
 		return err
 	}
 
-	utils.Info(groupCtx, "所有路由注册完成")
+	log.Info(groupCtx, "所有路由注册完成")
 	return nil
 }

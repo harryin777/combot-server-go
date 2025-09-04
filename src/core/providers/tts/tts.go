@@ -6,8 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/providers"
-	"combot-server-go/src/core/utils"
 
 	"github.com/sirupsen/logrus"
 )
@@ -84,7 +84,7 @@ func (p *BaseProvider) SetVoice(voice string) error {
 	}
 
 	// 检查声音是否在支持的列表中
-	if !utils.IsInArray(voice, enNames) {
+	if !log.IsInArray(voice, enNames) {
 		return fmt.Errorf("不支持的声音: %s, 可用声音: %v", voice, enNames)
 	}
 

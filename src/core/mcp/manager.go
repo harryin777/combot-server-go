@@ -2,8 +2,8 @@ package mcp
 
 import (
 	"combot-server-go/src/configs"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/types"
-	"combot-server-go/src/core/utils"
 	"context"
 	"fmt"
 	"os"
@@ -38,7 +38,7 @@ type Manager struct {
 
 // NewManagerForPool 创建用于资源池的MCP管理器
 func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
-	projectDir := utils.GetProjectDir()
+	projectDir := log.GetProjectDir()
 	configPath := filepath.Join(projectDir, ".mcp_server_settings.json")
 
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
@@ -56,7 +56,7 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(ctx); err != nil {
-		utils.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
+		log.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
 	}
 
 	return mgr
@@ -79,25 +79,25 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 		srvConfigMap, ok := srvConfig.(map[string]interface{})
 
 		if !ok {
-			utils.Warnf(ctx, "Invalid configuration format for server, name %v", name)
+			log.Warnf(ctx, "Invalid configuration format for server, name %v", name)
 			continue
 		}
 
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			utils.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		client, err := NewClient(ctx, clientConfig)
 		if err != nil {
-			utils.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		if err := client.Start(ctx); err != nil {
-			utils.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
 			continue
 		}
 		m.clients[name] = client
@@ -121,7 +121,7 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 	clientID := paramsMap["client_id"].(string)
 	token := paramsMap["token"].(string)
 
-	utils.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
+	log.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
 	// 优化：检查XiaoZhiMCPClient是否需要重新启动
 	if m.CombotMCPClient == nil {
@@ -237,7 +237,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		utils.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
+		log.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -246,7 +246,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 	}
 
 	if err := jsoniter.Unmarshal(data, &config); err != nil {
-		utils.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
+		log.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -369,7 +369,7 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 
 // ExecuteTool 执行工具调用
 func (m *Manager) ExecuteTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	utils.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
+	log.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
 
 	// 快速查找工具对应的客户端，缩小锁的范围
 	m.mu.RLock()

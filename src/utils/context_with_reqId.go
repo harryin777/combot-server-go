@@ -1,7 +1,7 @@
 package utils
 
 import (
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"context"
 	"fmt"
 	"strings"
@@ -14,7 +14,7 @@ func GetCtxWithReq(ctx context.Context) context.Context {
 	if ctx == nil {
 		ctx = context.Background()
 	} else {
-		if v := ctx.Value(utils.RequestIDKey); v != nil {
+		if v := ctx.Value(log.RequestIDKey); v != nil {
 			if _, ok := v.(string); ok {
 				// 已经存在reqId，直接返回原ctx
 				return ctx

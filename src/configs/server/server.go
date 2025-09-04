@@ -2,7 +2,7 @@ package server
 
 import (
 	"combot-server-go/src/configs"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"context"
 
 	"github.com/gin-gonic/gin"
@@ -28,7 +28,7 @@ func (s *DefaultCfgService) Start(ctx context.Context, engine *gin.Engine, apiGr
 	apiGroup.POST("/cfg", s.handlePost)
 	apiGroup.OPTIONS("/cfg", s.handleOptions)
 
-	utils.Info(ctx, "Cfg HTTP服务路由注册完成")
+	log.Info(ctx, "Cfg HTTP服务路由注册完成")
 	return nil
 }
 

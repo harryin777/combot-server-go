@@ -3,8 +3,8 @@ package handlers
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/response"
-	"combot-server-go/src/core/utils"
 	"combot-server-go/src/models"
 	"combot-server-go/src/service"
 
@@ -38,7 +38,7 @@ type GetRoleTemplatesResponse struct {
 func (h *RoleHandler) GetRoleTemplates(c *gin.Context) {
 	templates, code, err := h.roleService.GetRoleTemplates(c.Request.Context())
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("获取角色模板列表失败")
+		log.WithError(c.Request.Context(), err).Error("获取角色模板列表失败")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -70,7 +70,7 @@ func (h *RoleHandler) GetRoleTemplate(c *gin.Context) {
 
 	template, code, err := h.roleService.GetRoleTemplate(c.Request.Context(), templateID)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("获取角色模板详情失败")
+		log.WithError(c.Request.Context(), err).Error("获取角色模板详情失败")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}
@@ -104,7 +104,7 @@ type SaveRoleConfigResponse struct {
 func (h *RoleHandler) SaveRoleConfig(c *gin.Context) {
 	var req models.SaveRoleConfigRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		utils.WithError(c.Request.Context(), err).Error("无效的角色配置请求")
+		log.WithError(c.Request.Context(), err).Error("无效的角色配置请求")
 		response.Failed(c, codes.CodeInvalidRequest, nil)
 		return
 	}
@@ -118,7 +118,7 @@ func (h *RoleHandler) SaveRoleConfig(c *gin.Context) {
 
 	code, err := h.roleService.SaveRoleConfig(c.Request.Context(), userID.(int64), &req)
 	if err != nil {
-		utils.WithError(c.Request.Context(), err).Error("保存角色配置失败")
+		log.WithError(c.Request.Context(), err).Error("保存角色配置失败")
 		response.Failed(c, codes.CodeInternalError, nil)
 		return
 	}

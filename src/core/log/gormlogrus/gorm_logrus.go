@@ -1,7 +1,7 @@
 package gormlogrus
 
 import (
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"context"
 	"time"
 
@@ -30,21 +30,21 @@ func (l *GormLogrusLogger) LogMode(level logger.LogLevel) logger.Interface {
 // Info 打印信息
 func (l *GormLogrusLogger) Info(ctx context.Context, msg string, data ...interface{}) {
 	fileLine := gormUtils.FileWithLineNum()
-	reqId := ctx.Value(utils.RequestIDKey)
+	reqId := ctx.Value(log.RequestIDKey)
 	logrus.WithField("@ReqId", reqId).Infof("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 
 // Warn 打印警告信息
 func (l *GormLogrusLogger) Warn(ctx context.Context, msg string, data ...interface{}) {
 	fileLine := gormUtils.FileWithLineNum()
-	reqId := ctx.Value(utils.RequestIDKey)
+	reqId := ctx.Value(log.RequestIDKey)
 	logrus.WithField("@ReqId", reqId).Warnf("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 
 // Error 打印错误信息
 func (l *GormLogrusLogger) Error(ctx context.Context, msg string, data ...interface{}) {
 	fileLine := gormUtils.FileWithLineNum()
-	reqId := ctx.Value(utils.RequestIDKey)
+	reqId := ctx.Value(log.RequestIDKey)
 	logrus.WithField("@ReqId", reqId).Errorf("%s "+msg, append([]interface{}{fileLine}, data...)...)
 }
 

@@ -3,7 +3,7 @@ package service
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/codes"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/dao"
 	"combot-server-go/src/models"
 	"context"
@@ -26,7 +26,7 @@ func NewRoleService(config *configs.Config) RoleService {
 func (s *roleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTemplate, int, error) {
 	templates, err := s.roleDAO.GetRoleTemplates(ctx)
 	if err != nil {
-		utils.Errorf(ctx, "GetRoleTemplates error: %v", err)
+		log.Errorf(ctx, "GetRoleTemplates error: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	return templates, codes.CodeSuccess, nil
@@ -36,7 +36,7 @@ func (s *roleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTempla
 func (s *roleService) GetRoleTemplate(ctx context.Context, templateID string) (*models.RoleTemplate, int, error) {
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, templateID)
 	if err != nil {
-		utils.Errorf(ctx, "GetRoleTemplate error: %v", err)
+		log.Errorf(ctx, "GetRoleTemplate error: %v", err)
 		return nil, codes.CodeInternalError, err
 	}
 	if template == nil {
@@ -50,7 +50,7 @@ func (s *roleService) SaveRoleConfig(ctx context.Context, userID int64, config *
 	// 验证模板是否存在
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, config.TemplateID)
 	if err != nil {
-		utils.Errorf(ctx, "GetRoleTemplateByID error: %v", err)
+		log.Errorf(ctx, "GetRoleTemplateByID error: %v", err)
 		return codes.CodeInternalError, err
 	}
 	if template == nil {
@@ -74,7 +74,7 @@ func (s *roleService) SaveRoleConfig(ctx context.Context, userID int64, config *
 
 	// 保存到数据库
 	if err := s.roleDAO.SaveRoleConfig(ctx, roleConfig); err != nil {
-		utils.Errorf(ctx, "SaveRoleConfig error: %v", err)
+		log.Errorf(ctx, "SaveRoleConfig error: %v", err)
 		return codes.CodeInternalError, err
 	}
 

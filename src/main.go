@@ -18,7 +18,7 @@ import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/configs/database"
 	"combot-server-go/src/core"
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	_ "combot-server-go/src/docs"
 	"combot-server-go/src/middleware"
 
@@ -56,7 +56,7 @@ func main() {
 	db, dbType, err := database.InitDB(config)
 	_, _ = db, dbType // 避免未使用变量警告
 	if err != nil {
-		utils.Errorf(context.Background(), "数据库连接失败: %v", err)
+		log.Errorf(context.Background(), "数据库连接失败: %v", err)
 		return
 	}
 
@@ -69,7 +69,7 @@ func main() {
 
 	// 启动所有服务
 	if err := startServices(config, g, groupCtx); err != nil {
-		utils.Errorf(context.Background(), "启动服务失败: %v", err)
+		log.Errorf(context.Background(), "启动服务失败: %v", err)
 		cancel()
 		os.Exit(1)
 	}
@@ -77,14 +77,14 @@ func main() {
 	// 启动 pprof，端口号 9090
 	go func() {
 		if err := http.ListenAndServe(":9090", nil); err != nil {
-			utils.WithError(groupCtx, err).Error("pprof 服务启动失败")
+			log.WithError(groupCtx, err).Error("pprof 服务启动失败")
 		}
 	}()
 
 	// 启动优雅关机处理
 	GracefulShutdown(cancel, g)
 
-	utils.Info(context.Background(), "程序已成功退出")
+	log.Info(context.Background(), "程序已成功退出")
 }
 
 func LoadConfigAndLogger() (*configs.Config, error) {
@@ -95,11 +95,11 @@ func LoadConfigAndLogger() (*configs.Config, error) {
 	}
 
 	// 初始化全局日志记录器
-	if err := utils.InitGlobalLogger(config); err != nil {
+	if err := log.InitGlobalLogger(config); err != nil {
 		return nil, fmt.Errorf("初始化全局日志失败: %v", err)
 	}
 
-	utils.Infof(context.Background(), "日志系统初始化成功, 配置文件路径: %s", configPath)
+	log.Infof(context.Background(), "日志系统初始化成功, 配置文件路径: %s", configPath)
 	return config, nil
 }
 
@@ -115,11 +115,11 @@ func StartWSServer(config *configs.Config, g *errgroup.Group, ctx context.Contex
 		// 监听关闭信号
 		go func() {
 			<-ctx.Done()
-			utils.Info(ctx, "收到关闭信号，开始关闭WebSocket服务...")
+			log.Info(ctx, "收到关闭信号，开始关闭WebSocket服务...")
 			if err := wsServer.Stop(ctx); err != nil {
-				utils.WithError(ctx, err).Error("WebSocket服务关闭失败")
+				log.WithError(ctx, err).Error("WebSocket服务关闭失败")
 			} else {
-				utils.Info(ctx, "WebSocket服务已优雅关闭")
+				log.Info(ctx, "WebSocket服务已优雅关闭")
 			}
 		}()
 
@@ -127,13 +127,13 @@ func StartWSServer(config *configs.Config, g *errgroup.Group, ctx context.Contex
 			if ctx.Err() != nil {
 				return nil // 正常关闭
 			}
-			utils.WithError(ctx, err).Error("WebSocket 服务运行失败")
+			log.WithError(ctx, err).Error("WebSocket 服务运行失败")
 			return err
 		}
 		return nil
 	})
 
-	utils.Info(ctx, "WebSocket 服务已成功启动")
+	log.Info(ctx, "WebSocket 服务已成功启动")
 	return wsServer, nil
 }
 
@@ -154,13 +154,13 @@ func StartHttpServer(config *configs.Config, g *errgroup.Group, groupCtx context
 
 	err := router.SetTrustedProxies([]string{"0.0.0.0"})
 	if err != nil {
-		utils.WithError(context.Background(), err).Error("设置受信任代理失败")
+		log.WithError(context.Background(), err).Error("设置受信任代理失败")
 		return err
 	}
 
 	// API路由全部挂载到/api前缀下
 	if err := apiRouter.SetupRoutes(groupCtx, router, config); err != nil {
-		utils.WithError(context.Background(), err).Error("路由注册失败")
+		log.WithError(context.Background(), err).Error("路由注册失败")
 		return err
 	}
 
@@ -174,27 +174,27 @@ func StartHttpServer(config *configs.Config, g *errgroup.Group, groupCtx context
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	g.Go(func() error {
-		utils.Info(context.Background(), fmt.Sprintf("Gin 服务已启动，访问地址: http://0.0.0.0:%d", config.Web.Port))
+		log.Info(context.Background(), fmt.Sprintf("Gin 服务已启动，访问地址: http://0.0.0.0:%d", config.Web.Port))
 
 		// 在单独的 goroutine 中监听关闭信号
 		go func() {
 			<-groupCtx.Done()
-			utils.Info(groupCtx, "收到关闭信号，开始关闭HTTP服务...")
+			log.Info(groupCtx, "收到关闭信号，开始关闭HTTP服务...")
 
 			// 创建关闭超时上下文
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
 
 			if err := httpServer.Shutdown(shutdownCtx); err != nil {
-				utils.WithError(groupCtx, err).Error("HTTP服务关闭失败")
+				log.WithError(groupCtx, err).Error("HTTP服务关闭失败")
 			} else {
-				utils.Info(groupCtx, "HTTP服务已优雅关闭")
+				log.Info(groupCtx, "HTTP服务已优雅关闭")
 			}
 		}()
 
 		// ListenAndServe 返回 ErrServerClosed 时表示正常关闭
 		if err := httpServer.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			utils.WithError(groupCtx, err).Error("HTTP 服务启动失败")
+			log.WithError(groupCtx, err).Error("HTTP 服务启动失败")
 			return err
 		}
 		return nil
@@ -211,7 +211,7 @@ func GracefulShutdown(cancel context.CancelFunc, g *errgroup.Group) {
 
 	// 等待信号
 	sig := <-sigChan
-	utils.Infof(context.Background(), "接收到系统信号: %v，开始优雅关闭服务", sig)
+	log.Infof(context.Background(), "接收到系统信号: %v，开始优雅关闭服务", sig)
 
 	// 取消上下文，通知所有服务开始关闭
 	cancel()
@@ -225,12 +225,12 @@ func GracefulShutdown(cancel context.CancelFunc, g *errgroup.Group) {
 	select {
 	case err := <-done:
 		if err != nil {
-			utils.Errorf(context.Background(), "服务关闭过程中出现错误: %v", err)
+			log.Errorf(context.Background(), "服务关闭过程中出现错误: %v", err)
 			os.Exit(1)
 		}
-		utils.Info(context.Background(), "所有服务已优雅关闭")
+		log.Info(context.Background(), "所有服务已优雅关闭")
 	case <-time.After(15 * time.Second):
-		utils.Error(context.Background(), "服务关闭超时，强制退出")
+		log.Error(context.Background(), "服务关闭超时，强制退出")
 		os.Exit(1)
 	}
 }

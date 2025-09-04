@@ -1,8 +1,8 @@
 package core
 
 import (
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/pool"
-	"combot-server-go/src/core/utils"
 	"context"
 	"errors"
 	"fmt"
@@ -107,14 +107,14 @@ func (c *ConnectionContext) CreateSafeCallback(ctx context.Context) func(func(*C
 		return func() {
 			// 检查连接是否仍然活跃
 			if !c.IsActive() {
-				utils.Infof(ctx, "客户端 %s 连接已关闭，跳过回调", c.clientID)
+				log.Infof(ctx, "客户端 %s 连接已关闭，跳过回调", c.clientID)
 				return
 			}
 
 			// 检查传入的上下文是否已取消
 			select {
 			case <-ctx.Done():
-				utils.Infof(ctx, "客户端 %s 上下文已取消，跳过回调", c.clientID)
+				log.Infof(ctx, "客户端 %s 上下文已取消，跳过回调", c.clientID)
 				return
 			default:
 			}
@@ -158,7 +158,7 @@ func (c *ConnectionContext) Close(ctx context.Context) error {
 		return nil // 已经关闭过了
 	}
 
-	utils.Infof(ctx, "开始关闭客户端 %s 的连接", c.clientID)
+	log.Infof(ctx, "开始关闭客户端 %s 的连接", c.clientID)
 
 	// 取消连接级别的操作
 	if c.cancel != nil {
@@ -187,9 +187,9 @@ func (c *ConnectionContext) Close(ctx context.Context) error {
 	if c.providerSet != nil && c.poolManager != nil {
 		if err := c.poolManager.ReturnProviderSet(ctx, c.providerSet); err != nil {
 			errs = append(errs, fmt.Errorf("归还资源失败: %w", err))
-			utils.Errorf(ctx, "客户端 %s 归还资源失败: %v", c.clientID, err)
+			log.Errorf(ctx, "客户端 %s 归还资源失败: %v", c.clientID, err)
 		} else {
-			utils.Infof(ctx, "客户端 %s 资源已成功归还到池中", c.clientID)
+			log.Infof(ctx, "客户端 %s 资源已成功归还到池中", c.clientID)
 		}
 		c.providerSet = nil // 清空引用
 		c.poolManager = nil // 清空引用
@@ -199,7 +199,7 @@ func (c *ConnectionContext) Close(ctx context.Context) error {
 		return fmt.Errorf("关闭连接时发生 %d 个错误: %w", len(errs), errors.Join(errs...))
 	}
 
-	utils.Infof(ctx, "客户端 %s 连接关闭完成", c.clientID)
+	log.Infof(ctx, "客户端 %s 连接关闭完成", c.clientID)
 	return nil
 }
 

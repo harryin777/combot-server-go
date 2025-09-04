@@ -1,7 +1,7 @@
 package pool
 
 import (
-	"combot-server-go/src/core/utils"
+	"combot-server-go/src/core/log"
 	"context"
 	"fmt"
 	"sync"
@@ -169,7 +169,7 @@ func (p *ResourcePool) Close(ctx context.Context) {
 		close(p.resources)
 		for resource := range p.resources {
 			if err := p.factory.Destroy(ctx, resource); err != nil {
-				utils.WithError(ctx, err).Error("销毁资源失败")
+				log.WithError(ctx, err).Error("销毁资源失败")
 			}
 		}
 	})
@@ -177,7 +177,7 @@ func (p *ResourcePool) Close(ctx context.Context) {
 
 // maintain 维护资源池
 func (p *ResourcePool) maintain() {
-	ctx := utils.GenerateCtx(context.Background())
+	ctx := log.GenerateCtx(context.Background())
 	ticker := time.NewTicker(p.config.CheckInterval)
 	defer ticker.Stop()
 
@@ -210,7 +210,7 @@ func (p *ResourcePool) refillPool(ctx context.Context) {
 		for i := 0; i < needed && p.totalCount < p.config.MaxSize; i++ {
 			resource, err := p.factory.Create(ctx)
 			if err != nil {
-				utils.WithError(ctx, err).Error("重新填充资源失败")
+				log.WithError(ctx, err).Error("重新填充资源失败")
 				continue
 			}
 

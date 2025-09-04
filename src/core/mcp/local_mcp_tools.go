@@ -1,8 +1,8 @@
 package mcp
 
 import (
+	"combot-server-go/src/core/log"
 	"combot-server-go/src/core/types"
-	"combot-server-go/src/core/utils"
 	"context"
 	"strings"
 	"time"
@@ -26,7 +26,7 @@ func (c *LocalClient) AddToolExit(ctx context.Context) error {
 		"当用户想结束对话或需要退出系统时调用",
 		InputSchema,
 		func(ctx context.Context, args map[string]any) (interface{}, error) {
-			utils.Infof(ctx, "用户请求退出对话, say_goodbye: %v", args["say_goodbye"])
+			log.Infof(ctx, "用户请求退出对话, say_goodbye: %v", args["say_goodbye"])
 			res := types.ActionResponse{
 				Action: types.ActionTypeCallHandler, // 动作类型
 				Result: types.ActionResponseCall{
@@ -71,7 +71,7 @@ func (c *LocalClient) AddToolChangeRole(ctx context.Context) error {
 	prompts := map[string]string{}
 	roleNames := ""
 	if roles == nil {
-		utils.Warn(ctx, "AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
+		log.Warn(ctx, "AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
 		return nil
 	} else {
 		for _, role := range roles {
