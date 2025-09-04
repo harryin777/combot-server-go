@@ -1,7 +1,7 @@
 package core
 
 import (
-	log2 "combot-server-go/src/log"
+	"combot-server-go/src/log"
 	"combot-server-go/src/utils"
 	"context"
 	"encoding/binary"
@@ -78,7 +78,7 @@ func (h *ConnectionHandler) sendHelloMessage(ctx context.Context) error {
 		return fmt.Errorf("序列化欢迎消息失败: %v", err)
 	}
 
-	log2.Infof(ctx, "发送hello响应消息: %s", string(data))
+	log.Infof(ctx, "发送hello响应消息: %s", string(data))
 	return h.conn.WriteMessage(1, data)
 }
 
@@ -94,7 +94,7 @@ func (h *ConnectionHandler) sendTTSMessage(ctx context.Context, state string, te
 	}
 	data, err := jsoniter.Marshal(stateMsg)
 	if err != nil {
-		log2.Errorf(ctx, "序列化%s状态失败: %v", state, err)
+		log.Errorf(ctx, "序列化%s状态失败: %v", state, err)
 		return fmt.Errorf("序列化%s状态失败: %v", state, err)
 	}
 	if err := h.conn.WriteMessage(1, data); err != nil {
@@ -141,7 +141,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		// 音频发送完成后，根据配置决定是否删除文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "音频发送完成")
 
-		log2.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex))
+		log.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex))
 		h.providers.asr.ResetStartListenTime()
 		if textIndex == h.ttsLastTextIndex {
 			h.sendTTSMessage(ctx, "stop", "", textIndex)
@@ -158,7 +158,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 	}
 	// 检查轮次
 	if round != h.talkRound {
-		log2.Info(ctx, fmt.Sprintf("sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
+		log.Info(ctx, fmt.Sprintf("sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
 			round, h.talkRound, text))
 		// 即使跳过，也要根据配置删除音频文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "跳过过期轮次")
@@ -166,7 +166,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 	}
 
 	if atomic.LoadInt32(&h.serverVoiceStop) == 1 { // 服务端语音停止
-		log2.Info(ctx, fmt.Sprintf("sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text))
+		log.Info(ctx, fmt.Sprintf("sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text))
 		// 服务端语音停止时也要根据配置删除音频文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "服务端语音停止")
 		return
@@ -178,42 +178,42 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 
 	// 使用TTS提供者的方法将音频转为Opus格式
 	if h.serverAudioFormat == "pcm" {
-		log2.Info(ctx, "服务端音频格式为PCM，直接发送")
+		log.Info(ctx, "服务端音频格式为PCM，直接发送")
 		audioData, duration, err = utils.AudioToPCMData(filepath)
 		if err != nil {
-			log2.Error(ctx, fmt.Sprintf("音频转PCM失败: %v", err))
+			log.Error(ctx, fmt.Sprintf("音频转PCM失败: %v", err))
 			return
 		}
 	} else if h.serverAudioFormat == "opus" {
 		audioData, duration, err = utils.AudioToOpusData(filepath)
 		if err != nil {
-			log2.Error(ctx, fmt.Sprintf("音频转Opus失败: %v", err))
+			log.Error(ctx, fmt.Sprintf("音频转Opus失败: %v", err))
 			return
 		}
 	}
 
 	// 发送TTS状态开始通知
 	if err := h.sendTTSMessage(ctx, "sentence_start", text, textIndex); err != nil {
-		log2.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
 		return
 	}
 
 	if textIndex == 1 {
 		now := time.Now()
 		spentTime := now.Sub(h.roundStartTime)
-		log2.Debugf(ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
+		log.Debugf(ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	log2.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.ttsLastTextIndex, duration, len(audioData))
+	log.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.ttsLastTextIndex, duration, len(audioData))
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(ctx, audioData, text, round); err != nil {
-		log2.Error(ctx, fmt.Sprintf("分时发送音频数据失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("分时发送音频数据失败: %v", err))
 		return
 	}
 
 	// 发送TTS状态结束通知
 	if err := h.sendTTSMessage(ctx, "sentence_end", text, textIndex); err != nil {
-		log2.Error(ctx, fmt.Sprintf("发送TTS结束状态失败: %v", err))
+		log.Error(ctx, fmt.Sprintf("发送TTS结束状态失败: %v", err))
 		return
 	}
 
@@ -240,7 +240,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	for i := 0; i < preBufferFrames; i++ {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			log2.Info(ctx, fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))
+			log.Info(ctx, fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))
 			return nil
 		}
 
@@ -255,7 +255,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	for i, chunk := range remainingFrames {
 		// 检查是否被打断或轮次变化
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			log2.Info(ctx, fmt.Sprintf("音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+			log.Info(ctx, fmt.Sprintf("音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
 			return nil
 		}
 
@@ -283,7 +283,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 				case <-ticker.C:
 					// 检查中断条件
 					if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-						log2.Info(ctx, fmt.Sprintf("音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+						log.Info(ctx, fmt.Sprintf("音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
 						return nil
 					}
 				case <-h.stopChan:
@@ -301,7 +301,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	}
 	time.Sleep(preBufferTime) // 确保预缓冲时间已过
 	spentTime := time.Since(startTime).Milliseconds()
-	log2.Info(ctx, fmt.Sprintf("音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text))
+	log.Info(ctx, fmt.Sprintf("音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text))
 	return nil
 }
 

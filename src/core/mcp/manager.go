@@ -3,7 +3,7 @@ package mcp
 import (
 	"combot-server-go/src/configs"
 	"combot-server-go/src/core/types"
-	log2 "combot-server-go/src/log"
+	"combot-server-go/src/log"
 	"combot-server-go/src/utils"
 	"context"
 	"fmt"
@@ -57,7 +57,7 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(ctx); err != nil {
-		log2.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
+		log.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
 	}
 
 	return mgr
@@ -80,25 +80,25 @@ func (m *Manager) preInitializeServers(ctx context.Context) error {
 		srvConfigMap, ok := srvConfig.(map[string]interface{})
 
 		if !ok {
-			log2.Warnf(ctx, "Invalid configuration format for server, name %v", name)
+			log.Warnf(ctx, "Invalid configuration format for server, name %v", name)
 			continue
 		}
 
 		// 创建并启动外部MCP客户端
 		clientConfig, err := convertConfig(srvConfigMap)
 		if err != nil {
-			log2.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to convert config for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		client, err := NewClient(ctx, clientConfig)
 		if err != nil {
-			log2.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to create MCP client for server, name: %v, error: %v", name, err)
 			continue
 		}
 
 		if err := client.Start(ctx); err != nil {
-			log2.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
+			log.Errorf(ctx, "Failed to start MCP client, name: %v, error: %v", name, err)
 			continue
 		}
 		m.clients[name] = client
@@ -122,7 +122,7 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 	clientID := paramsMap["client_id"].(string)
 	token := paramsMap["token"].(string)
 
-	log2.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
+	log.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
 	// 优化：检查CombotMCPClient是否需要重新启动
 	if m.CombotMCPClient == nil {
@@ -165,11 +165,11 @@ func (m *Manager) registerAllToolsIfNeeded(ctx context.Context) {
 			for _, tool := range tools {
 				toolName := tool.Function.Name
 				if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-					log2.Errorf(ctx, "注册 CombotMCP 工具失败: %s, error: %v", toolName, err)
+					log.Errorf(ctx, "注册 CombotMCP 工具失败: %s, error: %v", toolName, err)
 					continue
 				}
 				m.tools = append(m.tools, toolName)
-				log2.Infof(ctx, "已注册 CombotMCP 工具: %s", toolName)
+				log.Infof(ctx, "已注册 CombotMCP 工具: %s", toolName)
 			}
 			m.bRegisteredCombotMCP = true
 		}
@@ -183,11 +183,11 @@ func (m *Manager) registerAllToolsIfNeeded(ctx context.Context) {
 				toolName := tool.Function.Name
 				if !m.isToolRegistered(toolName) {
 					if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
-						log2.Errorf(ctx, "注册外部MCP工具失败: %s, error: %v", toolName, err)
+						log.Errorf(ctx, "注册外部MCP工具失败: %s, error: %v", toolName, err)
 						continue
 					}
 					m.tools = append(m.tools, toolName)
-					log2.Infof(ctx, "已注册外部MCP工具: %s", toolName)
+					log.Infof(ctx, "已注册外部MCP工具: %s", toolName)
 				}
 			}
 		}
@@ -248,7 +248,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 
 	data, err := os.ReadFile(m.configPath)
 	if err != nil {
-		log2.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
+		log.Errorf(ctx, "加载MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -257,7 +257,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 	}
 
 	if err := jsoniter.Unmarshal(data, &config); err != nil {
-		log2.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
+		log.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
 
@@ -387,7 +387,7 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 
 // ExecuteTool 执行工具调用
 func (m *Manager) ExecuteTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	log2.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
+	log.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
 
 	// 快速查找工具对应的客户端，缩小锁的范围
 	m.mu.RLock()
