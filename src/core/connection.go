@@ -376,12 +376,14 @@ func (h *ConnectionHandler) sendAudioMessageCoroutine(ctx context.Context) {
 // OnAsrResult 实现 AsrEventListener 接口
 // 返回true则停止语音识别，返回false会继续语音识别
 func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool {
-	log.Info(ctx, fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
+	log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
+
 	if h.providers.asr.GetSilenceCount() >= 2 {
 		log.Info(ctx, "检测到连续两次静音，结束对话")
 		h.closeAfterChat = true // 如果连续两次静音，则结束对话
 		result = "长时间未检测到用户说话，请礼貌的结束对话"
 	}
+
 	if h.clientListenMode == "auto" {
 		if result == "" {
 			return false
@@ -479,7 +481,7 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	// 判断是否需要验证
 	if h.isNeedAuth() {
 		if err := h.checkAndBroadcastAuthCode(ctx); err != nil {
-			log.Error(ctx, fmt.Sprintf("检查认证码失败: %v", err))
+			log.Errorf(ctx, "检查认证码失败: %v", err)
 			return err
 		}
 		log.Info(ctx, "设备未认证，等待管理员认证")
@@ -506,7 +508,7 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 		return fmt.Errorf("发送情绪消息失败: %v", err)
 	}
 
-	log.Info(ctx, "收到聊天消息: "+text)
+	log.Infof(ctx, "收到聊天消息: %v", text)
 
 	if h.quickReplyWakeUpWords(ctx, text) {
 		return nil

@@ -23,17 +23,17 @@ type Conn interface {
 
 // Manager MCP服务管理器
 type Manager struct {
-	conn                  Conn
-	funcHandler           types.FunctionRegistryInterface
-	configPath            string
-	clients               map[string]MCPClient
-	localClient           *LocalClient // 本地MCP客户端
-	tools                 []string
-	CombotMCPClient       *CombotMCPClient // XiaoZhiMCPClient用于处理小智MCP相关逻辑
-	bRegisteredXiaoZhiMCP bool             // 是否已注册小智MCP工具
-	isInitialized         bool             // 添加初始化状态标记
-	systemCfg             *configs.Config
-	mu                    sync.RWMutex
+	conn                 Conn
+	funcHandler          types.FunctionRegistryInterface
+	configPath           string
+	clients              map[string]MCPClient
+	localClient          *LocalClient // 本地MCP客户端
+	tools                []string
+	CombotMCPClient      *CombotMCPClient // XiaoZhiMCPClient用于处理小智MCP相关逻辑
+	bRegisteredCombotMCP bool             // 是否已注册小智MCP工具
+	isInitialized        bool             // 添加初始化状态标记
+	systemCfg            *configs.Config
+	mu                   sync.RWMutex
 }
 
 // NewManagerForPool 创建用于资源池的MCP管理器
@@ -46,13 +46,13 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	}
 
 	mgr := &Manager{
-		funcHandler:           nil, // 将在绑定连接时设置
-		conn:                  nil, // 将在绑定连接时设置
-		configPath:            configPath,
-		clients:               make(map[string]MCPClient),
-		tools:                 make([]string, 0),
-		bRegisteredXiaoZhiMCP: false,
-		systemCfg:             cfg,
+		funcHandler:          nil, // 将在绑定连接时设置
+		conn:                 nil, // 将在绑定连接时设置
+		configPath:           configPath,
+		clients:              make(map[string]MCPClient),
+		tools:                make([]string, 0),
+		bRegisteredCombotMCP: false,
+		systemCfg:            cfg,
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(ctx); err != nil {
@@ -123,16 +123,16 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 
 	log.Infof(ctx, "sessionID: %s, visionURL: %s, 绑定连接到MCP Manager", sessionID, visionURL)
 
-	// 优化：检查XiaoZhiMCPClient是否需要重新启动
+	// 优化：检查CombotMCPClient是否需要重新启动
 	if m.CombotMCPClient == nil {
 		m.CombotMCPClient = NewCombotMCPClient(conn, sessionID)
-		m.clients["xiaozhi"] = m.CombotMCPClient
+		m.clients["combot"] = m.CombotMCPClient
 		m.CombotMCPClient.SetVisionURL(visionURL)
 		m.CombotMCPClient.SetID(deviceID, clientID)
 		m.CombotMCPClient.SetToken(token)
 
-		if err := m.CombotMCPClient.Start(context.Background()); err != nil {
-			return fmt.Errorf("启动XiaoZhi MCP客户端失败: %v", err)
+		if err := m.CombotMCPClient.Start(ctx); err != nil {
+			return fmt.Errorf("启动combot MCP客户端失败: %v", err)
 		}
 	} else {
 		// 重新绑定连接而不是重新创建
@@ -140,8 +140,8 @@ func (m *Manager) BindConnection(ctx context.Context, conn Conn, fh types.Functi
 		m.CombotMCPClient.SetID(deviceID, clientID)
 		m.CombotMCPClient.SetToken(token)
 		if !m.CombotMCPClient.IsReady() {
-			if err := m.CombotMCPClient.Start(context.Background()); err != nil {
-				return fmt.Errorf("重启XiaoZhi MCP客户端失败: %v", err)
+			if err := m.CombotMCPClient.Start(ctx); err != nil {
+				return fmt.Errorf("重启combot MCP客户端失败: %v", err)
 			}
 		}
 	}
@@ -158,25 +158,35 @@ func (m *Manager) registerAllToolsIfNeeded() {
 	}
 
 	// 检查是否已注册，避免重复注册
-	if !m.bRegisteredXiaoZhiMCP && m.CombotMCPClient != nil && m.CombotMCPClient.IsReady() {
+	if !m.bRegisteredCombotMCP && m.CombotMCPClient != nil && m.CombotMCPClient.IsReady() {
 		tools := m.CombotMCPClient.GetAvailableTools()
-		for _, tool := range tools {
-			toolName := tool.Function.Name
-			m.funcHandler.RegisterFunction(toolName, tool)
+		if len(tools) > 0 { // 确保工具列表不为空
+			for _, tool := range tools {
+				toolName := tool.Function.Name
+				if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
+					log.Errorf(context.Background(), "注册 CombotMCP 工具失败: %s, error: %v", toolName, err)
+					continue
+				}
+				m.tools = append(m.tools, toolName)
+				log.Infof(context.Background(), "已注册 CombotMCP 工具: %s", toolName)
+			}
+			m.bRegisteredCombotMCP = true
 		}
-		m.bRegisteredXiaoZhiMCP = true
 	}
 
 	// 注册其他外部MCP客户端工具
 	for name, client := range m.clients {
-		if name != "xiaozhi" && client.IsReady() {
+		if name != "combot" && client.IsReady() { // 修正：应该是 "combot" 而不是 "xiaozhi"
 			tools := client.GetAvailableTools()
 			for _, tool := range tools {
 				toolName := tool.Function.Name
 				if !m.isToolRegistered(toolName) {
-					m.funcHandler.RegisterFunction(toolName, tool)
+					if err := m.funcHandler.RegisterFunction(toolName, tool); err != nil {
+						log.Errorf(context.Background(), "注册外部MCP工具失败: %s, error: %v", toolName, err)
+						continue
+					}
 					m.tools = append(m.tools, toolName)
-					//m.logger.Info("Registered external MCP tool: [%s] %s", toolName, tool.Function.Description)
+					log.Infof(context.Background(), "已注册外部MCP工具: %s", toolName)
 				}
 			}
 		}
@@ -201,17 +211,17 @@ func (m *Manager) Reset() error {
 	// 重置连接相关状态但保留可复用的客户端结构
 	m.conn = nil
 	m.funcHandler = nil
-	m.bRegisteredXiaoZhiMCP = false
+	m.bRegisteredCombotMCP = false
 	m.tools = make([]string, 0)
 
-	// 对xiaozhi客户端进行连接重置而不是完全销毁
+	// 对combot客户端进行连接重置而不是完全销毁
 	if m.CombotMCPClient != nil {
 		m.CombotMCPClient.ResetConnection() // 新增方法
 	}
 
 	// 对外部MCP客户端进行连接重置
 	for name, client := range m.clients {
-		if name != "xiaozhi" {
+		if name != "combot" {
 			if resetter, ok := client.(interface{ ResetConnection() error }); ok {
 				resetter.ResetConnection()
 			}
@@ -254,16 +264,23 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 }
 
 func (m *Manager) HandleXiaoZhiMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
-	// 处理小智MCP消息
+	// 处理MCP消息
 	if m.CombotMCPClient == nil {
 		return fmt.Errorf("CombotMCPClient is not initialized")
 	}
-	m.CombotMCPClient.HandleMCPMessage(ctx, msgMap)
-	if m.CombotMCPClient.IsReady() && !m.bRegisteredXiaoZhiMCP {
-		// 注册小智MCP工具
-		m.registerTools(m.CombotMCPClient.GetAvailableTools())
-		m.bRegisteredXiaoZhiMCP = true
+
+	// 处理MCP消息
+	err := m.CombotMCPClient.HandleMCPMessage(ctx, msgMap)
+	if err != nil {
+		return err
 	}
+
+	// 检查是否刚刚变为ready状态，如果是则注册工具
+	if m.CombotMCPClient.IsReady() && !m.bRegisteredCombotMCP {
+		// 使用已有的注册工具方法
+		m.registerAllToolsIfNeeded()
+	}
+
 	return nil
 }
 

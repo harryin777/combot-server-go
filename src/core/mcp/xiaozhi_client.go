@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"combot-server-go/src/core/log"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -11,6 +12,7 @@ import (
 	"combot-server-go/src/core/auth"
 	"combot-server-go/src/core/types"
 
+	jsoniter "github.com/json-iterator/go"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 )
@@ -117,7 +119,7 @@ func (c *CombotMCPClient) Start(ctx context.Context) error {
 	c.mu.Unlock()
 
 	// 发送初始化消息
-	return c.SendMCPInitializeMessage()
+	return c.SendMCPInitializeMessage(ctx)
 }
 
 // Stop 停止MCP客户端
@@ -226,7 +228,7 @@ func (c *CombotMCPClient) CallTool(ctx context.Context, name string, args map[st
 		},
 	}
 
-	data, err := json.Marshal(mcpMessage)
+	data, err := jsoniter.Marshal(mcpMessage)
 	if err != nil {
 		// 清理资源
 		c.callResultsLock.Lock()
@@ -235,10 +237,8 @@ func (c *CombotMCPClient) CallTool(ctx context.Context, name string, args map[st
 		return nil, fmt.Errorf("序列化MCP工具调用请求失败: %v", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"tool":   originalName,
-		"params": string(data),
-	}).Info("发送客户端mcp工具调用请求")
+	log.Infof(ctx, "tool: %v, 发送MCP工具调用请求: %s", originalName, string(data))
+
 	err = c.conn.WriteMessage(msgTypeText, data)
 	if err != nil {
 		// 清理资源
@@ -254,10 +254,9 @@ func (c *CombotMCPClient) CallTool(ctx context.Context, name string, args map[st
 		if err, ok := result.(error); ok {
 			return nil, err
 		}
-		logrus.WithFields(logrus.Fields{
-			"tool":   originalName,
-			"result": result,
-		}).Info("客户端mcp工具调用成功")
+
+		log.Infof(ctx, "tool: %v, 客户端mcp工具调用成功: %v", originalName, result)
+
 		//  map[content:[map[text:{"audio_speaker":{"volume":10},"screen":{},"network":{"type":"wifi","ssid":"zgcinnotown","signal":"weak"}} type:text]] isError:false]
 		// 将里面的text提取出来
 		if resultMap, ok := result.(map[string]interface{}); ok {
@@ -282,7 +281,7 @@ func (c *CombotMCPClient) CallTool(ctx context.Context, name string, args map[st
 							}
 							return ret, nil
 						}
-						logrus.WithField("text", text).Info("工具调用返回文本")
+						log.Infof(ctx, "tool: %v, 工具调用返回文本: %v", originalName, text)
 						ret := types.ActionResponse{
 							Action: types.ActionTypeReqLLM,
 							Result: text,
@@ -316,7 +315,7 @@ func (c *CombotMCPClient) IsReady() bool {
 }
 
 // SendMCPInitializeMessage 发送MCP初始化消息
-func (c *CombotMCPClient) SendMCPInitializeMessage() error {
+func (c *CombotMCPClient) SendMCPInitializeMessage(ctx context.Context) error {
 	// 构造MCP初始化消息
 	mcpMessage := map[string]interface{}{
 		"type":       "mcp",
@@ -338,19 +337,19 @@ func (c *CombotMCPClient) SendMCPInitializeMessage() error {
 					},
 				},
 				"clientInfo": map[string]interface{}{
-					"name":    "XiaozhiClient",
+					"name":    "CombotClient",
 					"version": "1.0.0",
 				},
 			},
 		},
 	}
 
-	data, err := json.Marshal(mcpMessage)
+	data, err := jsoniter.Marshal(mcpMessage)
 	if err != nil {
 		return fmt.Errorf("序列化MCP初始化消息失败: %v", err)
 	}
 
-	logrus.Info("发送MCP初始化消息")
+	log.Infof(ctx, "发送MCP初始化消息: %s", string(data))
 	return c.conn.WriteMessage(msgTypeText, data)
 }
 
@@ -403,7 +402,8 @@ func (c *CombotMCPClient) SendMCPToolsListContinueRequest(cursor string) error {
 
 // HandleMCPMessage 处理MCP消息
 func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[string]interface{}) error {
-	//c.logger.Info("处理MCP消息: " + fmt.Sprintf("%v", msgMap))
+	log.Infof(ctx, "处理MCP消息: %v", msgMap)
+
 	// 获取payload
 	payload, ok := msgMap["payload"].(map[string]interface{})
 	if !ok {
@@ -414,10 +414,16 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 	result, hasResult := payload["result"]
 	if hasResult {
 		// 获取ID，判断是哪个请求的响应
-		id, _ := payload["id"].(float64)
-		idInt := int(id)
+		var idInt int
+		if id, ok := payload["id"].(float64); ok {
+			idInt = int(id)
+		} else if id, ok := payload["id"].(int); ok {
+			idInt = id
+		} else {
+			return fmt.Errorf("无效的消息ID类型")
+		}
 
-		// 检查是否是工具调用响应
+		// 先检查是否是工具调用响应
 		c.callResultsLock.Lock()
 		if resultCh, ok := c.callResults[idInt]; ok {
 			resultCh <- result
@@ -427,23 +433,21 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 		}
 		c.callResultsLock.Unlock()
 
-		if id == mcpInitializeID { // 如果是初始化响应
-			logrus.Debug("收到MCP初始化响应")
+		// 处理系统级响应（初始化、工具列表等）
+		if idInt == mcpInitializeID { // 如果是初始化响应
+			log.Debug(ctx, "初始化响应内容: %v")
 
 			// 解析服务器信息
 			if serverInfo, ok := result.(map[string]interface{})["serverInfo"].(map[string]interface{}); ok {
 				name := serverInfo["name"]
 				version := serverInfo["version"]
-				logrus.WithFields(logrus.Fields{
-					"name":    name,
-					"version": version,
-				}).Info("客户端MCP服务器信息")
+				log.Infof(ctx, "MCP服务器信息: name=%s, version=%s", name, version)
 			}
 
 			// 初始化完成后，请求工具列表
 			return c.SendMCPToolsListRequest()
-		} else if id == mcpToolsListID { // 如果是tools/list响应
-			logrus.Debug("收到MCP工具列表响应")
+		} else if idInt == mcpToolsListID { // 如果是tools/list响应
+			log.Debug(ctx, "收到MCP工具列表响应")
 
 			// 解析工具列表
 			if toolsData, ok := result.(map[string]interface{}); ok {
@@ -452,7 +456,7 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 					return fmt.Errorf("工具列表格式错误")
 				}
 
-				logrus.WithField("count", len(tools)).Info("客户端设备支持的工具数量")
+				log.Infof(ctx, "客户端设备支持的工具数量: %d", len(tools))
 
 				// 解析工具并添加到列表中
 				c.mu.Lock()
@@ -501,16 +505,13 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 					// 建立名称映射关系
 					sanitizedName := sanitizeToolName(name)
 					c.toolNameMap[sanitizedName] = name
-					logrus.WithFields(logrus.Fields{
-						"index": i + 1,
-						"name":  name,
-					}).Info("客户端工具")
+					log.Infof(ctx, "工具 %d: name=%s, description=%s, inputSchema=%v", i+1, name, desc, inputSchema)
 				}
 
 				// 检查是否需要继续获取下一页工具
 				if nextCursor, ok := toolsData["nextCursor"].(string); ok && nextCursor != "" {
 					// 如果有下一页，发送带cursor的请求
-					logrus.WithField("nextCursor", nextCursor).Info("有更多工具")
+					log.Infof(ctx, "有更多工具，nextCursor: %v", nextCursor)
 					c.mu.Unlock()
 					return c.SendMCPToolsListContinueRequest(nextCursor)
 				} else {
@@ -522,24 +523,30 @@ func (c *CombotMCPClient) HandleMCPMessage(ctx context.Context, msgMap map[strin
 		}
 	} else if method, hasMethod := payload["method"].(string); hasMethod {
 		// 处理客户端发起的请求
-		logrus.WithField("method", method).Info("收到MCP客户端请求")
+		log.Infof(ctx, "收到MCP客户端请求: %v", method)
 		// TODO: 实现处理客户端请求的逻辑
 	} else if errorData, hasError := payload["error"].(map[string]interface{}); hasError {
 		// 处理错误响应
 		errorMsg, _ := errorData["message"].(string)
-		logrus.WithField("error", errorMsg).Error("收到MCP错误响应")
+		log.Errorf(ctx, "收到MCP错误响应: %v", errorMsg)
 
 		// 检查是否是工具调用响应
+		var idInt int
 		if id, ok := payload["id"].(float64); ok {
-			idInt := int(id)
-
-			c.callResultsLock.Lock()
-			if resultCh, ok := c.callResults[idInt]; ok {
-				resultCh <- fmt.Errorf("MCP错误: %s", errorMsg)
-				delete(c.callResults, idInt)
-			}
-			c.callResultsLock.Unlock()
+			idInt = int(id)
+		} else if id, ok := payload["id"].(int); ok {
+			idInt = id
+		} else {
+			log.Warnf(ctx, "MCP错误响应缺少有效ID")
+			return nil
 		}
+
+		c.callResultsLock.Lock()
+		if resultCh, ok := c.callResults[idInt]; ok {
+			resultCh <- fmt.Errorf("MCP错误: %s", errorMsg)
+			delete(c.callResults, idInt)
+		}
+		c.callResultsLock.Unlock()
 	}
 
 	return nil
