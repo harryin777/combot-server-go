@@ -14,7 +14,8 @@ var (
 	reSplitString          = regexp.MustCompile(`[.,!?;。！？；：]+`)
 	reMarkdownChars        = regexp.MustCompile(`[\*#\-+=>` + "`" + `~_\[\](){}|\\]`)
 	reRemoveAllPunctuation = regexp.MustCompile(`[.,!?;:，。！？、；：""''「」『』（）\(\)【】\[\]{}《》〈〉—–\-_~·…‖\|\\/*&\^%\$#@\+=<>]`)
-	reWakeUpWord           = regexp.MustCompile(`^你好.+`)
+	// 唤醒词，匹配"你好"开头的字符串
+	reWakeUpWord = regexp.MustCompile(`^你好.+`)
 )
 
 // splitAtLastPunctuation 在最后一个标点符号处分割文本

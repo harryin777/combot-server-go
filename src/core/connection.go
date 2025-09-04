@@ -444,19 +444,25 @@ func (h *ConnectionHandler) QuitIntent(ctx context.Context, text string) bool {
 	return false
 }
 
+// quickReplyWakeUpWords 处理快速回复和唤醒词逻辑
+// 返回 true 表示应该跳过后续LLM处理（已处理完成），返回 false 表示需要继续LLM处理
 func (h *ConnectionHandler) quickReplyWakeUpWords(ctx context.Context, text string) bool {
-	// 检查是否包含唤醒词
+	// 如果未启用快速回复或不是第一轮对话，继续LLM处理
 	if !h.config.QuickReply || h.talkRound != 1 {
 		return false
 	}
-	if !utils.IsWakeUpWord(text) {
+
+	// 如果包含唤醒词，继续LLM处理（不进行快速回复）
+	if utils.IsWakeUpWord(text) {
+		log.Infof(ctx, "检测到唤醒词，继续LLM处理: %s", text)
 		return false
 	}
 
-	repalyWords := h.config.QuickReplyWords
-	replyText := utils.RandomSelectFromArray(repalyWords)
+	// 如果没有唤醒词，进行快速回复并跳过LLM处理
+	replyText := utils.RandomSelectFromArray(h.config.QuickReplyWords)
 	h.ttsLastTextIndex = 1 // 重置文本索引
 	h.SpeakAndPlay(ctx, replyText, 1, h.talkRound)
+	log.Infof(ctx, "使用快速回复（无唤醒词）: %s -> %s", text, replyText)
 
 	return true
 }
