@@ -9,7 +9,7 @@ import (
 )
 
 // AddToolExit 添加退出对话的工具
-func (c *LocalClient) AddToolExit() error {
+func (c *LocalClient) AddToolExit(ctx context.Context) error {
 
 	InputSchema := ToolInputSchema{
 		Type: "object",
@@ -40,7 +40,7 @@ func (c *LocalClient) AddToolExit() error {
 	return nil
 }
 
-func (c *LocalClient) AddToolTime() error {
+func (c *LocalClient) AddToolTime(ctx context.Context) error {
 
 	InputSchema := ToolInputSchema{
 		Type:       "object",
@@ -66,12 +66,12 @@ func (c *LocalClient) AddToolTime() error {
 	return nil
 }
 
-func (c *LocalClient) AddToolChangeRole() error {
+func (c *LocalClient) AddToolChangeRole(ctx context.Context) error {
 	roles := c.cfg.Roles
 	prompts := map[string]string{}
 	roleNames := ""
 	if roles == nil {
-		utils.Warn(context.Background(), "AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
+		utils.Warn(ctx, "AddToolChangeRole: roles settings is nil or empty, Skipping tool registration")
 		return nil
 	} else {
 		for _, role := range roles {
@@ -113,7 +113,7 @@ func (c *LocalClient) AddToolChangeRole() error {
 	return nil
 }
 
-func (c *LocalClient) AddToolChangeVoice() error {
+func (c *LocalClient) AddToolChangeVoice(ctx context.Context) error {
 
 	voices := []string{}
 	if ttsType, ok := c.cfg.SelectedModule["TTS"]; ok && ttsType != "" {
@@ -150,7 +150,7 @@ func (c *LocalClient) AddToolChangeVoice() error {
 	return nil
 }
 
-func (c *LocalClient) AddToolPlayMusic() error {
+func (c *LocalClient) AddToolPlayMusic(ctx context.Context) error {
 	InputSchema := ToolInputSchema{
 		Type: "object",
 		Properties: map[string]any{

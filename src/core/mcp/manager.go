@@ -5,13 +5,13 @@ import (
 	"combot-server-go/src/core/types"
 	"combot-server-go/src/core/utils"
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
 	"time"
 
+	jsoniter "github.com/json-iterator/go"
 	go_openai "github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
 )
@@ -56,7 +56,7 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 	}
 	// 预先初始化非连接相关的MCP服务器
 	if err := mgr.preInitializeServers(ctx); err != nil {
-		logrus.WithError(err).Error("预初始化MCP服务器失败")
+		utils.Errorf(ctx, "预初始化MCP服务器失败: %v", err)
 	}
 
 	return mgr
@@ -65,7 +65,7 @@ func NewManagerForPool(ctx context.Context, cfg *configs.Config) *Manager {
 // preInitializeServers 预初始化不依赖连接的MCP服务器
 func (m *Manager) preInitializeServers(ctx context.Context) error {
 
-	m.localClient, _ = NewLocalClient(m.systemCfg)
+	m.localClient = NewLocalClient(m.systemCfg)
 	m.localClient.Start(ctx)
 	m.clients["local"] = m.localClient
 
@@ -245,7 +245,7 @@ func (m *Manager) LoadConfig(ctx context.Context) map[string]interface{} {
 		MCPServers map[string]interface{} `json:"mcpServers"`
 	}
 
-	if err := json.Unmarshal(data, &config); err != nil {
+	if err := jsoniter.Unmarshal(data, &config); err != nil {
 		utils.Errorf(ctx, "解析MCP配置失败: %v, path: %v", err, m.configPath)
 		return nil
 	}
@@ -369,21 +369,25 @@ func (m *Manager) IsMCPTool(toolName string) bool {
 
 // ExecuteTool 执行工具调用
 func (m *Manager) ExecuteTool(ctx context.Context, toolName string, arguments map[string]interface{}) (interface{}, error) {
-	logrus.WithFields(logrus.Fields{
-		"tool":      toolName,
-		"arguments": arguments,
-	}).Info("Executing tool")
+	utils.Infof(ctx, "Executing tool: %s with arguments: %v", toolName, arguments)
 
+	// 快速查找工具对应的客户端，缩小锁的范围
 	m.mu.RLock()
-	defer m.mu.RUnlock()
-
+	var targetClient MCPClient
 	for _, client := range m.clients {
 		if client.HasTool(toolName) {
-			return client.CallTool(ctx, toolName, arguments)
+			targetClient = client
+			break
 		}
 	}
+	m.mu.RUnlock()
 
-	return nil, fmt.Errorf("Tool %s not found in any MCP server", toolName)
+	// 在锁外执行工具调用，允许并发执行
+	if targetClient != nil {
+		return targetClient.CallTool(ctx, toolName, arguments)
+	}
+
+	return nil, fmt.Errorf("tool %s not found in any MCP server", toolName)
 }
 
 // CleanupAll 依次关闭所有MCPClient

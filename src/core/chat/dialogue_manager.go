@@ -4,22 +4,19 @@ import (
 	"encoding/json"
 
 	"combot-server-go/src/core/types"
-	"combot-server-go/src/core/utils"
 )
 
 type Message = types.Message
 
 // DialogueManager 管理对话上下文和历史
 type DialogueManager struct {
-	logger   *utils.Logger
 	dialogue []Message
 	memory   MemoryInterface
 }
 
 // NewDialogueManager 创建对话管理器实例
-func NewDialogueManager(logger *utils.Logger, memory MemoryInterface) *DialogueManager {
+func NewDialogueManager(memory MemoryInterface) *DialogueManager {
 	return &DialogueManager{
-		logger:   logger,
 		dialogue: make([]Message, 0),
 		memory:   memory,
 	}

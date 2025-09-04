@@ -29,14 +29,14 @@ type LocalClient struct {
 	cfg     *configs.Config
 }
 
-func NewLocalClient(cfg *configs.Config) (*LocalClient, error) {
+func NewLocalClient(cfg *configs.Config) *LocalClient {
 	c := &LocalClient{
 		tools:   make([]Tool, 0),
 		handler: make(map[string]HandlerFunc),
 		mu:      sync.RWMutex{},
 		cfg:     cfg,
 	}
-	return c, nil
+	return c
 }
 
 func (c *LocalClient) RegisterTools(ctx context.Context) {
@@ -58,19 +58,19 @@ func (c *LocalClient) RegisterTools(ctx context.Context) {
 	for _, funcName := range c.cfg.LocalMCPFun {
 		FuncNamesMap.Store(funcName, 1)
 		if funcName == MFuncNameExit {
-			c.AddToolExit()
+			c.AddToolExit(ctx)
 			utils.Info(ctx, "RegisterTools: exit tool registered")
 		} else if funcName == MFuncNameTime {
-			c.AddToolTime()
+			c.AddToolTime(ctx)
 			utils.Info(ctx, "RegisterTools: time tool registered")
 		} else if funcName == MFuncNameChangeVoice {
-			c.AddToolChangeVoice()
+			c.AddToolChangeVoice(ctx)
 			utils.Info(ctx, "RegisterTools: change_voice tool registered")
 		} else if funcName == MFuncNameChangeRole {
-			c.AddToolChangeRole()
+			c.AddToolChangeRole(ctx)
 			utils.Info(ctx, "RegisterTools: change_role tool registered")
 		} else if funcName == MFuncNamePlayMusic {
-			c.AddToolPlayMusic()
+			c.AddToolPlayMusic(ctx)
 			utils.Info(ctx, "RegisterTools: play_music tool registered")
 		} else {
 			utils.Warnf(ctx, "RegisterTools: unknown function name %v", funcName)

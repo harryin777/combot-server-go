@@ -344,6 +344,9 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 
 	// 检查是否有实际数据需要发送
 	if len(data) > 0 && p.isStreaming {
+		// 有音频数据输入时重置静音时间
+		p.ResetStartListenTime()
+
 		// 直接发送音频数据
 		if err := p.sendAudioData(ctx, data, false); err != nil {
 			return err
@@ -454,9 +457,9 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	_, response, err := p.conn.ReadMessage()
 	if err != nil {
 		return fmt.Errorf("读取响应失败: %v", err)
-	} else {
-		utils.Infof(ctx, "[DEBUG] 流式识别: 收到WebSocket消息, 长度=%d", len(response))
 	}
+
+	utils.Infof(ctx, "[DEBUG] 流式识别: 收到WebSocket消息, 长度=%d", len(response))
 
 	initialResult, err := p.parseResponse(response)
 	if err != nil {
@@ -477,6 +480,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	go func() {
 		p.ReadMessage(ctx)
 	}()
+
 	return nil
 }
 
@@ -548,7 +552,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 				if listener := p.BaseProvider.GetListener(); listener != nil {
 					if text == "" && p.SilenceTime() > idleTimeout {
 						p.BaseProvider.SilenceCount += 1
-						text = "你没有听清我说话"
+						text = "我没有听清你说话"
 					} else if text != "" {
 						p.BaseProvider.SilenceCount = 0 // 重置静音计数
 					}

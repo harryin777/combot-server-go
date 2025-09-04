@@ -108,7 +108,7 @@ func (h *ConnectionHandler) sendSTTMessage(text string) error {
 		"text":       text,
 		"session_id": h.sessionID,
 	}
-	jsonData, err := json.Marshal(sttMsg)
+	jsonData, err := jsoniter.Marshal(sttMsg)
 	if err != nil {
 		return fmt.Errorf("序列化 STT 消息失败: %v", err)
 	}
@@ -140,9 +140,9 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		// 音频发送完成后，根据配置决定是否删除文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "音频发送完成")
 
-		utils.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.tts_last_text_index))
+		utils.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex))
 		h.providers.asr.ResetStartListenTime()
-		if textIndex == h.tts_last_text_index {
+		if textIndex == h.ttsLastTextIndex {
 			h.sendTTSMessage(ctx, "stop", "", textIndex)
 			if h.closeAfterChat {
 				h.Close()
@@ -202,7 +202,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		spentTime := now.Sub(h.roundStartTime)
 		utils.Debugf(ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	utils.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.tts_last_text_index, duration, len(audioData))
+	utils.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.ttsLastTextIndex, duration, len(audioData))
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(ctx, audioData, text, round); err != nil {

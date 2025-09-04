@@ -17,7 +17,6 @@ import (
 	"combot-server-go/src/task"
 
 	"github.com/gorilla/websocket"
-	"github.com/sirupsen/logrus"
 )
 
 // WebSocketServer WebSocket服务器结构
@@ -52,7 +51,7 @@ func NewWebSocketServer(ctx context.Context, config *configs.Config) (*WebSocket
 	// 初始化资源池管理器
 	poolManager, err := pool.NewPoolManager(ctx, config)
 	if err != nil {
-		logrus.Errorf("初始化资源池管理器失败: %v", err)
+		utils.Errorf(ctx, "初始化资源池管理器失败: %v", err)
 		return nil, fmt.Errorf("初始化资源池管理器失败: %v", err)
 	}
 	ws.poolManager = poolManager
@@ -63,7 +62,7 @@ func NewWebSocketServer(ctx context.Context, config *configs.Config) (*WebSocket
 func (ws *WebSocketServer) Start(ctx context.Context) error {
 	// 检查资源池是否正常
 	if ws.poolManager == nil {
-		logrus.Error("资源池管理器未初始化")
+		utils.Errorf(ctx, "资源池管理器未初始化")
 		return fmt.Errorf("资源池管理器未初始化")
 	}
 
@@ -77,15 +76,15 @@ func (ws *WebSocketServer) Start(ctx context.Context) error {
 		Handler: mux,
 	}
 
-	logrus.Infof("启动WebSocket服务器 ws://%s...", addr)
+	utils.Infof(ctx, "启动WebSocket服务器 ws://%s...", addr)
 
 	// 启动服务器
 	if err := ws.server.ListenAndServe(); err != nil {
 		if errors.Is(err, http.ErrServerClosed) {
-			logrus.Info("服务器已正常关闭")
+			utils.Infof(ctx, "服务器已正常关闭")
 			return nil
 		}
-		logrus.Errorf("服务器启动失败: %v", err)
+		utils.Errorf(ctx, "服务器启动失败: %v", err)
 		return fmt.Errorf("服务器启动失败: %v", err)
 	}
 
@@ -128,13 +127,13 @@ func (u *defaultUpgrader) Upgrade(w http.ResponseWriter, r *http.Request) (Conne
 // Stop 停止WebSocket服务器
 func (ws *WebSocketServer) Stop(ctx context.Context) error {
 	if ws.server != nil {
-		logrus.Info("正在关闭WebSocket服务器...")
+		utils.Info(ctx, "正在关闭WebSocket服务器...")
 
 		// 关闭所有活动连接并归还资源
 		ws.activeConnections.Range(func(key, value interface{}) bool {
 			if connCtx, ok := value.(*ConnectionContext); ok {
 				if err := connCtx.Close(ctx); err != nil {
-					logrus.Errorf("关闭连接上下文失败: %v", err)
+					utils.Errorf(ctx, "关闭连接上下文失败: %v", err)
 				}
 			} else if conn, ok := value.(Connection); ok {
 				// 向后兼容：直接关闭连接（如果存储的是旧格式）
@@ -169,7 +168,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 
 	conn, err := ws.upgrader.Upgrade(w, r)
 	if err != nil {
-		logrus.Errorf("WebSocket升级失败: %v", err)
+		utils.Errorf(r.Context(), "WebSocket升级失败: %v", err)
 		return
 	}
 
@@ -177,17 +176,16 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 
 	clientID := fmt.Sprintf("%p", conn)
 
-	// 从资源池获取提供者集合
+	// 从资源池获取提供者集合，避免重复创建资源
 	providerSet, err := ws.poolManager.GetProviderSet(ctx)
 	if err != nil {
-		logrus.Errorf("获取提供者集合失败: %v", err)
+		utils.Errorf(ctx, "获取提供者集合失败: %v", err)
 		conn.Close()
 		return
 	}
 
 	connCtx, connCancel := context.WithCancel(ctx)
 	// 创建新的连接处理器
-	// 创建临时的 utils.Logger 实例
 	handler := NewConnectionHandler(ws.config, providerSet, r, connCtx)
 
 	connContext, err := NewConnectionContext(ConnectionConfig{
@@ -199,7 +197,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		Cancel:      connCancel,
 	})
 	if err != nil {
-		logrus.Errorf("创建连接上下文失败: %v", err)
+		utils.Errorf(ctx, "创建连接上下文失败: %v", err)
 		conn.Close()
 		return
 	}
@@ -219,7 +217,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 			// 连接结束时清理
 			ws.activeConnections.Delete(clientID)
 			if err := connContext.Close(context.Background()); err != nil {
-				logrus.Errorf("清理连接上下文失败: %v", err)
+				utils.Errorf(ctx, "清理连接上下文失败: %v", err)
 			}
 		}()
 
@@ -249,12 +247,12 @@ func (ws *WebSocketServer) GetActiveConnectionsCount() int {
 func (ws *WebSocketServer) verifyToken(r *http.Request) bool {
 	authHeader := r.Header.Get("Authorization")
 	if authHeader == "" {
-		logrus.Debug("缺少Authorization头，允许连接但记录警告")
+		utils.Debug(r.Context(), "缺少Authorization头，允许连接但记录警告")
 		return true // 宽松策略：允许没有token的连接
 	}
 
 	if !strings.HasPrefix(authHeader, "Bearer ") {
-		logrus.Warn("Authorization头格式错误，允许连接但记录警告")
+		utils.Warn(r.Context(), "Authorization头格式错误，允许连接但记录警告")
 		return true // 宽松策略：允许格式错误的token
 	}
 
@@ -263,17 +261,17 @@ func (ws *WebSocketServer) verifyToken(r *http.Request) bool {
 
 	isValid, deviceID, err := authToken.VerifyToken(token)
 	if err != nil || !isValid {
-		logrus.WithError(err).Warn("Token验证失败，允许连接但记录警告")
+		utils.WithError(r.Context(), err).Warn("Token验证失败，允许连接但记录警告")
 		return true // 宽松策略：允许无效token的连接
 	}
 
 	// 验证设备ID是否匹配
 	requestDeviceID := r.Header.Get("Device-Id")
 	if requestDeviceID != deviceID {
-		logrus.Warnf("设备ID不匹配: 请求=%s, token=%s，允许连接但记录警告", requestDeviceID, deviceID)
+		utils.Warnf(r.Context(), "设备ID不匹配: 请求=%s, token=%s，允许连接但记录警告", requestDeviceID, deviceID)
 		return true // 宽松策略：允许设备ID不匹配的连接
 	}
 
-	logrus.WithField("device_id", deviceID).Debug("Token验证成功")
+	utils.Infof(r.Context(), "Token验证成功，设备ID: %v", deviceID)
 	return true
 }

@@ -211,7 +211,7 @@ func (h *ConnectionHandler) handleListenMessage(ctx context.Context, msgMap map[
 		case "manual":
 			h.clientListenMode = "manual"
 			h.clientVoiceStop = false
-			h.client_asr_text = "" // 重置ASR文本
+			h.clientAsrText = "" // 重置ASR文本
 			utils.Info(ctx, "开始手动语音识别")
 		case "realtime":
 			if h.clientSupportsAEC {

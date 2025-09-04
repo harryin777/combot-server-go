@@ -2,7 +2,6 @@ package core
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -105,10 +104,10 @@ type ConnectionHandler struct {
 	opusDecoder *utils.OpusDecoder // Opus解码器
 
 	// 对话相关
-	dialogueManager     *chat.DialogueManager
-	tts_last_text_index int
-	client_asr_text     string // 客户端ASR文本
-	quickReplyCache     *utils.QuickReplyCache
+	dialogueManager  *chat.DialogueManager
+	ttsLastTextIndex int
+	clientAsrText    string // 客户端ASR文本
+	quickReplyCache  *utils.QuickReplyCache
 
 	// 并发控制
 	stopChan         chan struct{}
@@ -167,7 +166,7 @@ func NewConnectionHandler(
 			textIndex int
 		}, 100),
 
-		tts_last_text_index: -1,
+		ttsLastTextIndex: -1,
 
 		talkRound: 0,
 
@@ -229,14 +228,14 @@ func NewConnectionHandler(
 	handler.quickReplyCache = utils.NewQuickReplyCache(ttsProvider, voiceName)
 
 	// 初始化对话管理器
-	handler.dialogueManager = chat.NewDialogueManager(nil, nil)
+	handler.dialogueManager = chat.NewDialogueManager(nil)
 	handler.dialogueManager.SetSystemMessage(config.DefaultPrompt)
 	handler.functionRegister = function.NewFunctionRegistry()
 	handler.initMCPResultHandlers()
 
 	// 初始化对话历史服务
 	handler.conversationService = service.NewConversationService()
-	handler.currentAIRole = "小智" // 默认角色
+	handler.currentAIRole = "combot" // 默认角色
 
 	return handler
 }
@@ -278,6 +277,11 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 	defer conn.Close()
 
 	h.conn = conn
+
+	// 设置ASR监听器，确保ASR结果能够回调到ConnectionHandler
+	if h.providers.asr != nil {
+		h.providers.asr.SetListener(h)
+	}
 
 	// 启动消息处理协程
 	go h.processClientAudioMessagesGoroutine(ctx) // 添加客户端音频消息处理协程
@@ -352,7 +356,7 @@ func (h *ConnectionHandler) processClientAudioMessagesGoroutine(ctx context.Cont
 				continue
 			}
 			if err := h.providers.asr.AddAudio(ctx, audioData); err != nil {
-				utils.Error(ctx, fmt.Sprintf("处理音频数据失败: %v", err))
+				utils.Errorf(ctx, "处理音频数据失败: %v", err)
 			}
 		}
 	}
@@ -386,12 +390,12 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool
 		h.handleChatMessage(ctx, result)
 		return true
 	} else if h.clientListenMode == "manual" {
-		h.client_asr_text += result
+		h.clientAsrText += result
 		if result != "" {
-			utils.Info(ctx, fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, h.client_asr_text))
+			utils.Info(ctx, fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, h.clientAsrText))
 		}
 		if h.clientVoiceStop {
-			h.handleChatMessage(ctx, h.client_asr_text)
+			h.handleChatMessage(ctx, h.clientAsrText)
 			return true
 		}
 		return false
@@ -448,7 +452,7 @@ func (h *ConnectionHandler) quickReplyWakeUpWords(ctx context.Context, text stri
 
 	repalyWords := h.config.QuickReplyWords
 	replyText := utils.RandomSelectFromArray(repalyWords)
-	h.tts_last_text_index = 1 // 重置文本索引
+	h.ttsLastTextIndex = 1 // 重置文本索引
 	h.SpeakAndPlay(ctx, replyText, 1, h.talkRound)
 
 	return true
@@ -483,14 +487,14 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	}
 
 	// 普通文本消息处理流程
-	// 立即发送 stt 消息
+	// 立即发送 stt 消息，这里的消息是用户说的话经过 asr 识别后变成文字
 	err := h.sendSTTMessage(text)
 	if err != nil {
 		utils.Error(ctx, fmt.Sprintf("发送STT消息失败: %v", err))
 		return fmt.Errorf("发送STT消息失败: %v", err)
 	}
 
-	// 发送tts start状态
+	// 发送tts start状态，这里是告诉智能体准备切换到广播状态
 	if err := h.sendTTSMessage(ctx, "start", "", 0); err != nil {
 		utils.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
 		return fmt.Errorf("发送TTS开始状态失败: %v", err)
@@ -545,7 +549,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		if r := recover(); r != nil {
 			utils.Errorf(ctx, "genResponseByLLM发生panic: %v", r)
 			errorMsg := "抱歉，处理您的请求时发生了错误"
-			h.tts_last_text_index = 1 // 重置文本索引
+			h.ttsLastTextIndex = 1 // 重置文本索引
 			h.SpeakAndPlay(ctx, errorMsg, 1, round)
 		}
 	}()
@@ -583,9 +587,9 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		// ========== 错误处理 ==========
 		// 检查LLM返回的错误信息，及时向用户反馈
 		if response.Error != "" {
-			utils.Error(ctx, fmt.Sprintf("LLM响应错误: %s", response.Error))
+			utils.Errorf(ctx, "LLM响应错误: %s", response.Error)
 			errorMsg := "抱歉，服务暂时不可用，请稍后再试"
-			h.tts_last_text_index = 1 // 重置文本索引
+			h.ttsLastTextIndex = 1 // 重置文本索引
 			h.SpeakAndPlay(ctx, errorMsg, 1, round)
 			return fmt.Errorf("LLM响应错误: %s", response.Error)
 		}
@@ -623,7 +627,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			if strings.Contains(content, "服务响应异常") {
 				utils.Errorf(ctx, "检测到LLM服务异常: %s", content)
 				errorMsg := "抱歉，服务暂时不可用，请稍后再试"
-				h.tts_last_text_index = 1 // 重置文本索引
+				h.ttsLastTextIndex = 1 // 重置文本索引
 				h.SpeakAndPlay(ctx, errorMsg, 1, round)
 				return fmt.Errorf("LLM服务异常")
 			}
@@ -641,7 +645,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			fullText := utils.JoinStrings(responseMessage)
 			if len(fullText) <= processedChars {
 				// 异常情况：文本长度不增长，记录警告并跳过
-				utils.Warn(ctx, fmt.Sprintf("文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars))
+				utils.Warnf(ctx, "文本处理异常: fullText长度=%d, processedChars=%d", len(fullText), processedChars)
 				continue
 			}
 			currentText := fullText[processedChars:] // 提取未处理的文本部分
@@ -650,7 +654,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			// 按标点符号分割文本，实现自然的语音停顿
 			if segment, chars := utils.SplitAtLastPunctuation(currentText); chars > 0 {
 				textIndex++ // 分段序号递增
-				h.tts_last_text_index = textIndex
+				h.ttsLastTextIndex = textIndex
 
 				// ========== 性能监控和日志记录 ==========
 				if textIndex == 1 {
@@ -668,7 +672,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 				// 异步处理TTS，不阻塞LLM响应接收
 				err := h.SpeakAndPlay(ctx, segment, textIndex, round)
 				if err != nil {
-					utils.Error(ctx, fmt.Sprintf("播放LLM回复分段失败: %v", err))
+					utils.Errorf(ctx, "播放LLM回复分段失败: %v", err)
 				}
 
 				// 更新已处理字符数，避免重复处理
@@ -698,9 +702,9 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 
 				// 序列化参数为JSON字符串
 				if !bHasError {
-					argumentsJson, err := json.Marshal(a["arguments"])
+					argumentsJson, err := jsoniter.Marshal(a["arguments"])
 					if err != nil {
-						utils.Error(ctx, fmt.Sprintf("函数调用参数序列化失败: %v", err))
+						utils.Errorf(ctx, "函数调用参数序列化失败: %v", err)
 						bHasError = true
 					} else {
 						functionArguments = string(argumentsJson)
@@ -721,7 +725,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 			// 解析函数参数
 			arguments := make(map[string]interface{})
 			if err := jsoniter.Unmarshal([]byte(functionArguments), &arguments); err != nil {
-				utils.Error(ctx, fmt.Sprintf("函数调用参数解析失败: %v", err))
+				utils.Errorf(ctx, "函数调用参数解析失败: %v", err)
 			}
 
 			// 构造函数调用数据，用于后续的对话历史记录
@@ -773,7 +777,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		if remainingText != "" {
 			textIndex++
 			utils.Info(ctx, fmt.Sprintf("LLM回复分段[剩余文本]: %s, index: %d, round:%d", remainingText, textIndex, round))
-			h.tts_last_text_index = textIndex
+			h.ttsLastTextIndex = textIndex
 			h.SpeakAndPlay(ctx, remainingText, textIndex, round)
 		}
 	} else {
@@ -820,27 +824,27 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 func (h *ConnectionHandler) handleFunctionResult(ctx context.Context, result types.ActionResponse, functionCallData map[string]interface{}, textIndex int) {
 	switch result.Action {
 	case types.ActionTypeError:
-		utils.Error(ctx, fmt.Sprintf("函数调用错误: %v", result.Result))
+		utils.Errorf(ctx, "函数调用错误: %v", result.Result)
 	case types.ActionTypeNotFound:
-		utils.Error(ctx, fmt.Sprintf("函数未找到: %v", result.Result))
+		utils.Errorf(ctx, "函数未找到: %v", result.Result)
 	case types.ActionTypeNone:
-		utils.Info(ctx, fmt.Sprintf("函数调用无操作: %v", result.Result))
+		utils.Infof(ctx, "函数调用无操作: %v", result.Result)
 	case types.ActionTypeResponse:
-		utils.Info(ctx, fmt.Sprintf("函数调用直接回复: %v", result.Response))
+		utils.Infof(ctx, "函数调用直接回复: %v", result.Response)
 		h.SystemSpeak(ctx, result.Response.(string))
 	case types.ActionTypeCallHandler:
 		h.handleMCPResultCall(ctx, result)
 	case types.ActionTypeReqLLM:
-		utils.Info(ctx, fmt.Sprintf("函数调用后请求LLM: %v", result.Result))
+		utils.Infof(ctx, "函数调用后请求LLM: %v", result.Result)
 		text, ok := result.Result.(string)
 		if ok && len(text) > 0 {
 			functionID := functionCallData["id"].(string)
 			functionName := functionCallData["name"].(string)
 			functionArguments := functionCallData["arguments"].(string)
-			utils.Info(ctx, fmt.Sprintf("函数调用结果: %s", text))
-			utils.Info(ctx, fmt.Sprintf("函数调用参数: %s", functionArguments))
-			utils.Info(ctx, fmt.Sprintf("函数调用名称: %s", functionName))
-			utils.Info(ctx, fmt.Sprintf("函数调用ID: %s", functionID))
+			utils.Infof(ctx, "函数调用结果: %s", text)
+			utils.Infof(ctx, "函数调用参数: %s", functionArguments)
+			utils.Infof(ctx, "函数调用名称: %s", functionName)
+			utils.Infof(ctx, "函数调用ID: %s", functionID)
 
 			// 添加 assistant 消息，包含 tool_calls
 			h.dialogueManager.Put(chat.Message{
@@ -869,7 +873,7 @@ func (h *ConnectionHandler) handleFunctionResult(ctx context.Context, result typ
 			h.genResponseByLLM(ctx, h.dialogueManager.GetLLMDialogue(), h.talkRound)
 
 		} else {
-			utils.Error(ctx, fmt.Sprintf("函数调用结果解析失败: %v", result.Result))
+			utils.Errorf(ctx, "函数调用结果解析失败: %v", result.Result)
 			// 发送错误消息
 			errorMessage := fmt.Sprintf("函数调用结果解析失败 %v", result.Result)
 			h.SystemSpeak(ctx, errorMessage)
@@ -886,7 +890,7 @@ func (h *ConnectionHandler) SystemSpeak(ctx context.Context, text string) error 
 	index := 0
 	for _, item := range texts {
 		index++
-		h.tts_last_text_index = index // 重置文本索引
+		h.ttsLastTextIndex = index // 重置文本索引
 		h.SpeakAndPlay(ctx, item, index, h.talkRound)
 	}
 	return nil
@@ -1046,7 +1050,7 @@ func (h *ConnectionHandler) SpeakAndPlay(ctx context.Context, text string, textI
 
 func (h *ConnectionHandler) clearSpeakStatus(ctx context.Context) {
 	utils.Info(ctx, "清除服务端讲话状态 ")
-	h.tts_last_text_index = -1
+	h.ttsLastTextIndex = -1
 	h.providers.asr.Reset() // 重置ASR状态
 }
 
@@ -1148,7 +1152,7 @@ func (h *ConnectionHandler) genResponseByVLLM(ctx context.Context, messages []pr
 		// 按标点符号分割
 		if segment, chars := utils.SplitAtLastPunctuation(currentText); chars > 0 {
 			textIndex++
-			h.tts_last_text_index = textIndex
+			h.ttsLastTextIndex = textIndex
 			h.SpeakAndPlay(ctx, segment, textIndex, round)
 			processedChars += chars
 		}
@@ -1158,7 +1162,7 @@ func (h *ConnectionHandler) genResponseByVLLM(ctx context.Context, messages []pr
 	remainingText := utils.JoinStrings(responseMessage)[processedChars:]
 	if remainingText != "" {
 		textIndex++
-		h.tts_last_text_index = textIndex
+		h.ttsLastTextIndex = textIndex
 		h.SpeakAndPlay(ctx, remainingText, textIndex, round)
 	}
 
