@@ -172,22 +172,22 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	ctx := utils2.GetCtxWithReq(r.Context())
-
-	clientID := fmt.Sprintf("%p", conn)
+	connCtx, connCancel := context.WithCancel(context.Background())
+	defer connCancel()
+	connCtx = utils2.GetCtxWithReq(connCtx)
 
 	// 从资源池获取提供者集合，避免重复创建资源
-	providerSet, err := ws.poolManager.GetProviderSet(ctx)
+	providerSet, err := ws.poolManager.GetProviderSet(connCtx)
 	if err != nil {
-		log.Errorf(ctx, "获取提供者集合失败: %v", err)
+		log.Errorf(connCtx, "获取提供者集合失败: %v", err)
 		conn.Close()
 		return
 	}
 
-	connCtx, connCancel := context.WithCancel(ctx)
 	// 创建新的连接处理器
 	handler := NewConnectionHandler(ws.config, providerSet, r, connCtx)
 
+	clientID := fmt.Sprintf("%p", conn)
 	connContext, err := NewConnectionContext(ConnectionConfig{
 		Handler:     handler,
 		ProviderSet: providerSet,
@@ -197,7 +197,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		Cancel:      connCancel,
 	})
 	if err != nil {
-		log.Errorf(ctx, "创建连接上下文失败: %v", err)
+		log.Errorf(connCtx, "创建连接上下文失败: %v", err)
 		conn.Close()
 		return
 	}
@@ -209,19 +209,19 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	// 存储连接上下文
 	ws.activeConnections.Store(clientID, connContext)
 
-	log.Infof(ctx, "客户端 %s 连接已建立，资源已分配", clientID)
+	log.Infof(connCtx, "客户端 %s 连接已建立，资源已分配", clientID)
 
 	// 启动连接处理，并在结束时清理资源
 	go func() {
 		defer func() {
 			// 连接结束时清理
 			ws.activeConnections.Delete(clientID)
-			if err := connContext.Close(context.Background()); err != nil {
-				log.Errorf(ctx, "清理连接上下文失败: %v", err)
+			if err := connContext.Close(connCtx); err != nil {
+				log.Errorf(connCtx, "清理连接上下文失败: %v", err)
 			}
 		}()
 
-		handler.Handle(ctx, conn)
+		handler.Handle(connCtx, conn)
 	}()
 }
 

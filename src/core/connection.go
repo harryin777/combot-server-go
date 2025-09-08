@@ -2,6 +2,7 @@ package core
 
 import (
 	"combot-server-go/src/log"
+	"combot-server-go/src/models"
 	"combot-server-go/src/utils"
 	"context"
 	"errors"
@@ -37,7 +38,7 @@ type Connection interface {
 	// 读取消息
 	ReadMessage() (messageType int, data []byte, err error)
 	// 关闭连接
-	Close() error
+	Close(ctx context.Context) error
 	// 获取连接ID
 	GetID() string
 	// 获取连接类型
@@ -275,7 +276,7 @@ func (h *ConnectionHandler) handleTaskComplete(ctx context.Context, task *task.T
 
 // Handle 处理WebSocket连接
 func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
-	defer conn.Close()
+	defer conn.Close(ctx)
 
 	h.conn = conn
 
@@ -407,7 +408,7 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool
 			return false
 		}
 		h.stopServerSpeak(ctx)
-		h.providers.asr.Reset() // 重置ASR状态，准备下一次识别
+		h.providers.asr.Reset(ctx) // 重置ASR状态，准备下一次识别
 		log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
 		h.handleChatMessage(ctx, result)
 		return true
@@ -430,14 +431,14 @@ func (h *ConnectionHandler) QuitIntent(ctx context.Context, text string) bool {
 	if exitCommands == nil {
 		return false
 	}
-	cleandText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
+	cleanText := utils.RemoveAllPunctuation(text) // 移除标点符号，确保匹配准确
 	// 检查是否包含退出命令
 	for _, cmd := range exitCommands {
-		log.Debugf(ctx, "检查退出命令: %s,%s", cmd, cleandText)
+		log.Debugf(ctx, "检查退出命令: %s,%s", cmd, cleanText)
 		//判断相等
-		if cleandText == cmd {
+		if cleanText == cmd {
 			log.Info(ctx, "收到客户端退出意图，准备结束对话")
-			h.Close() // 直接关闭连接
+			h.Close(ctx) // 直接关闭连接
 			return true
 		}
 	}
@@ -499,19 +500,19 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	// 立即发送 stt 消息，这里的消息是用户说的话经过 asr 识别后变成文字
 	err := h.sendSTTMessage(text)
 	if err != nil {
-		log.Error(ctx, fmt.Sprintf("发送STT消息失败: %v", err))
+		log.Errorf(ctx, "发送STT消息失败: %v", err)
 		return fmt.Errorf("发送STT消息失败: %v", err)
 	}
 
 	// 发送tts start状态，这里是告诉智能体准备切换到广播状态
 	if err := h.sendTTSMessage(ctx, "start", "", 0); err != nil {
-		log.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
+		log.Errorf(ctx, "发送TTS开始状态失败: %v", err)
 		return fmt.Errorf("发送TTS开始状态失败: %v", err)
 	}
 
 	// 发送思考状态的情绪
 	if err := h.sendEmotionMessage(ctx, "thinking", 1); err != nil {
-		log.Error(ctx, fmt.Sprintf("发送思考状态情绪消息失败: %v", err))
+		log.Errorf(ctx, "发送思考状态情绪消息失败: %v", err)
 		return fmt.Errorf("发送情绪消息失败: %v", err)
 	}
 
@@ -530,15 +531,14 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 
 	// 保存用户消息到数据库
 	go func() {
-		_, _, err := h.conversationService.SaveConversation(
+		err := h.conversationService.SaveConversation(
 			ctx,
 			h.sessionID,
 			h.deviceID,
 			h.clientId,
-			0, // userID，暂时为空，后续可从设备关联用户
 			userMessage.Content,
-			1, // MessageRole - 用户消息
-			1, // MessageType - 文本消息
+			int(models.RoleUser),        // MessageRole - 用户消息
+			int(models.ContentTypeText), // MessageType - 文本消息
 			h.currentAIRole,
 		)
 		if err != nil {
@@ -661,7 +661,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 
 			// ========== 智能分段和实时播放 ==========
 			// 按标点符号分割文本，实现自然的语音停顿
-			if segment, chars := utils.SplitAtLastPunctuation(currentText); chars > 0 {
+			if segment, dealCount := utils.SplitAtLastPunctuation(currentText); dealCount > 0 {
 				textIndex++ // 分段序号递增
 				h.ttsLastTextIndex = textIndex
 
@@ -685,7 +685,7 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 				}
 
 				// 更新已处理字符数，避免重复处理
-				processedChars += chars
+				processedChars += dealCount
 			}
 		}
 	}
@@ -808,15 +808,14 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 		// ========== 异步数据库保存 ==========
 		// 使用goroutine异步保存，避免阻塞用户交互
 		go func() {
-			_, _, err := h.conversationService.SaveConversation(
+			err := h.conversationService.SaveConversation(
 				ctx,
 				h.sessionID,
 				h.deviceID,
 				h.clientId,
-				0, // userID，暂时为空
 				assistantMessage.Content,
-				2, // MessageRole - 助手消息
-				1, // MessageType - 文本消息
+				int(models.RoleAssistant),   // MessageRole - 助手消息
+				int(models.ContentTypeText), // MessageType - 文本消息
 				h.currentAIRole,
 			)
 			if err != nil {
@@ -1060,7 +1059,7 @@ func (h *ConnectionHandler) SpeakAndPlay(ctx context.Context, text string, textI
 func (h *ConnectionHandler) clearSpeakStatus(ctx context.Context) {
 	log.Info(ctx, "清除服务端讲话状态 ")
 	h.ttsLastTextIndex = -1
-	h.providers.asr.Reset() // 重置ASR状态
+	h.providers.asr.Reset(ctx) // 重置ASR状态
 }
 
 func (h *ConnectionHandler) closeOpusDecoder(ctx context.Context) {
@@ -1106,9 +1105,8 @@ clearAudioQueue:
 }
 
 // Close 清理资源
-func (h *ConnectionHandler) Close() {
+func (h *ConnectionHandler) Close(ctx context.Context) {
 	h.closeOnce.Do(func() {
-		ctx := context.Background() // 创建一个基础的context用于日志记录
 		close(h.stopChan)
 
 		h.closeOpusDecoder(ctx)
@@ -1116,7 +1114,7 @@ func (h *ConnectionHandler) Close() {
 			h.providers.tts.SetVoice(h.initailVoice) // 恢复初始语音
 		}
 		if h.providers.asr != nil {
-			if err := h.providers.asr.Reset(); err != nil {
+			if err := h.providers.asr.Reset(ctx); err != nil {
 				log.Error(ctx, fmt.Sprintf("重置ASR状态失败: %v", err))
 			}
 		}

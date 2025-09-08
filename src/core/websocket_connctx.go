@@ -173,13 +173,13 @@ func (c *ConnectionContext) Close(ctx context.Context) error {
 
 	// 关闭连接处理器
 	if c.handler != nil {
-		c.handler.Close()
+		c.handler.Close(ctx)
 		c.handler = nil // 清空引用
 	}
 
 	// 关闭WebSocket连接
 	if c.conn != nil {
-		c.conn.Close()
+		c.conn.Close(ctx)
 		c.conn = nil // 清空引用
 	}
 

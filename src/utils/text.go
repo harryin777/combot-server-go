@@ -16,11 +16,11 @@ var (
 	reRemoveAllPunctuation = regexp.MustCompile(`[.,!?;:，。！？、；：""''「」『』（）\(\)【】\[\]{}《》〈〉—–\-_~·…‖\|\\/*&\^%\$#@\+=<>]`)
 	// 唤醒词，匹配"你好"开头的字符串
 	reWakeUpWord = regexp.MustCompile(`^你好.+`)
+	punctuations = []string{"。", "？", "！", "；", "：", ".", "?", "!", ";", ":"}
 )
 
-// splitAtLastPunctuation 在最后一个标点符号处分割文本
+// SplitAtLastPunctuation 在最后一个标点符号处分割文本
 func SplitAtLastPunctuation(text string) (string, int) {
-	punctuations := []string{"。", "？", "！", "；", "：", ".", "?", "!", ";", ":"}
 	lastIndex := -1
 	foundPunctuation := ""
 

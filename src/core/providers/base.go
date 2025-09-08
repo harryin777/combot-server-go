@@ -25,7 +25,7 @@ type ASRProvider interface {
 
 	SetListener(listener AsrEventListener)
 	// Reset 复位ASR状态
-	Reset() error
+	Reset(ctx context.Context) error
 
 	// GetSilenceCount 获取当前静音计数
 	GetSilenceCount() int

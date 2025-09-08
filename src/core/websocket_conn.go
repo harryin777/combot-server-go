@@ -1,6 +1,7 @@
 package core
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -70,7 +71,7 @@ func (w *websocketConn) WriteMessage(messageType int, data []byte) error {
 	return nil
 }
 
-func (w *websocketConn) Close() error {
+func (w *websocketConn) Close(ctx context.Context) error {
 	// 使用原子操作避免重复关闭
 	if !atomic.CompareAndSwapInt32(&w.closed, 0, 1) {
 		return nil // 已经关闭过了

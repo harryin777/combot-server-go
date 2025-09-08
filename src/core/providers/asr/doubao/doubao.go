@@ -668,7 +668,7 @@ func (p *Provider) sendAudioData(ctx context.Context, data []byte, isLast bool) 
 }
 
 // Reset 重置ASR状态
-func (p *Provider) Reset() error {
+func (p *Provider) Reset(ctx context.Context) error {
 	// 使用锁保护状态变更
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()
@@ -683,7 +683,7 @@ func (p *Provider) Reset() error {
 	// 重置音频处理
 	p.InitAudioProcessing()
 
-	logrus.Info("ASR状态已重置")
+	log.Info(ctx, "ASR状态已重置")
 
 	return nil
 }

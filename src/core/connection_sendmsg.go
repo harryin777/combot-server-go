@@ -5,7 +5,6 @@ import (
 	"combot-server-go/src/utils"
 	"context"
 	"encoding/binary"
-	"encoding/json"
 	"fmt"
 	"sync/atomic"
 	"time"
@@ -128,7 +127,7 @@ func (h *ConnectionHandler) sendEmotionMessage(ctx context.Context, emotionType 
 		"emotion":    emotionType,
 		"session_id": h.sessionID,
 	}
-	jsonData, err := json.Marshal(data)
+	jsonData, err := jsoniter.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("序列化情绪消息失败: %v", err)
 	}
@@ -146,7 +145,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		if textIndex == h.ttsLastTextIndex {
 			h.sendTTSMessage(ctx, "stop", "", textIndex)
 			if h.closeAfterChat {
-				h.Close()
+				h.Close(ctx)
 			} else {
 				h.clearSpeakStatus(ctx)
 			}

@@ -260,9 +260,7 @@ func (h *ConnectionHandler) handleIotMessage(ctx context.Context, msgMap map[str
 		log.Infof(ctx, "收到IOT设备描述符数量: %d", len(descriptors))
 		for i, descriptor := range descriptors {
 			if desc, ok := descriptor.(map[string]interface{}); ok {
-				deviceId := ""
-				deviceType := ""
-				deviceName := ""
+				var deviceId, deviceType, deviceName string
 
 				if id, exists := desc["id"]; exists {
 					if idStr, ok := id.(string); ok {
@@ -296,8 +294,7 @@ func (h *ConnectionHandler) handleIotMessage(ctx context.Context, msgMap map[str
 		log.Infof(ctx, "收到IOT设备状态数量: %d", len(states))
 		for i, state := range states {
 			if st, ok := state.(map[string]interface{}); ok {
-				deviceId := ""
-				status := ""
+				var deviceId, status string
 				value := interface{}(nil)
 
 				if id, exists := st["device_id"]; exists {
@@ -324,8 +321,7 @@ func (h *ConnectionHandler) handleIotMessage(ctx context.Context, msgMap map[str
 
 	// 处理设备控制命令
 	if command, ok := msgMap["command"].(map[string]interface{}); ok {
-		deviceId := ""
-		action := ""
+		var deviceId, action string
 		params := map[string]interface{}{}
 
 		if id, exists := command["device_id"]; exists {
