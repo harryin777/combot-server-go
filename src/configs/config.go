@@ -1,7 +1,9 @@
 package configs
 
 import (
+	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -160,13 +162,40 @@ type DatabaseConfig struct {
 
 // LoadConfig 从文件加载配置
 func LoadConfig() (*Config, string, error) {
-	path := ".config.yaml"
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		path = "config.yaml"
-	}
-	data, err := os.ReadFile(path)
+	// 获取可执行文件所在目录
+	ex, err := os.Executable()
 	if err != nil {
-		return nil, path, err
+		ex, _ = os.Getwd()
+	} else {
+		ex = filepath.Dir(ex)
+	}
+
+	// 尝试多个可能的配置文件路径
+	configPaths := []string{
+		".config.yaml",                          // 当前目录
+		"config.yaml",                           // 当前目录
+		filepath.Join(ex, ".config.yaml"),       // 可执行文件目录
+		filepath.Join(ex, "config.yaml"),        // 可执行文件目录
+		filepath.Join(ex, "..", ".config.yaml"), // 可执行文件上级目录
+		filepath.Join(ex, "..", "config.yaml"),  // 可执行文件上级目录
+	}
+
+	var path string
+	var data []byte
+	var readErr error
+
+	for _, p := range configPaths {
+		if _, err := os.Stat(p); err == nil {
+			data, readErr = os.ReadFile(p)
+			if readErr == nil {
+				path = p
+				break
+			}
+		}
+	}
+
+	if path == "" {
+		return nil, "", fmt.Errorf("未找到配置文件，尝试了以下路径: %v", configPaths)
 	}
 
 	config := &Config{}
