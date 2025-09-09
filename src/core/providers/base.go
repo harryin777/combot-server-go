@@ -7,8 +7,8 @@ import (
 
 // Provider 所有提供者的基础接口
 type Provider interface {
-	Initialize() error
-	Cleanup() error
+	Initialize(ctx context.Context) error
+	Cleanup(ctx context.Context) error
 }
 
 type AsrEventListener interface {
@@ -37,10 +37,10 @@ type ASRProvider interface {
 type TTSProvider interface {
 	Provider
 
-	// 合成音频并返回文件路径
+	// ToTTS 合成音频并返回文件路径
 	ToTTS(text string) (string, error)
 
-	SetVoice(voice string) error
+	SetVoice(ctx context.Context, voice string) error
 }
 
 // LLMProvider 大语言模型提供者接口

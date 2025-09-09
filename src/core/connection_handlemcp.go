@@ -9,17 +9,27 @@ import (
 	"encoding/json"
 )
 
+const (
+	mcpPlayMusic   = "play_music"
+	mcpChangeVoice = "change_voice"
+	mcpChangeRole  = "change_role"
+	mcpExit        = "exit"
+	mcpTakePhoto   = "take_photo"
+)
+
+// initMCPResultHandlers 初始化MCP结果处理器映射
 func (h *ConnectionHandler) initMCPResultHandlers() {
 	// 初始化MCP结果处理器映射
 	h.mcpResultHandlers = map[string]func(context.Context, interface{}){
-		"play_music":   h.mcp_handler_play_music,
-		"change_voice": h.mcp_handler_change_voice,
-		"change_role":  h.mcp_handler_change_role,
-		"exit":         h.mcp_handler_exit,
-		"take_photo":   h.mcp_handler_take_photo,
+		mcpPlayMusic:   h.mcpHandlerPlayMusic,
+		mcpChangeVoice: h.mcpHandlerChangeVoice,
+		mcpChangeRole:  h.mcpHandlerChangeRole,
+		mcpExit:        h.mcpHandlerExit,
+		mcpTakePhoto:   h.mcpHandlerTakePhoto,
 	}
 }
 
+// handleMCPResultCall 处理MCP返回的函数调用结果
 func (h *ConnectionHandler) handleMCPResultCall(ctx context.Context, result types.ActionResponse) {
 	// 先取result
 	if result.Action != types.ActionTypeCallHandler {
@@ -44,7 +54,8 @@ func (h *ConnectionHandler) handleMCPResultCall(ctx context.Context, result type
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_play_music(ctx context.Context, args interface{}) {
+// mcpHandlerPlayMusic 处理播放音乐的MCP函数调用
+func (h *ConnectionHandler) mcpHandlerPlayMusic(ctx context.Context, args interface{}) {
 	if songName, ok := args.(string); ok {
 		log.Infof(ctx, "mcp_handler_play_music: %s", songName)
 		if path, name, err := utils.GetMusicFilePathFuzzy(songName); err != nil {
@@ -59,10 +70,11 @@ func (h *ConnectionHandler) mcp_handler_play_music(ctx context.Context, args int
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_change_voice(ctx context.Context, args interface{}) {
+// mcpHandlerChangeVoice 处理更换语音的MCP函数调用
+func (h *ConnectionHandler) mcpHandlerChangeVoice(ctx context.Context, args interface{}) {
 	if voice, ok := args.(string); ok {
 		log.Infof(ctx, "mcp_handler_change_voice: %s", voice)
-		if err := h.providers.tts.SetVoice(voice); err != nil {
+		if err := h.providers.tts.SetVoice(ctx, voice); err != nil {
 			log.Errorf(ctx, "mcp_handler_change_voice: SetVoice failed: %v", err)
 			h.SystemSpeak(ctx, "切换语音失败，没有叫"+voice+"的音色")
 		} else {
@@ -73,7 +85,8 @@ func (h *ConnectionHandler) mcp_handler_change_voice(ctx context.Context, args i
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args interface{}) {
+// mcpHandlerChangeRole 处理更换AI角色的MCP函数调用
+func (h *ConnectionHandler) mcpHandlerChangeRole(ctx context.Context, args interface{}) {
 	if params, ok := args.(map[string]string); ok {
 		role := params["role"]
 		prompt := params["prompt"]
@@ -97,11 +110,11 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 			ttsProvider := getter.Config().Type
 			if ttsProvider == "edge" {
 				if role == "陕西女友" {
-					h.providers.tts.SetVoice("zh-CN-shaanxi-XiaoniNeural") // 陕西女友音色
+					h.providers.tts.SetVoice(ctx, "zh-CN-shaanxi-XiaoniNeural") // 陕西女友音色
 				} else if role == "英语老师" {
-					h.providers.tts.SetVoice("zh-CN-XiaoyiNeural") // 英语老师音色
+					h.providers.tts.SetVoice(ctx, "zh-CN-XiaoyiNeural") // 英语老师音色
 				} else if role == "好奇小男孩" {
-					h.providers.tts.SetVoice("zh-CN-YunxiNeural") // 好奇小男孩音色
+					h.providers.tts.SetVoice(ctx, "zh-CN-YunxiNeural") // 好奇小男孩音色
 				}
 			}
 		}
@@ -111,7 +124,8 @@ func (h *ConnectionHandler) mcp_handler_change_role(ctx context.Context, args in
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_exit(ctx context.Context, args interface{}) {
+// mcpHandlerExit 处理退出对话的MCP函数调用
+func (h *ConnectionHandler) mcpHandlerExit(ctx context.Context, args interface{}) {
 	if text, ok := args.(string); ok {
 		h.closeAfterChat = true
 		h.SystemSpeak(ctx, text)
@@ -120,7 +134,8 @@ func (h *ConnectionHandler) mcp_handler_exit(ctx context.Context, args interface
 	}
 }
 
-func (h *ConnectionHandler) mcp_handler_take_photo(ctx context.Context, args interface{}) {
+// mcpHandlerTakePhoto 处理拍照的MCP函数调用
+func (h *ConnectionHandler) mcpHandlerTakePhoto(ctx context.Context, args interface{}) {
 	// 特殊处理拍照函数，解析为VisionResponse
 	resultStr, _ := args.(string)
 	var visionResponse vision.VisionResponse

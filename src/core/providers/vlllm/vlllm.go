@@ -2,6 +2,7 @@ package vlllm
 
 import (
 	"bytes"
+	"combot-server-go/src/log"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -17,6 +18,11 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/sashabaranov/go-openai"
+)
+
+const (
+	openapiModel = "openai"
+	ollamaModel  = "ollama"
 )
 
 // Config VLLLM配置结构
@@ -98,10 +104,10 @@ func NewProvider(config *Config) (*Provider, error) {
 }
 
 // Initialize 初始化Provider
-func (p *Provider) Initialize() error {
+func (p *Provider) Initialize(ctx context.Context) error {
 	// 根据类型初始化对应的客户端
 	switch strings.ToLower(p.config.Type) {
-	case "openai":
+	case openapiModel:
 		if p.config.APIKey == "" {
 			return fmt.Errorf("OpenAI API key is required")
 		}
@@ -112,7 +118,7 @@ func (p *Provider) Initialize() error {
 		}
 		p.openaiClient = openai.NewClientWithConfig(clientConfig)
 
-	case "ollama":
+	case ollamaModel:
 		// Ollama不需要API key，只需要确保有BaseURL
 		if p.config.BaseURL == "" {
 			p.config.BaseURL = "http://localhost:11434" // 默认Ollama地址
@@ -135,7 +141,7 @@ func (p *Provider) Initialize() error {
 }
 
 // Cleanup 清理资源
-func (p *Provider) Cleanup() error {
+func (p *Provider) Cleanup(ctx context.Context) error {
 	// 清理图片处理器
 	if err := p.imageProcessor.Cleanup(); err != nil {
 		logrus.WithError(err).Warn("清理图片处理器失败")
@@ -153,12 +159,8 @@ func (p *Provider) ResponseWithImage(ctx context.Context, sessionID string, mess
 		return nil, fmt.Errorf("图片处理失败: %v", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"type":       p.config.Type,
-		"model_name": p.config.ModelName,
-		"text":       text,
-		"image_size": len(base64Image),
-	}).Debug("开始调用多模态API")
+	log.Debugf(ctx, "开始调用多模态 type : %v, model_name: %v, text : %v, image_size : %v",
+		p.config.Type, p.config.ModelName, text, len(base64Image))
 
 	// 根据类型调用对应的多模态API
 	switch strings.ToLower(p.config.Type) {

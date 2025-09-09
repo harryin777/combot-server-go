@@ -1,15 +1,15 @@
 package tts
 
 import (
+	"combot-server-go/src/log"
 	"combot-server-go/src/utils"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"combot-server-go/src/core/providers"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Config TTS配置结构
@@ -22,7 +22,7 @@ type Config struct {
 	AppID           string   `yaml:"appid"`
 	Token           string   `yaml:"token"`
 	Cluster         string   `yaml:"cluster"`
-	SurportedVoices []string `yaml:"surported_voices"` // 支持的语音列表
+	SupportedVoices []string `yaml:"supported_voices"` // 支持的语音列表
 }
 
 // Provider TTS提供者接口
@@ -62,14 +62,15 @@ func (p *BaseProvider) Initialize() error {
 	return nil
 }
 
-func (p *BaseProvider) SetVoice(voice string) error {
+// SetVoice 设置声音
+func (p *BaseProvider) SetVoice(ctx context.Context, voice string) error {
 	// 设置声音配置
 	if voice == "" {
 		return fmt.Errorf("声音不能为空")
 	}
 	cnNames := map[string]string{}
 	enNames := []string{}
-	for _, v := range p.config.SurportedVoices {
+	for _, v := range p.config.SupportedVoices {
 		// "zh-CN-XiaoxiaoNeural|晓晓|女|商务知性风格，音色成熟清晰，适合新闻播报、专业内容朗读"
 		parts := strings.Split(v, "|")
 		if len(parts) >= 2 {
@@ -89,7 +90,7 @@ func (p *BaseProvider) SetVoice(voice string) error {
 	}
 
 	p.Config().Voice = voice
-	logrus.WithField("voice", voice).Info("已设置声音")
+	log.Infof(ctx, "已设置声音: %s", voice)
 	return nil
 }
 

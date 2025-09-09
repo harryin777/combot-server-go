@@ -1,11 +1,11 @@
 package vlllm
 
 import (
+	"combot-server-go/src/log"
+	"context"
 	"fmt"
 
 	"combot-server-go/src/configs"
-
-	"github.com/sirupsen/logrus"
 )
 
 // Factory VLLLM工厂函数类型
@@ -21,7 +21,7 @@ func Register(name string, factory Factory) {
 }
 
 // Create 创建VLLLM提供者实例
-func Create(name string, vlllmConfig *configs.VLLMConfig) (*Provider, error) {
+func Create(ctx context.Context, name string, vlllmConfig *configs.VLLMConfig) (*Provider, error) {
 	factory, ok := factories[name]
 	if !ok {
 		return nil, fmt.Errorf("未知的VLLLM提供者: %s", name)
@@ -47,15 +47,12 @@ func Create(name string, vlllmConfig *configs.VLLMConfig) (*Provider, error) {
 	}
 
 	// 初始化提供者
-	if err := provider.Initialize(); err != nil {
+	if err := provider.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("初始化VLLLM提供者失败: %v", err)
 	}
 
-	logrus.WithFields(logrus.Fields{
-		"name":       name,
-		"type":       config.Type,
-		"model_name": config.ModelName,
-	}).Debug("VLLLM提供者创建成功")
+	log.Infof(ctx, "VLLLM提供者创建成功，名称: %s, 类型: %s, 模型: %s",
+		name, config.Type, config.ModelName)
 
 	return provider, nil
 }

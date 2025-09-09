@@ -88,7 +88,7 @@ type TTSConfig struct {
 	AppID           string   `yaml:"appid"`
 	Token           string   `yaml:"token"`
 	Cluster         string   `yaml:"cluster"`
-	SurportedVoices []string `yaml:"surported_voices"` // 支持的语音列表
+	SurportedVoices []string `yaml:"supported_voices"` // 支持的语音列表
 }
 
 // LLMConfig LLM配置结构

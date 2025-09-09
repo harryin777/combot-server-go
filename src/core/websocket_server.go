@@ -137,7 +137,7 @@ func (ws *WebSocketServer) Stop(ctx context.Context) error {
 				}
 			} else if conn, ok := value.(Connection); ok {
 				// 向后兼容：直接关闭连接（如果存储的是旧格式）
-				conn.Close()
+				conn.Close(ctx)
 			}
 			ws.activeConnections.Delete(key)
 			return true
@@ -180,7 +180,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	providerSet, err := ws.poolManager.GetProviderSet(connCtx)
 	if err != nil {
 		log.Errorf(connCtx, "获取提供者集合失败: %v", err)
-		conn.Close()
+		conn.Close(connCtx)
 		return
 	}
 
@@ -198,7 +198,7 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 	})
 	if err != nil {
 		log.Errorf(connCtx, "创建连接上下文失败: %v", err)
-		conn.Close()
+		conn.Close(connCtx)
 		return
 	}
 

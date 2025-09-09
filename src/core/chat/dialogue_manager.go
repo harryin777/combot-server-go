@@ -22,6 +22,7 @@ func NewDialogueManager(memory MemoryInterface) *DialogueManager {
 	}
 }
 
+// SetSystemMessage 设置系统消息
 func (dm *DialogueManager) SetSystemMessage(systemMessage string) {
 	if systemMessage == "" {
 		return
@@ -39,7 +40,7 @@ func (dm *DialogueManager) SetSystemMessage(systemMessage string) {
 	}, dm.dialogue...)
 }
 
-// 保留最近的几条对话消息
+// KeepRecentMessages 保留最近的几条对话消息
 func (dm *DialogueManager) KeepRecentMessages(maxMessages int) {
 	if maxMessages <= 0 || len(dm.dialogue) <= maxMessages {
 		return

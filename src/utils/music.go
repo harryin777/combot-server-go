@@ -93,7 +93,7 @@ func GetFileNameFromPath(filePath string) string {
 	return fileName
 }
 
-// 根据音乐文件名获取音乐文件路径（模糊匹配）
+// GetMusicFilePathFuzzy 根据音乐文件名获取音乐文件路径（模糊匹配）
 func GetMusicFilePathFuzzy(songName string) (string, string, error) {
 	musicDir := "./music"
 

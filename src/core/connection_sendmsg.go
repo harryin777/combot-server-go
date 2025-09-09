@@ -140,7 +140,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		// 音频发送完成后，根据配置决定是否删除文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "音频发送完成")
 
-		log.Info(ctx, fmt.Sprintf("TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex))
+		log.Infof(ctx, "TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex)
 		h.providers.asr.ResetStartListenTime()
 		if textIndex == h.ttsLastTextIndex {
 			h.sendTTSMessage(ctx, "stop", "", textIndex)
@@ -157,15 +157,15 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 	}
 	// 检查轮次
 	if round != h.talkRound {
-		log.Info(ctx, fmt.Sprintf("sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
-			round, h.talkRound, text))
+		log.Infof(ctx, "sendAudioMessage: 跳过过期轮次的音频: 任务轮次=%d, 当前轮次=%d, 文本=%s",
+			round, h.talkRound, text)
 		// 即使跳过，也要根据配置删除音频文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "跳过过期轮次")
 		return
 	}
 
 	if atomic.LoadInt32(&h.serverVoiceStop) == 1 { // 服务端语音停止
-		log.Info(ctx, fmt.Sprintf("sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text))
+		log.Infof(ctx, "sendAudioMessage 服务端语音停止, 不再发送音频数据：%s", text)
 		// 服务端语音停止时也要根据配置删除音频文件
 		h.deleteAudioFileIfNeeded(ctx, filepath, "服务端语音停止")
 		return
@@ -180,20 +180,20 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		log.Info(ctx, "服务端音频格式为PCM，直接发送")
 		audioData, duration, err = utils.AudioToPCMData(filepath)
 		if err != nil {
-			log.Error(ctx, fmt.Sprintf("音频转PCM失败: %v", err))
+			log.Errorf(ctx, "音频转PCM失败: %v", err)
 			return
 		}
 	} else if h.serverAudioFormat == "opus" {
 		audioData, duration, err = utils.AudioToOpusData(filepath)
 		if err != nil {
-			log.Error(ctx, fmt.Sprintf("音频转Opus失败: %v", err))
+			log.Errorf(ctx, "音频转Opus失败: %v", err)
 			return
 		}
 	}
 
 	// 发送TTS状态开始通知
 	if err := h.sendTTSMessage(ctx, "sentence_start", text, textIndex); err != nil {
-		log.Error(ctx, fmt.Sprintf("发送TTS开始状态失败: %v", err))
+		log.Errorf(ctx, "发送TTS开始状态失败: %v", err)
 		return
 	}
 
@@ -206,13 +206,13 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(ctx, audioData, text, round); err != nil {
-		log.Error(ctx, fmt.Sprintf("分时发送音频数据失败: %v", err))
+		log.Errorf(ctx, "分时发送音频数据失败: %v", err)
 		return
 	}
 
 	// 发送TTS状态结束通知
 	if err := h.sendTTSMessage(ctx, "sentence_end", text, textIndex); err != nil {
-		log.Error(ctx, fmt.Sprintf("发送TTS结束状态失败: %v", err))
+		log.Errorf(ctx, "发送TTS结束状态失败: %v", err)
 		return
 	}
 
@@ -239,7 +239,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	for i := 0; i < preBufferFrames; i++ {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			log.Info(ctx, fmt.Sprintf("音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text))
+			log.Infof(ctx, "音频发送被中断(预缓冲阶段): 帧=%d/%d, 文本=%s", i+1, preBufferFrames, text)
 			return nil
 		}
 
@@ -254,7 +254,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	for i, chunk := range remainingFrames {
 		// 检查是否被打断或轮次变化
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-			log.Info(ctx, fmt.Sprintf("音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+			log.Infof(ctx, "音频发送被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
 			return nil
 		}
 
@@ -282,7 +282,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 				case <-ticker.C:
 					// 检查中断条件
 					if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-						log.Info(ctx, fmt.Sprintf("音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text))
+						log.Infof(ctx, "音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
 						return nil
 					}
 				case <-h.stopChan:
@@ -298,9 +298,10 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 
 		playPosition += h.serverAudioFrameDuration
 	}
-	time.Sleep(preBufferTime) // 确保预缓冲时间已过
+	time.Sleep(preBufferTime) // 确保预缓冲时间已过，这里需要等待这么久的原因是缓冲帧是一起发送给客户端的
+	// 就是缓冲帧之间没有间隔，其他的帧都是有流控处理的
 	spentTime := time.Since(startTime).Milliseconds()
-	log.Info(ctx, fmt.Sprintf("音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text))
+	log.Infof(ctx, "音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text)
 	return nil
 }
 

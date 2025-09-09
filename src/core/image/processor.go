@@ -81,20 +81,14 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 			Format: imageData.Format,
 		}
 
-		log.WithFields(context.Background(), map[string]interface{}{
-			"url":    imageData.URL,
-			"format": imageData.Format,
-		}).Info("URL图片处理成功")
+		log.Infof(ctx, "url : %v, format: %v", imageData.URL, imageData.Format)
 
 	} else if imageData.Data != "" {
 		// 直接处理base64数据
 		atomic.AddInt64(&p.metrics.Base64Direct, 1)
 		finalImageData = imageData
 
-		log.WithFields(context.Background(), map[string]interface{}{
-			"format":      imageData.Format,
-			"data_length": len(imageData.Data),
-		}).Debug("Base64图片处理开始")
+		log.Infof(ctx, "base64 format: %v, data_length : %v", imageData.Format, len(imageData.Data))
 	} else {
 		return "", fmt.Errorf("图片数据为空：既没有URL也没有base64数据")
 	}
@@ -105,11 +99,8 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 		atomic.AddInt64(&p.metrics.FailedValidations, 1)
 		if validationResult.SecurityRisk != "" {
 			atomic.AddInt64(&p.metrics.SecurityIncidents, 1)
-			log.WithFields(context.Background(), map[string]interface{}{
-				"error":         validationResult.Error.Error(),
-				"security_risk": validationResult.SecurityRisk,
-				"format":        finalImageData.Format,
-			}).Warn("检测到安全威胁")
+
+			log.Warnf(ctx, "图片验证失败: %v, 安全风险: %s", validationResult.Error, validationResult.SecurityRisk)
 		}
 		return "", fmt.Errorf("图片验证失败: %v", validationResult.Error)
 	}
@@ -120,6 +111,9 @@ func (p *ImageProcessor) ProcessImage(ctx context.Context, imageData ImageData) 
 		"height":    validationResult.Height,
 		"file_size": validationResult.FileSize,
 	}).Debug("图片处理完成")
+
+	log.Debugf(ctx, "img finish format: %d, width: %v, height: %v, file_size: %v",
+		validationResult.Format, validationResult.Width, validationResult.Height, validationResult.FileSize)
 
 	return finalImageData.Data, nil
 }
