@@ -55,14 +55,14 @@ func (p *Provider) Transcribe(ctx context.Context, audioData []byte) (string, er
 }
 
 // 添加音频数据到缓冲区
-func (p *Provider) AddAudio(data []byte) error {
+func (p *Provider) AddAudio(ctx context.Context, data []byte) error {
 	p.conn.WriteMessage(websocket.BinaryMessage, data)
 
 	return nil
 }
 
 // 复位ASR状态
-func (p *Provider) Reset() error {
+func (p *Provider) Reset(ctx context.Context) error {
 	return nil
 }
 

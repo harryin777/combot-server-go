@@ -55,7 +55,7 @@ func NewBaseProvider(config *Config, deleteFile bool) *BaseProvider {
 }
 
 // Initialize 初始化提供者
-func (p *BaseProvider) Initialize() error {
+func (p *BaseProvider) Initialize(ctx context.Context) error {
 	if err := os.MkdirAll(p.config.OutputDir, 0755); err != nil {
 		return fmt.Errorf("创建输出目录失败: %v", err)
 	}
@@ -95,7 +95,7 @@ func (p *BaseProvider) SetVoice(ctx context.Context, voice string) error {
 }
 
 // Cleanup 清理资源
-func (p *BaseProvider) Cleanup() error {
+func (p *BaseProvider) Cleanup(ctx context.Context) error {
 	if p.deleteFile {
 		// 清理输出目录中的临时文件
 		pattern := filepath.Join(p.config.OutputDir, "*.{wav,mp3,opus}")
@@ -136,7 +136,7 @@ func Create(name string, config *Config, deleteFile bool) (Provider, error) {
 		return nil, fmt.Errorf("创建TTS提供者失败: %v", err)
 	}
 
-	if err := provider.Initialize(); err != nil {
+	if err := provider.Initialize(context.Background()); err != nil {
 		return nil, fmt.Errorf("初始化TTS提供者失败: %v", err)
 	}
 

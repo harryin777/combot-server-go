@@ -180,10 +180,10 @@ func (p *Provider) Transcribe(ctx context.Context, audioData []byte) (string, er
 	}()
 
 	// 初始化连接
-	if err := p.Initialize(); err != nil {
+	if err := p.Initialize(ctx); err != nil {
 		return "", err
 	}
-	defer p.Cleanup()
+	defer p.Cleanup(ctx)
 
 	// 添加音频数据
 	if err := p.AddAudioWithContext(ctx, audioData); err != nil {
@@ -689,7 +689,7 @@ func (p *Provider) Reset(ctx context.Context) error {
 }
 
 // Initialize 实现Provider接口的Initialize方法
-func (p *Provider) Initialize() error {
+func (p *Provider) Initialize(ctx context.Context) error {
 	// 确保输出目录存在
 	if err := os.MkdirAll(p.outputDir, 0755); err != nil {
 		return fmt.Errorf("初始化输出目录失败: %v", err)
@@ -698,7 +698,7 @@ func (p *Provider) Initialize() error {
 }
 
 // Cleanup 实现Provider接口的Cleanup方法
-func (p *Provider) Cleanup() error {
+func (p *Provider) Cleanup(ctx context.Context) error {
 	// 使用锁保护状态变更
 	p.connMutex.Lock()
 	defer p.connMutex.Unlock()

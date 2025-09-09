@@ -2,6 +2,7 @@ package asr
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"time"
 
@@ -97,12 +98,12 @@ func NewBaseProvider(config *Config, deleteFile bool) *BaseProvider {
 }
 
 // Initialize 初始化提供者
-func (p *BaseProvider) Initialize() error {
+func (p *BaseProvider) Initialize(ctx context.Context) error {
 	return nil
 }
 
-// Cleanup 清理资源
-func (p *BaseProvider) Cleanup() error {
+// Cleanup 清理提供者
+func (p *BaseProvider) Cleanup(ctx context.Context) error {
 	return nil
 }
 

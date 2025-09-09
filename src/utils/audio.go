@@ -11,15 +11,15 @@ import (
 	"sync"
 
 	"github.com/hajimehoshi/go-mp3"
-	opus "github.com/qrtc/opus-go"
+	"layeh.com/gopus"
 )
 
 // OpusDecoder 封装opus解码器
 type OpusDecoder struct {
-	decoder   *opus.OpusDecoder
+	decoder   *gopus.Decoder
 	mu        sync.Mutex
 	config    *OpusDecoderConfig
-	outBuffer []byte
+	outBuffer []int16
 }
 
 // OpusDecoderConfig 解码器配置
@@ -37,25 +37,21 @@ func NewOpusDecoder(config *OpusDecoderConfig) (*OpusDecoder, error) {
 		}
 	}
 
-	libConfig := &opus.OpusDecoderConfig{
-		SampleRate:  config.SampleRate,
-		MaxChannels: config.MaxChannels,
-	}
-
-	decoder, err := opus.CreateOpusDecoder(libConfig)
+	decoder, err := gopus.NewDecoder(config.SampleRate, config.MaxChannels)
 	if err != nil {
 		return nil, fmt.Errorf("创建Opus解码器失败: %v", err)
 	}
 
-	bufSize := config.SampleRate * 2 * config.MaxChannels * 120 / 1000
-	if bufSize < 8192 {
-		bufSize = 8192 // 至少8KB的缓冲区
+	// 计算缓冲区大小 (120ms = 最大帧长)
+	bufSize := config.SampleRate * config.MaxChannels * 120 / 1000
+	if bufSize < 4096 {
+		bufSize = 4096 // 至少4K样本的缓冲区
 	}
 
 	return &OpusDecoder{
 		decoder:   decoder,
 		config:    config,
-		outBuffer: make([]byte, bufSize),
+		outBuffer: make([]int16, bufSize),
 	}, nil
 }
 
@@ -68,16 +64,21 @@ func (d *OpusDecoder) Decode(opusData []byte) ([]byte, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	// 使用预分配的缓冲区
-	n, err := d.decoder.Decode(opusData, d.outBuffer)
+	// 解码为 int16 PCM
+	frameSize := 960 // 默认帧大小
+	pcmSamples, err := d.decoder.Decode(opusData, frameSize, false)
 	if err != nil {
 		return nil, fmt.Errorf("Opus解码失败: %v", err)
 	}
 
-	// 返回解码后的PCM数据的副本
-	result := make([]byte, n)
-	copy(result, d.outBuffer[:n])
-	return result, nil
+	// 转换 int16 到 []byte
+	pcmBytes := make([]byte, len(pcmSamples)*2) // 每个样本2字节
+	for i, sample := range pcmSamples {
+		pcmBytes[i*2] = byte(sample & 0xFF)          // 低字节
+		pcmBytes[i*2+1] = byte((sample >> 8) & 0xFF) // 高字节
+	}
+
+	return pcmBytes, nil
 }
 
 // Close 关闭解码器
@@ -85,12 +86,8 @@ func (d *OpusDecoder) Close() error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	if d.decoder != nil {
-		if err := d.decoder.Close(); err != nil {
-			return fmt.Errorf("关闭Opus解码器失败: %v", err)
-		}
-		d.decoder = nil
-	}
+	// gopus.Decoder 不需要显式关闭
+	d.decoder = nil
 	return nil
 }
 
@@ -520,28 +517,24 @@ func PCMToOpusData(pcmData []byte, sampleRate int, channels int) ([]byte, error)
 	}
 
 	// 创建Opus编码器
-	encoder, err := opus.CreateOpusEncoder(&opus.OpusEncoderConfig{
-		SampleRate:    sampleRate,
-		MaxChannels:   channels,
-		Application:   opus.AppVoIP,
-		FrameDuration: opus.Framesize60Ms, // 使用60ms帧长
-	})
+	encoder, err := gopus.NewEncoder(sampleRate, channels, gopus.Voip)
 	if err != nil {
 		return nil, fmt.Errorf("创建Opus编码器失败: %v", err)
 	}
-	defer encoder.Close()
 
-	// 输出缓冲区
-	outBuf := make([]byte, 4096)
+	// 将字节数组转换为int16数组以供编码
+	pcmSamples := make([]int16, len(adjustedPcmData)/2)
+	for i := 0; i < len(pcmSamples); i++ {
+		pcmSamples[i] = int16(adjustedPcmData[i*2]) | (int16(adjustedPcmData[i*2+1]) << 8)
+	}
 
 	// 编码PCM数据到Opus
-	n, err := encoder.Encode(adjustedPcmData, outBuf)
+	opusData, err := encoder.Encode(pcmSamples, 960, 4096) // 960 samples = 20ms at 48kHz
 	if err != nil {
 		return nil, fmt.Errorf("Opus编码失败: %v", err)
 	}
 
-	// 返回实际编码的数据
-	return outBuf[:n], nil
+	return opusData, nil
 }
 
 // PCMToOpusFile 将PCM数据编码为Opus并保存到文件
@@ -616,29 +609,26 @@ func MP3ToOpusData(audioFile string) ([]byte, error) {
 		adjustedPcmData[i*2+1] = byte(sample >> 8) // 高字节
 	}
 
-	// 创建Opus编码器
-	encoder, err := opus.CreateOpusEncoder(&opus.OpusEncoderConfig{
-		SampleRate:    sampleRate,
-		MaxChannels:   1, // 单声道
-		Application:   opus.AppVoIP,
-		FrameDuration: opus.Framesize60Ms, // 使用60ms帧长
-	})
+	// 创建Opus编码器 (单声道)
+	encoder, err := gopus.NewEncoder(sampleRate, 1, gopus.Voip)
 	if err != nil {
 		return nil, fmt.Errorf("创建Opus编码器失败: %v", err)
 	}
-	defer encoder.Close()
 
-	// 输出缓冲区
-	outBuf := make([]byte, 4096)
+	// 将字节数组转换为int16数组以供编码
+	pcmSamples := make([]int16, len(adjustedPcmData)/2)
+	for i := 0; i < len(pcmSamples); i++ {
+		pcmSamples[i] = int16(adjustedPcmData[i*2]) | (int16(adjustedPcmData[i*2+1]) << 8)
+	}
 
 	// 编码PCM数据到Opus
-	n, err := encoder.Encode(adjustedPcmData, outBuf)
+	frameSize := sampleRate * 20 / 1000 // 20ms frame
+	opusData, err := encoder.Encode(pcmSamples, frameSize, 4096)
 	if err != nil {
 		return nil, fmt.Errorf("Opus编码失败: %v", err)
 	}
 
-	// 返回实际编码的数据
-	return outBuf[:n], nil
+	return opusData, nil
 }
 
 // MP3ToOpusFile 将MP3文件转换为Opus并保存到文件
@@ -664,16 +654,10 @@ func PCMSlicesToOpusData(pcmSlices [][]byte, sampleRate int, channels int, bitra
 	}
 
 	// 创建Opus编码器
-	encoder, err := opus.CreateOpusEncoder(&opus.OpusEncoderConfig{
-		SampleRate:    sampleRate,
-		MaxChannels:   channels,
-		Application:   opus.AppVoIP,
-		FrameDuration: opus.Framesize60Ms, // 使用60ms帧长
-	})
+	encoder, err := gopus.NewEncoder(sampleRate, channels, gopus.Voip)
 	if err != nil {
 		return nil, fmt.Errorf("创建Opus编码器失败: %v", err)
 	}
-	defer encoder.Close()
 
 	// 所有编码后的Opus数据包
 	var allOpusPackets [][]byte
@@ -704,41 +688,46 @@ func PCMSlicesToOpusData(pcmSlices [][]byte, sampleRate int, channels int, bitra
 			numFrames++ // 如果有剩余数据，额外增加一帧
 		}
 
-		// 逐帧处理PCM数据
-		for frameIdx := 0; frameIdx < numFrames; frameIdx++ {
-			frameStart := frameIdx * bytesPerFrame
-			frameEnd := frameStart + bytesPerFrame
+		// 将PCM字节数组转换为int16数组
+		pcmInt16 := make([]int16, len(pcmSlice)/2)
+		for i := 0; i < len(pcmInt16); i++ {
+			pcmInt16[i] = int16(pcmSlice[i*2]) | (int16(pcmSlice[i*2+1]) << 8)
+		}
 
-			// 确保不越界
-			if frameEnd > len(pcmSlice) {
-				frameEnd = len(pcmSlice)
+		// 逐帧处理PCM数据
+		frameSize := sampleRate * 20 / 1000 // 20ms 帧大小
+		if frameSize == 0 {
+			frameSize = 960 // 默认帧大小
+		}
+
+		for frameStart := 0; frameStart < len(pcmInt16); frameStart += frameSize {
+			frameEnd := frameStart + frameSize
+			if frameEnd > len(pcmInt16) {
+				frameEnd = len(pcmInt16)
 			}
 
 			// 当前帧的PCM数据
-			framePcm := pcmSlice[frameStart:frameEnd]
+			framePcm := pcmInt16[frameStart:frameEnd]
 
 			// 如果最后一帧数据不足，需要填充静音数据到完整帧大小
-			if len(framePcm) < bytesPerFrame {
-				paddedFrame := make([]byte, bytesPerFrame)
+			if len(framePcm) < frameSize {
+				paddedFrame := make([]int16, frameSize)
 				copy(paddedFrame, framePcm)
 				framePcm = paddedFrame
 			}
 
-			// 分配输出缓冲区 (Opus编码后的数据通常比PCM小)
-			outBuf := make([]byte, len(framePcm))
-
 			// 编码这一帧PCM数据到Opus
-			n, err := encoder.Encode(framePcm, outBuf)
+			opusData, err := encoder.Encode(framePcm, frameSize, 4096)
 			if err != nil {
 				continue // 跳过这一帧，继续处理下一帧
 			}
 
-			if n == 0 {
+			if len(opusData) == 0 {
 				continue // 跳过空帧
 			}
 
 			// 将编码后的Opus数据添加到结果集
-			allOpusPackets = append(allOpusPackets, outBuf[:n])
+			allOpusPackets = append(allOpusPackets, opusData)
 		}
 	}
 

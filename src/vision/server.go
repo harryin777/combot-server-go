@@ -79,7 +79,7 @@ func (s *DefaultVisionService) initVLLMProviders() error {
 	}
 
 	// 初始化provider
-	if err := provider.Initialize(); err != nil {
+	if err := provider.Initialize(context.Background()); err != nil {
 		log.Warn(context.Background(), fmt.Sprintf("初始化VLLLM provider失败: %v", err))
 
 	}
@@ -476,7 +476,7 @@ func (s *DefaultVisionService) respondError(c *gin.Context, statusCode int, mess
 // Cleanup 清理资源
 func (s *DefaultVisionService) Cleanup() error {
 	for name, provider := range s.vlllmMap {
-		if err := provider.Cleanup(); err != nil {
+		if err := provider.Cleanup(context.Background()); err != nil {
 			log.Warn(context.Background(), fmt.Sprintf("清理VLLLM provider %s 失败: %v", name, err))
 		}
 	}
