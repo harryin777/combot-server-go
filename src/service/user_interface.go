@@ -18,8 +18,14 @@ type UserService interface {
 	// UsernamePasswordLogin 用户名密码登录
 	UsernamePasswordLogin(ctx context.Context, username, password string) (*models.User, string, int, error)
 
-	// UpdateUserProfile 更新用户基本信息（用户名、手机号）
-	UpdateUserProfile(ctx context.Context, userID int64, username, phone string) (interface{}, int, error)
+	// UsernamePasswordRegister 用户名密码注册
+	UsernamePasswordRegister(ctx context.Context, username, password, email string) (*models.User, string, int, error)
+
+	// GetUserByID 根据用户ID获取用户信息
+	GetUserByID(ctx context.Context, userID int64) (*models.User, error)
+
+	// UpdateUserProfile 更新用户基本信息（用户名、手机号、邮箱、备注）
+	UpdateUserProfile(ctx context.Context, userID int64, username, phone, email, remark string) (interface{}, int, error)
 
 	// ChangePassword 修改密码
 	ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) (interface{}, int, error)

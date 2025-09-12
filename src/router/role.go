@@ -19,8 +19,8 @@ func RoleRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *configs.
 	roleGroup := apiGroup.Group("/roles")
 	{
 		// 公开路由（不需要认证）
-		roleGroup.GET("/templates", roleHandler.GetRoleTemplates)
-		roleGroup.GET("/templates/:templateId", roleHandler.GetRoleTemplate)
+		roleGroup.POST("/templates", roleHandler.GetRoleTemplates)
+		roleGroup.POST("/templates/:templateId", roleHandler.GetRoleTemplate)
 
 		// 需要身份验证的路由
 		authGroup := roleGroup.Group("")

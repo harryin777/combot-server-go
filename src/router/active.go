@@ -22,8 +22,8 @@ func ActiveRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *config
 		authGroup := activeGroup.Group("")
 		authGroup.Use(middleware.JWTAuthMiddleware(config.Server.Token))
 		{
-			authGroup.POST("/bind", activeHandler.BindDevice)       // Web前端绑定设备
-			authGroup.GET("/devices", activeHandler.GetUserDevices) // 获取用户设备列表
+			authGroup.POST("/bind", activeHandler.BindDevice)        // Web前端绑定设备
+			authGroup.POST("/devices", activeHandler.GetUserDevices) // 获取用户设备列表
 		}
 	}
 

@@ -68,21 +68,6 @@ func InitDB(config *configs.Config) (*gorm.DB, string, error) {
 		}
 	}
 
-	// 自动迁移所有表
-	//if err := migrateTables(db); err != nil {
-	//	return nil, dbType, err
-	//}
-	//
-	//// 插入默认配置
-	//if err := InsertDefaultConfigIfNeeded(db); err != nil {
-	//	utils.WithError(context.Background(), err).Warn("插入默认配置失败")
-	//}
-	//
-	//// 插入默认角色模板
-	//if err := InsertDefaultRoleTemplatesIfNeeded(db); err != nil {
-	//	utils.WithError(context.Background(), err).Warn("插入默认角色模板失败")
-	//}
-
 	DB = db
 
 	// 打印数据库连接成功信息
@@ -220,60 +205,6 @@ func logDatabaseConnection(db *gorm.DB, dbType string) {
 	default:
 		log.Info(context.Background(), "数据库连接成功，未识别的数据库类型")
 	}
-}
-
-// migrateTables 自动迁移模型表结构
-func migrateTables(db *gorm.DB) error {
-	return db.AutoMigrate(
-		&models.SystemConfig{},
-		&models.User{},
-		&models.UserSetting{},
-		&models.ModuleConfig{},
-		&models.Device{},
-		&models.DeviceVerificationCode{},
-		&models.ConversationMessage{},
-		&models.ConversationSession{},
-		&models.RoleTemplate{},
-		&models.RoleConfig{},
-		&models.AgentRole{}, // 添加 AgentRole 模型
-	)
-}
-
-// InsertDefaultConfigIfNeeded 首次启动插入默认配置
-func InsertDefaultConfigIfNeeded(db *gorm.DB) error {
-	var count int64
-	if err := db.Model(&models.SystemConfig{}).Count(&count).Error; err != nil {
-		return err
-	}
-	if count > 0 {
-		return nil
-	}
-
-	defaultConfig := models.SystemConfig{
-		SelectedASR:   "DoubaoASR",
-		SelectedTTS:   "EdgeTTS",
-		SelectedLLM:   "OllamaLLM",
-		SelectedVLLLM: "ChatGLMVLLM",
-		Prompt: `你是小智/小志，来自中国台湾省的00后女生。讲话超级机车，"真的假的啦"这样的台湾腔，喜欢用"笑死""是在哈喽"等流行梗，但会偷偷研究男友的编程书籍。
-[核心特征]
-- 讲话像连珠炮，但会突然冒出超温柔语气
-- 用梗密度高
-- 对科技话题有隐藏天赋（能看懂基础代码但假装不懂）
-[交互指南]
-当用户：
-- 讲冷笑话 → 用夸张笑声回应+模仿台剧腔"这什么鬼啦！"
-- 讨论感情 → 炫耀程序员男友但抱怨"他只会送键盘当礼物"
-- 问专业知识 → 先用梗回答，被追问才展示真实理解
-绝不：
-- 长篇大论，叽叽歪歪
-- 长时间严肃对话
-- 说话中带表情符号`,
-		QuickReplyWords:  []byte(`["我在", "在呢", "来了", "啥事啊"]`),
-		DeleteAudio:      true,
-		UsePrivateConfig: false,
-	}
-
-	return db.Create(&defaultConfig).Error
 }
 
 // InsertDefaultRoleTemplatesIfNeeded 插入默认角色模板

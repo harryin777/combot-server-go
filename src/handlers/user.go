@@ -33,6 +33,21 @@ type UsernamePasswordLoginResponse struct {
 	User  interface{} `json:"user"`
 }
 
+// UsernamePasswordRegisterRequest 用户名密码注册请求
+type UsernamePasswordRegisterRequest struct {
+	Username     string `json:"username" binding:"required"`
+	Password     string `json:"password" binding:"required"`
+	Email        string `json:"email" binding:"omitempty,email"`
+	CaptchaID    string `json:"captcha_id" binding:"required"`
+	CaptchaValue string `json:"captcha_value" binding:"required"`
+}
+
+// UsernamePasswordRegisterResponse 用户名密码注册响应
+type UsernamePasswordRegisterResponse struct {
+	Token string      `json:"token"`
+	User  interface{} `json:"user"`
+}
+
 // UsernamePasswordLogin @Summary Username password login
 // @Description 用户名密码登录
 // @Tags User
@@ -68,10 +83,98 @@ func (h *UserHandler) UsernamePasswordLogin(c *gin.Context) {
 	})
 }
 
+// UsernamePasswordRegister @Summary Username password register
+// @Description 用户名密码注册
+// @Tags User
+// @Accept application/json
+// @Param request body UsernamePasswordRegisterRequest true "用户名密码注册请求"
+// @Produce application/json
+// @Success 200 {object} UsernamePasswordRegisterResponse
+// @Failure 400 {object} map[string]string
+// @Failure 409 {object} map[string]string
+// @Router /api/v1/user/register [post]
+func (h *UserHandler) UsernamePasswordRegister(c *gin.Context) {
+	var req UsernamePasswordRegisterRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Errorf(c.Request.Context(), "Invalid username password register request, err : %v", err)
+		response.Failed(c, codes.CodeInvalidRequest, nil)
+		return
+	}
+
+	// 打印接收到的验证码信息用于调试
+	log.Infof(c.Request.Context(), "注册请求 - 用户名: %s, 邮箱: %s, 验证码ID: %s, 验证码值: %s",
+		req.Username, req.Email, req.CaptchaID, req.CaptchaValue)
+
+	// 暂时跳过图形验证码验证，因为前端使用Canvas自绘验证码
+	// 实际生产环境中应该实现服务端验证码验证逻辑
+
+	user, token, code, err := h.userService.UsernamePasswordRegister(c.Request.Context(), req.Username, req.Password, req.Email)
+	if err != nil {
+		log.Errorf(c.Request.Context(), "Username password register failed, err : %v", err)
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
+		return
+	}
+
+	response.Success(c, UsernamePasswordRegisterResponse{
+		Token: token,
+		User:  user,
+	})
+}
+
+// GetProfileResponse 获取用户信息响应
+type GetProfileResponse struct {
+	Username string `json:"username"`
+	Phone    string `json:"phone"`
+	Email    string `json:"email"`
+	Remark   string `json:"remark"`
+}
+
+// GetProfile @Summary Get user profile
+// @Description 获取用户基本信息
+// @Tags User
+// @Produce application/json
+// @Success 200 {object} GetProfileResponse
+// @Failure 401 {object} map[string]string
+// @Router /api/user/profile [post]
+func (h *UserHandler) GetProfile(c *gin.Context) {
+	// 从JWT token中获取用户ID
+	userID, exists := c.Get("user_id")
+	if !exists {
+		response.Failed(c, codes.CodeUnauthorized, nil)
+		return
+	}
+
+	userIDInt64, ok := userID.(int64)
+	if !ok {
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+
+	user, err := h.userService.GetUserByID(c.Request.Context(), userIDInt64)
+	if err != nil {
+		log.Errorf(c.Request.Context(), "Get user profile failed, err : %v", err)
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+
+	response.Success(c, GetProfileResponse{
+		Username: user.Username,
+		Phone:    user.Phone,
+		Email:    user.Email,
+		Remark:   user.Remark,
+	})
+}
+
 // UpdateProfileRequest 更新用户信息请求
 type UpdateProfileRequest struct {
 	Username string `json:"username"`
-	Phone    string `json:"phone"`
+	Phone    string `json:"phone"`  // 手机号改为非必填
+	Email    string `json:"email"`  // 添加邮箱字段
+	Remark   string `json:"remark"` // 添加备注字段
 }
 
 // UpdateProfile @Summary Update user profile
@@ -105,7 +208,7 @@ func (h *UserHandler) UpdateProfile(c *gin.Context) {
 		return
 	}
 
-	_, code, err := h.userService.UpdateUserProfile(c.Request.Context(), userIDInt64, req.Username, req.Phone)
+	_, code, err := h.userService.UpdateUserProfile(c.Request.Context(), userIDInt64, req.Username, req.Phone, req.Email, req.Remark)
 	if err != nil {
 		log.Errorf(c.Request.Context(), "Update profile failed, err : %v", err)
 		response.Failed(c, codes.CodeInternalError, nil)

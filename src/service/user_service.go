@@ -72,8 +72,93 @@ func (s *UserServiceImpl) UsernamePasswordLogin(ctx context.Context, username, p
 	return &user, tokenString, codes.CodeSuccess, nil
 }
 
-// UpdateUserProfile 更新用户基本信息（用户名、手机号）
-func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, username, phone string) (interface{}, int, error) {
+// UsernamePasswordRegister 用户名密码注册
+func (s *UserServiceImpl) UsernamePasswordRegister(ctx context.Context, username, password, email string) (*models.User, string, int, error) {
+	log.Infof(ctx, "用户尝试用户名密码注册，用户名: %s, 邮箱: %s", username, email)
+
+	// 检查用户名是否已存在
+	var existingUser models.User
+	err := database.DB.WithContext(ctx).Where("username = ?", username).First(&existingUser).Error
+	if err == nil {
+		log.Warnf(ctx, "用户名已存在: %s", username)
+		return nil, "", codes.CodeUsernameExists, nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		log.Errorf(ctx, "检查用户名唯一性失败: %v", err)
+		return nil, "", codes.CodeInternalError, err
+	}
+
+	// 检查邮箱是否已存在（仅当邮箱不为空时检查）
+	if email != "" {
+		err = database.DB.WithContext(ctx).Where("email = ?", email).First(&existingUser).Error
+		if err == nil {
+			log.Warnf(ctx, "邮箱已存在: %s", email)
+			return nil, "", codes.CodeEmailExists, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Errorf(ctx, "检查邮箱唯一性失败: %v", err)
+			return nil, "", codes.CodeInternalError, err
+		}
+	}
+
+	// 生成密码哈希
+	hashedPasswordBytes, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
+	if err != nil {
+		log.Errorf(ctx, "密码哈希生成失败: %v", err)
+		return nil, "", codes.CodeInternalError, err
+	}
+	hashedPassword := string(hashedPasswordBytes)
+
+	// 创建新用户
+	user := models.User{
+		Username: username,
+		Email:    email,
+		Password: hashedPassword,
+		Role:     models.UserRoleUser, // 使用枚举值：普通用户
+	}
+
+	if err = database.DB.WithContext(ctx).Create(&user).Error; err != nil {
+		log.Errorf(ctx, "创建用户失败: %v", err)
+		return nil, "", codes.CodeInternalError, err
+	}
+
+	log.Infof(ctx, "用户注册成功，用户ID: %d", user.ID)
+
+	// 生成JWT token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id":  user.ID,
+		"username": user.Username,
+		"iat":      time.Now().Unix(),
+	})
+
+	tokenString, err := token.SignedString([]byte(s.config.Server.Token))
+	if err != nil {
+		log.Errorf(ctx, "生成JWT token失败: %v", err)
+		return nil, "", codes.CodeInternalError, err
+	}
+
+	log.Infof(ctx, "用户注册认证完成，用户ID: %d", user.ID)
+	return &user, tokenString, codes.CodeSuccess, nil
+}
+
+// GetUserByID 根据用户ID获取用户信息
+func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID int64) (*models.User, error) {
+	log.Infof(ctx, "获取用户信息，用户ID: %d", userID)
+
+	var user models.User
+	err := database.DB.WithContext(ctx).First(&user, userID).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Errorf(ctx, "用户不存在，用户ID: %d", userID)
+			return nil, errors.New("用户不存在")
+		}
+		log.Errorf(ctx, "查询用户信息失败: %v", err)
+		return nil, err
+	}
+
+	return &user, nil
+}
+
+// UpdateUserProfile 更新用户基本信息（用户名、手机号、邮箱、备注）
+func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, username, phone, email, remark string) (interface{}, int, error) {
 	log.Infof(ctx, "更新用户基本信息，用户ID: %d", userID)
 
 	// 检查用户名是否已存在（排除当前用户）
@@ -88,7 +173,7 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, u
 		}
 	}
 
-	// 检查手机号是否已存在（排除当前用户）
+	// 检查手机号是否已存在（排除当前用户）- 手机号现在可以为空
 	if phone != "" {
 		var existingUser models.User
 		err := database.DB.WithContext(ctx).Where("phone = ? AND id != ?", phone, userID).First(&existingUser).Error
@@ -100,17 +185,33 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, u
 		}
 	}
 
+	// 检查邮箱是否已存在（排除当前用户）- 邮箱可以为空
+	if email != "" {
+		var existingUser models.User
+		err := database.DB.WithContext(ctx).Where("email = ? AND id != ?", email, userID).First(&existingUser).Error
+		if err == nil {
+			return nil, codes.CodeEmailExists, nil
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			log.Errorf(ctx, "检查邮箱唯一性失败: %v", err)
+			return nil, codes.CodeInternalError, err
+		}
+	}
+
 	// 构建更新数据
 	updateData := make(map[string]interface{})
 	if username != "" {
 		updateData["username"] = username
 	}
-	if phone != "" {
-		updateData["phone"] = phone
-	}
+	// 手机号允许为空，如果传入空字符串则清空
+	updateData["phone"] = phone
+	// 邮箱允许为空，如果传入空字符串则清空
+	updateData["email"] = email
+	// 备注允许为空
+	updateData["remark"] = remark
 
-	if len(updateData) == 0 {
-		return nil, codes.CodeInvalidRequest, nil
+	// 用户名是必须的，如果为空则报错
+	if username == "" {
+		return nil, codes.CodeInvalidRequest, errors.New("用户名不能为空")
 	}
 
 	// 执行更新

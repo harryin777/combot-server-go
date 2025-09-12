@@ -21,13 +21,17 @@ func UserRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *configs.
 		// 用户名密码登录（无需认证）
 		userGroup.POST("/login", userHandler.UsernamePasswordLogin)
 
+		// 用户名密码注册（无需认证）
+		userGroup.POST("/register", userHandler.UsernamePasswordRegister)
+
 		// 需要JWT认证的路由
 		authenticated := userGroup.Use(middleware.JWTAuthMiddleware(config.Server.Token))
-		authenticated.PUT("/profile", userHandler.UpdateProfile)
-		authenticated.PUT("/change-password", userHandler.ChangePassword)
-		authenticated.GET("/devices", userHandler.GetLoginDevices)
+		authenticated.GET("/profile", userHandler.GetProfile)
+		authenticated.POST("/profile", userHandler.UpdateProfile)
+		authenticated.POST("/change-password", userHandler.ChangePassword)
+		authenticated.POST("/devices", userHandler.GetLoginDevices)
 		authenticated.POST("/logout-device", userHandler.LogoutDevice)
-		authenticated.DELETE("/delete-account", userHandler.DeleteAccount)
+		authenticated.POST("/delete-account", userHandler.DeleteAccount)
 	}
 
 	log.Info(ctx, "User HTTP服务路由注册完成")

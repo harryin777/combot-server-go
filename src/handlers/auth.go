@@ -169,3 +169,89 @@ func (h *AuthHandler) PhoneAuth(c *gin.Context) {
 		User:  user,
 	})
 }
+
+// EmailVerificationRequest 邮箱验证码发送请求
+type EmailVerificationRequest struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+// EmailVerificationResponse 邮箱验证码发送响应
+type EmailVerificationResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
+// VerifyEmailRequest 邮箱验证请求
+type VerifyEmailRequest struct {
+	Email            string `json:"email" binding:"required,email"`
+	VerificationCode string `json:"verification_code" binding:"required"`
+}
+
+// VerifyEmailResponse 邮箱验证响应
+type VerifyEmailResponse struct {
+	Success bool   `json:"success"`
+	Message string `json:"message,omitempty"`
+}
+
+// SendEmailVerification @Summary Send email verification code
+// @Description 发送邮箱验证码
+// @Tags Auth
+// @Accept application/json
+// @Param request body EmailVerificationRequest true "邮箱验证码发送请求"
+// @Produce application/json
+// @Success 200 {object} EmailVerificationResponse
+// @Failure 400 {object} map[string]string
+// @Router /api/v1/email/verification [post]
+func (h *AuthHandler) SendEmailVerification(c *gin.Context) {
+	var req EmailVerificationRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.WithError(c.Request.Context(), err).Error("Invalid email verification request")
+		response.Failed(c, codes.CodeInvalidRequest, nil)
+		return
+	}
+
+	result, code, err := h.authService.SendEmailVerification(c.Request.Context(), req.Email)
+	if err != nil {
+		log.WithError(c.Request.Context(), err).Error("Send email verification failed")
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
+		return
+	}
+
+	response.Success(c, result)
+}
+
+// VerifyEmail @Summary Verify email code
+// @Description 验证邮箱验证码
+// @Tags Auth
+// @Accept application/json
+// @Param request body VerifyEmailRequest true "邮箱验证请求"
+// @Produce application/json
+// @Success 200 {object} VerifyEmailResponse
+// @Failure 400 {object} map[string]string
+// @Failure 401 {object} map[string]string
+// @Router /api/v1/email/verify [post]
+func (h *AuthHandler) VerifyEmail(c *gin.Context) {
+	var req VerifyEmailRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.WithError(c.Request.Context(), err).Error("Invalid verify email request")
+		response.Failed(c, codes.CodeInvalidRequest, nil)
+		return
+	}
+
+	result, code, err := h.authService.VerifyEmail(c.Request.Context(), req.Email, req.VerificationCode)
+	if err != nil {
+		log.WithError(c.Request.Context(), err).Error("Verify email failed")
+		response.Failed(c, codes.CodeInternalError, nil)
+		return
+	}
+	if code != codes.CodeSuccess {
+		response.Failed(c, code, nil)
+		return
+	}
+
+	response.Success(c, result)
+}

@@ -18,11 +18,12 @@ const (
 	CodeInvalidUsernamePassword = 2002 // 用户名或密码错误
 	CodeUsernameExists          = 2003 // 用户名已存在
 	CodePhoneExists             = 2004 // 手机号已存在
-	CodeInvalidOldPassword      = 2005 // 旧密码错误
-	CodePasswordTooWeak         = 2006 // 密码强度不够
-	CodeAccountDeleted          = 2007 // 账号已删除
-	CodeSessionExpired          = 2008 // 会话已过期
-	CodeDeviceNotFound          = 2009 // 设备不存在
+	CodeEmailExists             = 2005 // 邮箱已存在
+	CodeInvalidOldPassword      = 2006 // 旧密码错误
+	CodePasswordTooWeak         = 2007 // 密码强度不够
+	CodeAccountDeleted          = 2008 // 账号已删除
+	CodeSessionExpired          = 2009 // 会话已过期
+	CodeDeviceNotFound          = 2010 // 设备不存在
 
 	// 认证相关错误 3000-3999
 	CodeInvalidToken     = 3000 // 无效的token
@@ -64,6 +65,7 @@ var CodeMessages = map[int]string{
 	CodeInvalidUsernamePassword: "用户名或密码错误",
 	CodeUsernameExists:          "用户名已存在",
 	CodePhoneExists:             "手机号已存在",
+	CodeEmailExists:             "邮箱已存在",
 	CodeInvalidOldPassword:      "旧密码错误",
 	CodePasswordTooWeak:         "密码强度不够",
 	CodeAccountDeleted:          "账号已删除",

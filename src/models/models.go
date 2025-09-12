@@ -33,9 +33,11 @@ func (SystemConfig) TableName() string {
 type User struct {
 	ID       int64       `json:"id" gorm:"primaryKey;autoIncrement;column:id;comment:用户ID"`
 	Phone    string      `json:"phone" gorm:"column:phone;type:varchar(20);uniqueIndex;comment:手机号"`
+	Email    string      `json:"email" gorm:"column:email;type:varchar(255);uniqueIndex;comment:邮箱"`
 	Username string      `json:"username" gorm:"column:username;type:varchar(50);uniqueIndex;comment:用户名"`
 	Password string      `json:"-" gorm:"column:password;type:varchar(255);comment:密码哈希"`
 	Role     int8        `json:"role" gorm:"column:role;type:tinyint;not null;default:1;comment:用户角色（1=用户，2=管理员）"`
+	Remark   string      `json:"remark" gorm:"column:remark;type:text;comment:备注"`
 	Setting  UserSetting `json:"setting" gorm:"foreignKey:UserID;references:ID"`
 }
 

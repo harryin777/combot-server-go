@@ -18,10 +18,14 @@ func AuthRouter(ctx context.Context, apiGroup *gin.RouterGroup, config *configs.
 	authGroup := apiGroup.Group("/auth")
 	{
 		// 图形验证码
-		apiGroup.GET("/captcha/image", authHandler.GetCaptcha)
+		apiGroup.POST("/captcha/image", authHandler.GetCaptcha)
 
 		// 短信验证码
 		apiGroup.POST("/sms/send", authHandler.SendSMS)
+
+		// 邮箱验证码
+		apiGroup.POST("/email/verification", authHandler.SendEmailVerification)
+		apiGroup.POST("/email/verify", authHandler.VerifyEmail)
 
 		// 手机号登录/注册
 		authGroup.POST("/phone", authHandler.PhoneAuth)

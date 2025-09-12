@@ -115,3 +115,46 @@ func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, sms
 	log.Infof(ctx, "用户认证完成，用户ID: %d", user.ID)
 	return &user, tokenString, codes.CodeSuccess, nil
 }
+
+// 邮箱验证码存储（实际项目中应该使用Redis等缓存）
+var emailVerificationStore = make(map[string]string)
+
+// SendEmailVerification 发送邮箱验证码
+func (s *AuthServiceImpl) SendEmailVerification(ctx context.Context, email string) (interface{}, int, error) {
+	log.Infof(ctx, "发送邮箱验证码，邮箱: %s", email)
+
+	// 生成6位数字验证码
+	verificationCode := fmt.Sprintf("%06d", rand.Intn(1000000))
+
+	// 存储验证码（实际项目中应该设置过期时间）
+	emailVerificationStore[email] = verificationCode
+
+	// TODO: 这里应该集成真实的邮件发送服务
+	// 目前只是模拟发送，实际生产环境需要配置SMTP服务器
+	log.Infof(ctx, "模拟发送邮箱验证码到 %s，验证码: %s", email, verificationCode)
+
+	return map[string]interface{}{
+		"success": true,
+		"message": "邮箱验证码已发送",
+	}, codes.CodeSuccess, nil
+}
+
+// VerifyEmail 验证邮箱验证码
+func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, verificationCode string) (interface{}, int, error) {
+	log.Infof(ctx, "验证邮箱验证码，邮箱: %s", email)
+
+	// 验证验证码
+	if storedCode, exists := emailVerificationStore[email]; !exists || storedCode != verificationCode {
+		log.Warnf(ctx, "邮箱验证码验证失败，邮箱: %s", email)
+		return nil, codes.CodeInvalidUsernamePassword, nil
+	}
+
+	// 删除已使用的验证码
+	delete(emailVerificationStore, email)
+
+	log.Infof(ctx, "邮箱验证成功，邮箱: %s", email)
+	return map[string]interface{}{
+		"success": true,
+		"message": "邮箱验证成功",
+	}, codes.CodeSuccess, nil
+}
