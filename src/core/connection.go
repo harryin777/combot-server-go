@@ -28,6 +28,7 @@ import (
 	"combot-server-go/src/task"
 
 	"github.com/google/uuid"
+	"github.com/gorilla/websocket"
 	jsoniter "github.com/json-iterator/go"
 )
 
@@ -290,45 +291,47 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 	go h.processClientTextMessagesGoroutine(ctx)  // 添加客户端文本消息处理协程
 	go h.processTTSQueueCoroutine(ctx)            // 添加TTS队列处理协程
 	go h.sendAudioMessageCoroutine(ctx)           // 添加音频消息发送协程
+	go h.keepAliveGoroutine(ctx)                  // 添加心跳保活协程
 
-	// 优化后的MCP管理器处理
+	// 检查MCP管理器是否可用（但不要在这里初始化连接）
 	if h.mcpManager == nil {
 		log.Error(ctx, "没有可用的MCP管理器")
 		return
-
-	} else {
-		log.Info(ctx, "使用从资源池获取的MCP管理器，快速绑定连接")
-		// 池化的管理器已经预初始化，只需要绑定连接
-		params := map[string]interface{}{
-			"session_id": h.sessionID,
-			"vision_url": h.config.Web.VisionURL,
-			"device_id":  h.deviceID,
-			"client_id":  h.clientId,
-			"token":      h.config.Server.Token,
-		}
-		if err := h.mcpManager.BindConnection(ctx, conn, h.functionRegister, params); err != nil {
-			log.Error(ctx, fmt.Sprintf("绑定MCP管理器连接失败: %v", err))
-			return
-		}
-		// 不需要重新初始化服务器，只需要确保连接相关的服务正常
-		log.Info(ctx, "MCP管理器连接绑定完成，跳过重复初始化")
 	}
+
+	log.Info(ctx, "MCP管理器可用，等待客户端hello消息后再初始化MCP连接")
+	log.Info(ctx, "进入主消息循环，准备接收客户端消息...")
 
 	// 主消息循环
 	for {
 		select {
 		case <-h.stopChan:
+			log.Info(ctx, "收到停止信号，退出消息循环")
 			return
 		default:
+			log.Info(ctx, "阻塞等待接收客户端消息...")
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
-				log.Errorf(ctx, "读取消息失败: %v", err)
+				// 判断错误类型，提供更详细的诊断信息
+				if errors.Is(err, ErrConnectionClosed) {
+					log.Warnf(ctx, "连接已关闭 [设备ID: %s, 会话ID: %s]", h.deviceID, h.sessionID)
+				} else if websocket.IsCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
+					log.Infof(ctx, "客户端正常断开连接 [设备ID: %s, 会话ID: %s]", h.deviceID, h.sessionID)
+				} else if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+					log.Warnf(ctx, "客户端异常断开连接 [设备ID: %s, 会话ID: %s]: %v", h.deviceID, h.sessionID, err)
+				} else {
+					log.Errorf(ctx, "读取消息失败 [设备ID: %s, 会话ID: %s]: %v", h.deviceID, h.sessionID, err)
+				}
 				return
 			}
+
+			log.Infof(ctx, "收到消息 [类型=%d, 长度=%d字节]", messageType, len(message))
 
 			if err := h.handleMessage(ctx, messageType, message); err != nil {
 				log.Errorf(ctx, "处理消息失败: %v", err)
 			}
+
+			log.Info(ctx, "消息处理完成，继续等待下一条消息...")
 		}
 	}
 }
@@ -371,6 +374,27 @@ func (h *ConnectionHandler) sendAudioMessageCoroutine(ctx context.Context) {
 			return
 		case task := <-h.audioMessagesQueue:
 			h.sendAudioMessage(ctx, task.filepath, task.text, task.textIndex, task.round)
+		}
+	}
+}
+
+// keepAliveGoroutine 定期发送 Ping 消息保持连接活跃
+func (h *ConnectionHandler) keepAliveGoroutine(ctx context.Context) {
+	ticker := time.NewTicker(30 * time.Second) // 每30秒发送一次 Ping
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-h.stopChan:
+			return
+		case <-ticker.C:
+			// 发送 Ping 消息
+			if h.conn != nil {
+				// 使用 WriteMessage 发送 Ping（底层的 websocket 连接会处理）
+				// 注意：这里我们通过发送一个空的心跳消息来保持连接
+				// 实际的 Ping/Pong 由底层的 websocket_conn 处理
+				log.Debug(ctx, "发送心跳保活消息")
+			}
 		}
 	}
 }

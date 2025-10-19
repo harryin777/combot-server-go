@@ -10,6 +10,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	_ "net/http/pprof" // 导入 pprof 包以启用性能分析
 	"os"
 	"os/signal"
 	"strconv"
@@ -76,7 +77,7 @@ func main() {
 
 	// 启动 pprof，端口号 9090
 	go func() {
-		if err := http.ListenAndServe(":9090", nil); err != nil {
+		if err := http.ListenAndServe(":6060", nil); err != nil {
 			log.WithError(groupCtx, err).Error("pprof 服务启动失败")
 		}
 	}()

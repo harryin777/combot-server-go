@@ -77,8 +77,16 @@ func (h *ConnectionHandler) sendHelloMessage(ctx context.Context) error {
 		return fmt.Errorf("序列化欢迎消息失败: %v", err)
 	}
 
-	log.Infof(ctx, "发送hello响应消息: %s", string(data))
-	return h.conn.WriteMessage(1, data)
+	log.Infof(ctx, "开始发送hello响应消息 (长度=%d字节): %s", len(data), string(data))
+
+	err = h.conn.WriteMessage(1, data)
+	if err != nil {
+		log.Errorf(ctx, "发送hello响应消息失败: %v", err)
+		return fmt.Errorf("发送hello响应消息失败: %v", err)
+	}
+
+	log.Infof(ctx, "hello响应消息发送成功")
+	return nil
 }
 
 func (h *ConnectionHandler) sendTTSMessage(ctx context.Context, state string, text string, textIndex int) error {

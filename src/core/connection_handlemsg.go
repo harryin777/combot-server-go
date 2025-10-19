@@ -73,9 +73,12 @@ func (h *ConnectionHandler) handleVisionMessage(msgMap map[string]interface{}) e
 
 // processClientTextMessage 处理文本数据
 func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text string) error {
+	log.Debugf(ctx, "收到客户端文本消息: %s", text)
+
 	// 解析JSON消息
 	var msgJSON interface{}
 	if err := jsoniter.Unmarshal([]byte(text), &msgJSON); err != nil {
+		log.Warnf(ctx, "JSON解析失败，直接回显: %v", err)
 		return h.conn.WriteMessage(1, []byte(text))
 	}
 
@@ -95,6 +98,8 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 	if !ok {
 		return fmt.Errorf("消息类型错误")
 	}
+
+	log.Infof(ctx, "处理消息类型: %s", msgType)
 
 	switch msgType {
 	case "hello":
@@ -191,7 +196,33 @@ func (h *ConnectionHandler) handleHelloMessage(ctx context.Context, msgMap map[s
 	}
 
 	// 发送hello响应消息
-	return h.sendHelloMessage(ctx)
+	log.Infof(ctx, "准备发送hello响应给客户端...")
+	err := h.sendHelloMessage(ctx)
+	if err != nil {
+		log.Errorf(ctx, "发送hello响应失败: %v", err)
+		return err
+	}
+	log.Infof(ctx, "hello响应已成功发送")
+
+	// 在发送hello响应后，如果客户端支持MCP，则初始化MCP连接
+	if h.clientSupportsMCP && h.mcpManager != nil {
+		log.Info(ctx, "客户端支持MCP，开始绑定MCP连接...")
+		params := map[string]interface{}{
+			"session_id": h.sessionID,
+			"vision_url": h.config.Web.VisionURL,
+			"device_id":  h.deviceID,
+			"client_id":  h.clientId,
+			"token":      h.config.Server.Token,
+		}
+		if err := h.mcpManager.BindConnection(ctx, h.conn, h.functionRegister, params); err != nil {
+			log.Errorf(ctx, "绑定MCP管理器连接失败: %v", err)
+			// 不要返回错误，继续处理其他消息
+		} else {
+			log.Info(ctx, "MCP管理器连接绑定完成")
+		}
+	}
+
+	return nil
 }
 
 // handleListenMessage 处理语音相关消息
