@@ -403,6 +403,24 @@ func (p *Provider) AddAudioWithContext(ctx context.Context, data []byte) error {
 
 	// 检查是否有实际数据需要发送
 	if len(data) > 0 && p.isStreaming {
+		// 过滤掉1字节的静音包 - 避免无意义的发送
+		if len(data) <= 2 {
+			// 1-2字节的数据包通常是静音，检查是否超时
+			silenceTime := p.SilenceTime()
+			if silenceTime > idleTimeout {
+				log.Infof(ctx, "检测到静音超时 (%v > %v)，主动结束识别", silenceTime, idleTimeout)
+				// 通知listener静音超时
+				if listener := p.BaseProvider.GetListener(); listener != nil {
+					p.BaseProvider.SilenceCount++
+					text := "我没有听清你说话"
+					listener.OnAsrResult(ctx, text)
+				}
+				// 重置ASR状态
+				p.Reset(ctx)
+			}
+			return nil
+		}
+
 		// 有音频数据输入时重置静音时间
 		p.ResetStartListenTime()
 
@@ -550,11 +568,21 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		return fmt.Errorf("解析响应失败: %v", err)
 	}
 
-	// 检查初始响应
+	// 检查初始响应 - 打印详细信息用于调试
+	log.Infof(ctx, "[DEBUG] 初始响应: %+v", initialResult)
+
+	// 检查错误码 - 注意 Code 字段在 header 中，不在 payload_msg 中
 	if code, hasCode := initialResult["code"]; hasCode {
 		codeValue := code.(uint32)
 		if codeValue != 0 {
-			return fmt.Errorf("ASR初始化错误: Code=%d", codeValue)
+			// 尝试获取错误信息
+			errMsg := "未知错误"
+			if payloadMsg, ok := initialResult["payload_msg"].(map[string]interface{}); ok {
+				if msg, ok := payloadMsg["message"].(string); ok {
+					errMsg = msg
+				}
+			}
+			return fmt.Errorf("ASR初始化错误: Code=%d, Message=%s", codeValue, errMsg)
 		}
 	}
 
