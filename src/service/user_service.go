@@ -26,6 +26,7 @@ func NewUserService(config *configs.Config) UserService {
 
 // UsernamePasswordLogin 用户名密码登录
 func (s *UserServiceImpl) UsernamePasswordLogin(ctx context.Context, username, password string) (*models.User, string, int, error) {
+	log.Infof(ctx, "[UsernamePasswordLogin] username: %s", username)
 	// 记录登录尝试
 	log.Infof(ctx, "用户尝试用户名密码登录，用户名: %s", username)
 
@@ -74,6 +75,7 @@ func (s *UserServiceImpl) UsernamePasswordLogin(ctx context.Context, username, p
 
 // UsernamePasswordRegister 用户名密码注册
 func (s *UserServiceImpl) UsernamePasswordRegister(ctx context.Context, username, password, email string) (*models.User, string, int, error) {
+	log.Infof(ctx, "[UsernamePasswordRegister] username: %s, email: %s", username, email)
 	log.Infof(ctx, "用户尝试用户名密码注册，用户名: %s, 邮箱: %s", username, email)
 
 	// 检查用户名是否已存在
@@ -141,6 +143,7 @@ func (s *UserServiceImpl) UsernamePasswordRegister(ctx context.Context, username
 
 // GetUserByID 根据用户ID获取用户信息
 func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID int64) (*models.User, error) {
+	log.Infof(ctx, "[GetUserByID] userID: %d", userID)
 	log.Infof(ctx, "获取用户信息，用户ID: %d", userID)
 
 	var user models.User
@@ -159,6 +162,7 @@ func (s *UserServiceImpl) GetUserByID(ctx context.Context, userID int64) (*model
 
 // UpdateUserProfile 更新用户基本信息（用户名、手机号、邮箱、备注）
 func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, username, phone, email, remark string) (interface{}, int, error) {
+	log.Infof(ctx, "[UpdateUserProfile] userID: %d, username: %s, phone: %s, email: %s", userID, username, phone, email)
 	log.Infof(ctx, "更新用户基本信息，用户ID: %d", userID)
 
 	// 检查用户名是否已存在（排除当前用户）
@@ -227,6 +231,7 @@ func (s *UserServiceImpl) UpdateUserProfile(ctx context.Context, userID int64, u
 
 // ChangePassword 修改用户密码
 func (s *UserServiceImpl) ChangePassword(ctx context.Context, userID int64, oldPassword, newPassword string) (interface{}, int, error) {
+	log.Infof(ctx, "[ChangePassword] userID: %d", userID)
 	log.Infof(ctx, "修改用户密码，用户ID: %d", userID)
 
 	// 获取用户信息
@@ -268,6 +273,7 @@ func (s *UserServiceImpl) ChangePassword(ctx context.Context, userID int64, oldP
 
 // GetLoginDevices 获取用户登录设备列表
 func (s *UserServiceImpl) GetLoginDevices(ctx context.Context, userID int64) ([]LoginDevice, int, error) {
+	log.Infof(ctx, "[GetLoginDevices] userID: %d", userID)
 	log.Infof(ctx, "获取用户登录设备列表，用户ID: %d", userID)
 
 	// 这里需要实现从实际的登录会话表或类似的地方获取设备信息
@@ -283,6 +289,7 @@ func (s *UserServiceImpl) GetLoginDevices(ctx context.Context, userID int64) ([]
 
 // LogoutDevice 退出登录指定设备
 func (s *UserServiceImpl) LogoutDevice(ctx context.Context, userID int64, deviceIdentifier string) (interface{}, int, error) {
+	log.Infof(ctx, "[LogoutDevice] userID: %d, deviceIdentifier: %s", userID, deviceIdentifier)
 	log.Infof(ctx, "退出登录指定设备，用户ID: %d，设备标识: %s", userID, deviceIdentifier)
 
 	// TODO: 实现实际的设备退出逻辑
@@ -298,6 +305,7 @@ func (s *UserServiceImpl) LogoutDevice(ctx context.Context, userID int64, device
 
 // DeleteAccount 删除用户账号
 func (s *UserServiceImpl) DeleteAccount(ctx context.Context, userID int64, password string) (interface{}, int, error) {
+	log.Infof(ctx, "[DeleteAccount] userID: %d", userID)
 	log.Infof(ctx, "删除用户账号，用户ID: %d", userID)
 
 	// 获取用户信息

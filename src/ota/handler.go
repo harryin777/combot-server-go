@@ -6,6 +6,7 @@ import (
 	"combot-server-go/src/core/codes"
 	"combot-server-go/src/log"
 	"combot-server-go/src/service"
+	"combot-server-go/src/utils"
 	"context"
 	"net/http"
 	"os"
@@ -56,14 +57,27 @@ func handleOtaOptions(c *gin.Context) {
 	c.Status(http.StatusOK)
 }
 
-// @Summary 获取 OTA 状态
-// @Description 获取 OTA 服务状态和 WebSocket 地址，供设备查询
+// @Summary 获取 OTA 配置
+// @Description 获取 OTA 服务配置和 WebSocket 地址，供设备查询
 // @Tags OTA
-// @Produce plain
-// @Success 200 {string} string "OTA interface is running, websocket address: ws://..."
+// @Produce json
+// @Success 200 {object} OtaFirmwareResponse
 // @Router /ota/ [get]
 func handleOtaGet(c *gin.Context, updateURL string) {
-	c.String(http.StatusOK, "OTA interface is running, websocket address: "+updateURL)
+	// 返回基本配置信息,不需要设备认证
+	resp := OtaFirmwareResponse{}
+	resp.ServerTime.Timestamp = time.Now().Unix()
+	resp.ServerTime.TimezoneOffset = 8 * 60 // UTC+8
+
+	// 不返回固件更新信息(GET请求只返回配置)
+	resp.Firmware.Version = "1.0.0"
+	resp.Firmware.URL = ""
+
+	// 返回WebSocket配置
+	resp.Websocket.URL = updateURL
+	resp.Websocket.Token = "" // GET请求不返回token,需要激活后才有
+
+	c.JSON(http.StatusOK, resp)
 }
 
 // 请求体结构体定义
@@ -125,6 +139,20 @@ func handleOtaPost(c *gin.Context, updateURL string, config *configs.Config) {
 	deviceService := service.NewDevice(config)
 	clientID := c.GetHeader("Client-Id")
 	serialNumber := c.GetHeader("Serial-Number")
+
+	// 如果客户端未提供Serial-Number，则根据 machineID 和 deviceID 生成确定性的 UUID 格式序列号
+	// 使用 SHA256 哈希确保相同输入总是生成相同的序列号，即使在多 Pod 环境下也能保持一致
+	if serialNumber == "" {
+		machineID := os.Getenv("MACHINE_ID")
+		if machineID == "" {
+			machineID = config.Server.Device.MachineID
+			if machineID == "" {
+				machineID = "0" // 默认machine_id为0
+			}
+		}
+		serialNumber = utils.GenerateSerialNumber(machineID, deviceID)
+		log.WithField(c.Request.Context(), "device_id", deviceID).WithField("generated_serial", serialNumber).Debug("客户端未提供Serial-Number，自动生成UUID格式序列号")
+	}
 
 	if device, code, err := deviceService.IdentifyDevice(c.Request.Context(), serialNumber, deviceID, clientID); err == nil && code == codes.CodeSuccess && device != nil && device.Activated {
 		// 设备已激活，生成新的token
@@ -235,7 +263,7 @@ func handleOtaActivate(c *gin.Context, config *configs.Config) {
 	// 激活设备
 	_, retCode, err := deviceService.ActivateDevice(c.Request.Context(), device.ID, req.Challenge, req.Hmac)
 	if err != nil || retCode != codes.CodeSuccess {
-		log.WithError(context.Background(), err).WithField("device_id", deviceID).Error("设备激活失败")
+		log.WithError(context.Background(), err).WithField("device_id", deviceID).Errorf("设备激活失败 err: %v", err)
 		c.JSON(http.StatusInternalServerError, ErrorResponse{Success: false, Message: "激活失败"})
 		return
 	}

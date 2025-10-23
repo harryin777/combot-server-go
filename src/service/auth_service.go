@@ -31,6 +31,7 @@ func NewAuthService(config *configs.Config) AuthService {
 
 // GetCaptcha 生成图形验证码
 func (s *AuthServiceImpl) GetCaptcha(ctx context.Context, width, height int) (id, imageBase64 string, code int, err error) {
+	log.Infof(ctx, "[GetCaptcha] width: %d, height: %d", width, height)
 	driver := base64Captcha.NewDriverDigit(height, width, 6, 0.7, 80)
 	cp := base64Captcha.NewCaptcha(driver, base64Captcha.DefaultMemStore)
 	id, imageBase64, _, err = cp.Generate()
@@ -41,8 +42,9 @@ func (s *AuthServiceImpl) GetCaptcha(ctx context.Context, width, height int) (id
 	return id, imageBase64, codes.CodeSuccess, nil
 }
 
-// SendSMS 校验图形码并下发短信验证码（模拟实现）
+// SendSMS 校验图形码并下发短信验证码(模拟实现)
 func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captchaID, captchaValue string) (interface{}, int, error) {
+	log.Infof(ctx, "[SendSMS] countryCode: %s, phone: %s, captchaID: %s", countryCode, phone, captchaID)
 	// 验证图形验证码
 	if !base64Captcha.DefaultMemStore.Verify(captchaID, captchaValue, true) {
 		log.Warnf(ctx, "图形验证码验证失败，手机号: %s", phone)
@@ -63,6 +65,7 @@ func (s *AuthServiceImpl) SendSMS(ctx context.Context, countryCode, phone, captc
 
 // PhoneAuth 手机号登录/注册，返回用户信息和JWT token
 func (s *AuthServiceImpl) PhoneAuth(ctx context.Context, countryCode, phone, smsCode string) (*models.User, string, int, error) {
+	log.Infof(ctx, "[PhoneAuth] countryCode: %s, phone: %s", countryCode, phone)
 	key := countryCode + phone
 
 	// 记录登录尝试
@@ -121,6 +124,7 @@ var emailVerificationStore = make(map[string]string)
 
 // SendEmailVerification 发送邮箱验证码
 func (s *AuthServiceImpl) SendEmailVerification(ctx context.Context, email string) (interface{}, int, error) {
+	log.Infof(ctx, "[SendEmailVerification] email: %s", email)
 	log.Infof(ctx, "发送邮箱验证码，邮箱: %s", email)
 
 	// 生成6位数字验证码
@@ -141,6 +145,7 @@ func (s *AuthServiceImpl) SendEmailVerification(ctx context.Context, email strin
 
 // VerifyEmail 验证邮箱验证码
 func (s *AuthServiceImpl) VerifyEmail(ctx context.Context, email, verificationCode string) (interface{}, int, error) {
+	log.Infof(ctx, "[VerifyEmail] email: %s, verificationCode: %s", email, verificationCode)
 	log.Infof(ctx, "验证邮箱验证码，邮箱: %s", email)
 
 	// 验证验证码

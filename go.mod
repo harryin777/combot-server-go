@@ -5,7 +5,7 @@ go 1.24
 require (
 	github.com/coze-dev/coze-go v0.0.0-20250626063826-a17604b061c0
 	github.com/gin-gonic/gin v1.10.1
-	github.com/golang-jwt/jwt/v5 v5.2.2
+	github.com/golang-jwt/jwt/v5 v5.3.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/hajimehoshi/go-mp3 v0.3.4
@@ -26,7 +26,7 @@ require (
 	gorm.io/driver/mysql v1.6.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/driver/sqlite v1.6.0
-	gorm.io/gorm v1.30.0
+	gorm.io/gorm v1.31.0
 	layeh.com/gopus v0.0.0-20210501142526-1ee02d434e32
 )
 

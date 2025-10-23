@@ -24,6 +24,7 @@ func NewRoleService(config *configs.Config) RoleService {
 
 // GetRoleTemplates 获取角色模板列表
 func (s *roleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTemplate, int, error) {
+	log.Infof(ctx, "[GetRoleTemplates]")
 	templates, err := s.roleDAO.GetRoleTemplates(ctx)
 	if err != nil {
 		log.Errorf(ctx, "GetRoleTemplates error: %v", err)
@@ -34,6 +35,7 @@ func (s *roleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTempla
 
 // GetRoleTemplate 获取角色模板详情
 func (s *roleService) GetRoleTemplate(ctx context.Context, templateID string) (*models.RoleTemplate, int, error) {
+	log.Infof(ctx, "[GetRoleTemplate] templateID: %s", templateID)
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, templateID)
 	if err != nil {
 		log.Errorf(ctx, "GetRoleTemplate error: %v", err)
@@ -47,6 +49,7 @@ func (s *roleService) GetRoleTemplate(ctx context.Context, templateID string) (*
 
 // SaveRoleConfig 保存角色配置
 func (s *roleService) SaveRoleConfig(ctx context.Context, userID int64, config *models.SaveRoleConfigRequest) (int, error) {
+	log.Infof(ctx, "[SaveRoleConfig] userID: %d, templateID: %s, deviceID: %s", userID, config.TemplateID, config.DeviceID)
 	// 验证模板是否存在
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, config.TemplateID)
 	if err != nil {

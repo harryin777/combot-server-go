@@ -21,9 +21,7 @@ type ActiveService interface {
 	// GetUserDevices 设备查询
 	GetUserDevices(ctx context.Context, userID uint) ([]models.Device, int, error) // 获取用户设备列表
 
-	// VerifyHMAC 安全相关
-	VerifyHMAC(ctx context.Context, challenge, hmacHex, hmacKey string) bool // 验证HMAC
-	GenerateActivationCode(ctx context.Context) string                       // 生成激活码
-	GenerateChallenge(ctx context.Context) string                            // 生成随机挑战码
-	GenerateToken(ctx context.Context) string                                // 生成Token
+	GenerateActivationCode(ctx context.Context) string // 生成激活码
+	GenerateChallenge(ctx context.Context) string      // 生成随机挑战码
+	GenerateToken(ctx context.Context) string          // 生成Token
 }

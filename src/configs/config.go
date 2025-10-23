@@ -25,7 +25,8 @@ type Config struct {
 			Tokens         []TokenConfig `yaml:"tokens"`
 		} `yaml:"auth"`
 		Device struct {
-			HmacKey string `yaml:"hmac_key"`
+			HmacKey   string `yaml:"hmac_key"`
+			MachineID string `yaml:"machine_id"`
 		} `yaml:"device"`
 	} `yaml:"server"`
 

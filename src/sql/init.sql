@@ -219,3 +219,27 @@ VALUES (1,
 -- 恢复外键检查
 SET
 FOREIGN_KEY_CHECKS = 1;
+
+
+
+drop table if exists device_verification_codes
+CREATE TABLE IF NOT EXISTS device_verification_codes (
+                                                         id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '自增主键ID',
+
+                                                         serial_number VARCHAR(64) NOT NULL COMMENT '设备序列号',
+    device_id VARCHAR(17) NOT NULL COMMENT 'MAC地址',
+    client_id VARCHAR(36) NOT NULL COMMENT 'UUID',
+    verification_code VARCHAR(6) NOT NULL COMMENT '6位验证码',
+
+    expires_at DATETIME NOT NULL COMMENT '过期时间',
+    used TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已使用',
+
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+
+    INDEX idx_serial_number (serial_number),
+    INDEX idx_device_id (device_id),
+    INDEX idx_client_id (client_id),
+    INDEX idx_expires_at (expires_at),
+    UNIQUE INDEX uk_verification_code (verification_code)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='设备验证码表';

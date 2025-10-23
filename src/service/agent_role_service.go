@@ -37,6 +37,7 @@ func NewAgentRoleService(config *configs.Config) AgentRoleService {
 
 // GetRoleTemplates 获取角色模板列表（只读）
 func (s *agentRoleService) GetRoleTemplates(ctx context.Context) ([]models.RoleTemplate, int, error) {
+	log.Infof(ctx, "[GetRoleTemplates]")
 	templates, err := s.roleDAO.GetRoleTemplates(ctx)
 	if err != nil {
 		log.Errorf(ctx, "获取角色模板列表失败: %v", err)
@@ -47,6 +48,7 @@ func (s *agentRoleService) GetRoleTemplates(ctx context.Context) ([]models.RoleT
 
 // GetRoleTemplate 获取角色模板详情（只读）
 func (s *agentRoleService) GetRoleTemplate(ctx context.Context, templateID string) (*models.RoleTemplate, int, error) {
+	log.Infof(ctx, "[GetRoleTemplate] templateID: %s", templateID)
 	template, err := s.roleDAO.GetRoleTemplateByID(ctx, templateID)
 	if err != nil {
 		log.Errorf(ctx, "获取角色模板详情失败: %v", err)
@@ -60,6 +62,7 @@ func (s *agentRoleService) GetRoleTemplate(ctx context.Context, templateID strin
 
 // GetAgentRole 获取用户智能体角色配置
 func (s *agentRoleService) GetAgentRole(ctx context.Context, userID int64, deviceID string) (*models.AgentRole, int, error) {
+	log.Infof(ctx, "[GetAgentRole] userID: %d, deviceID: %s", userID, deviceID)
 	agentRole, err := s.roleDAO.GetAgentRole(ctx, userID, deviceID)
 	if err != nil {
 		log.Errorf(ctx, "获取智能体角色配置失败: %v", err)
@@ -73,6 +76,7 @@ func (s *agentRoleService) GetAgentRole(ctx context.Context, userID int64, devic
 
 // CreateAgentRole 创建智能体角色配置
 func (s *agentRoleService) CreateAgentRole(ctx context.Context, userID int64, req *models.CreateAgentRoleRequest) (*models.AgentRole, int, error) {
+	log.Infof(ctx, "[CreateAgentRole] userID: %d, deviceID: %s, templateID: %s", userID, req.DeviceID, req.TemplateID)
 	// 检查是否已存在该用户和设备的配置
 	existing, err := s.roleDAO.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {
@@ -131,6 +135,7 @@ func (s *agentRoleService) CreateAgentRole(ctx context.Context, userID int64, re
 
 // UpdateAgentRole 更新智能体角色配置
 func (s *agentRoleService) UpdateAgentRole(ctx context.Context, userID int64, req *models.UpdateAgentRoleRequest) (*models.AgentRole, int, error) {
+	log.Infof(ctx, "[UpdateAgentRole] userID: %d, deviceID: %s, templateID: %s", userID, req.DeviceID, req.TemplateID)
 	// 检查配置是否存在
 	existing, err := s.roleDAO.GetAgentRole(ctx, userID, req.DeviceID)
 	if err != nil {

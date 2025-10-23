@@ -8,9 +8,7 @@ import (
 	"combot-server-go/src/log"
 	"combot-server-go/src/models"
 	"context"
-	"crypto/hmac"
 	"crypto/rand"
-	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -32,6 +30,7 @@ func NewDevice(config *configs.Config) ActiveService {
 
 // IdentifyDevice 根据请求头识别设备
 func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, deviceID, clientID string) (*models.Device, int, error) {
+	log.Infof(ctx, "[IdentifyDevice] serialNumber: %s, deviceID: %s, clientID: %s", serialNumber, deviceID, clientID)
 	var device models.Device
 
 	// 优先使用序列号查找
@@ -75,6 +74,7 @@ func (s *DeviceService) IdentifyDevice(ctx context.Context, serialNumber, device
 
 // GenerateDeviceVerificationCode 生成设备验证码并确保设备记录存在
 func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, serialNumber, deviceID, clientID string) (string, int64, int, error) {
+	log.Infof(ctx, "[GenerateDeviceVerificationCode] serialNumber: %s, deviceID: %s, clientID: %s", serialNumber, deviceID, clientID)
 	// 生成6位数字验证码
 	code := s.GenerateActivationCode(ctx)
 	expiresAt := time.Now().Add(5 * time.Minute) // 5分钟有效期
@@ -157,6 +157,7 @@ func (s *DeviceService) GenerateDeviceVerificationCode(ctx context.Context, seri
 
 // ValidateVerificationCode 验证验证码
 func (s *DeviceService) ValidateVerificationCode(ctx context.Context, code string) (*models.DeviceVerificationCode, int, error) {
+	log.Infof(ctx, "[ValidateVerificationCode] code: %s", code)
 	var verificationCode models.DeviceVerificationCode
 
 	err := database.DB.WithContext(ctx).Where("verification_code = ? AND used = false", code).
@@ -181,6 +182,7 @@ func (s *DeviceService) ValidateVerificationCode(ctx context.Context, code strin
 
 // ActivateDevice 激活设备
 func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, challenge, hmac string) (interface{}, int, error) {
+	log.Infof(ctx, "[ActivateDevice] deviceID: %d, challenge: %s, hmac: %s", deviceID, challenge, hmac)
 	err := database.DB.Transaction(func(tx *gorm.DB) error {
 		var device models.Device
 		if err := tx.Where("id = ?", deviceID).First(&device).Error; err != nil {
@@ -192,10 +194,8 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 			return fmt.Errorf("设备不存在: %w", err)
 		}
 
-		// 在生产环境中，这里应该验证HMAC签名
-		if !s.VerifyHMAC(ctx, challenge, hmac, s.config.Server.Device.HmacKey) {
-			return errors.New("HMAC验证失败")
-		}
+		// 设备已通过验证码机制绑定到用户，无需额外的HMAC验证
+		log.Infof(ctx, "设备已绑定用户，准备激活: deviceID=%d", deviceID)
 
 		// 生成新的Token
 		authToken := auth.NewAuthToken(s.config.Server.Token)
@@ -238,6 +238,7 @@ func (s *DeviceService) ActivateDevice(ctx context.Context, deviceID uint, chall
 // BindDeviceToUser 绑定设备到用户
 func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verificationCode, deviceName string) (
 	*models.Device, int, error) {
+	log.Infof(ctx, "[BindDeviceToUser] userID: %d, verificationCode: %s, deviceName: %s", userID, verificationCode, deviceName)
 	// 验证验证码
 	vcRecord, code, err := s.ValidateVerificationCode(ctx, verificationCode)
 	if err != nil {
@@ -322,6 +323,7 @@ func (s *DeviceService) BindDeviceToUser(ctx context.Context, userID uint, verif
 
 // GetUserDevices 获取用户设备列表
 func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]models.Device, int, error) {
+	log.Infof(ctx, "[GetUserDevices] userID: %d", userID)
 	var devices []models.Device
 	err := database.DB.WithContext(ctx).Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -335,18 +337,9 @@ func (s *DeviceService) GetUserDevices(ctx context.Context, userID uint) ([]mode
 	return devices, codes.CodeSuccess, nil
 }
 
-// VerifyHMAC 验证HMAC签名
-func (s *DeviceService) VerifyHMAC(ctx context.Context, challenge, hmacHex, hmacKey string) bool {
-	mac := hmac.New(sha256.New, []byte(hmacKey))
-	mac.Write([]byte(challenge))
-	expectedMAC := mac.Sum(nil)
-	expectedHex := hex.EncodeToString(expectedMAC)
-
-	return hmac.Equal([]byte(hmacHex), []byte(expectedHex))
-}
-
 // GenerateActivationCode 生成6位数字激活码
 func (s *DeviceService) GenerateActivationCode(ctx context.Context) string {
+	log.Infof(ctx, "[GenerateActivationCode]")
 	const digits = "0123456789"
 	b := make([]byte, 6)
 	rand.Read(b)
@@ -360,6 +353,7 @@ func (s *DeviceService) GenerateActivationCode(ctx context.Context) string {
 
 // GenerateChallenge 生成随机challenge
 func (s *DeviceService) GenerateChallenge(ctx context.Context) string {
+	log.Infof(ctx, "[GenerateChallenge]")
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)
@@ -367,6 +361,7 @@ func (s *DeviceService) GenerateChallenge(ctx context.Context) string {
 
 // GenerateToken 生成随机token
 func (s *DeviceService) GenerateToken(ctx context.Context) string {
+	log.Infof(ctx, "[GenerateToken]")
 	b := make([]byte, 32)
 	rand.Read(b)
 	return hex.EncodeToString(b)

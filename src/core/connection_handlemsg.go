@@ -29,6 +29,7 @@ func (h *ConnectionHandler) handleMessage(ctx context.Context, messageType int, 
 		}
 
 		if h.clientAudioFormat == "pcm" {
+			log.Infof(ctx, "pcm format")
 			// 直接将PCM数据放入队列
 			h.clientAudioQueue <- audioData
 		} else if h.clientAudioFormat == "opus" {

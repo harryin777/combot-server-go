@@ -59,6 +59,8 @@ func (s *ConversationServiceImpl) getUserIDByClientID(ctx context.Context, clien
 func (s *ConversationServiceImpl) SaveConversation(ctx context.Context,
 	sessionID, deviceID, clientID string, message string, role, messageType int, combotName string) (err error) {
 
+	log.Infof(ctx, "[SaveConversation] sessionID: %s, deviceID: %s, clientID: %s, role: %d, messageType: %d, combotName: %s", sessionID, deviceID, clientID, role, messageType, combotName)
+
 	// 如果传入的 userID 为 0，则尝试根据 clientID 查找用户ID
 	var foundUserID int
 	if clientID != "" {
@@ -105,6 +107,7 @@ func (s *ConversationServiceImpl) SaveConversation(ctx context.Context,
 
 // GetUserConversations 获取当前用户所有机器人的对话历史（左侧列表）
 func (s *ConversationServiceImpl) GetUserConversations(ctx context.Context, userID uint, deviceID string, limit int, offset int) ([]models.ConversationSession, int, error) {
+	log.Infof(ctx, "[GetUserConversations] userID: %d, deviceID: %s, limit: %d, offset: %d", userID, deviceID, limit, offset)
 	log.Infof(ctx, "GetUserConversations 获取用户对话列表: userID=%d, deviceID=%s, limit=%d, offset=%d", userID, deviceID, limit, offset)
 	sessions, err := s.dao.GetUserConversations(ctx, userID, deviceID, limit, offset)
 	if err != nil {
@@ -117,6 +120,7 @@ func (s *ConversationServiceImpl) GetUserConversations(ctx context.Context, user
 
 // GetConversationMessages 根据用户、机器人和sessionID获取详细对话历史（右侧对话内容）
 func (s *ConversationServiceImpl) GetConversationMessages(ctx context.Context, sessionID string, limit int, offset int) ([]models.ConversationMessage, int, error) {
+	log.Infof(ctx, "[GetConversationMessages] sessionID: %s, limit: %d, offset: %d", sessionID, limit, offset)
 	log.Infof(ctx, "GetConversationMessages 获取对话详情: sessionID=%s, limit=%d, offset=%d", sessionID, limit, offset)
 	messages, err := s.dao.GetConversationMessages(ctx, sessionID, limit, offset)
 	if err != nil {
