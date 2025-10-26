@@ -43,7 +43,7 @@ func (h *ConnectionHandler) handleMessage(ctx context.Context, messageType int, 
 					h.clientAudioQueue <- audioData
 				} else {
 					// 解码成功，将PCM数据放入队列
-					log.Debugf(ctx, "Opus解码成功: %d bytes -> %d bytes", len(audioData), len(decodedData))
+					log.Infof(ctx, "Opus解码成功: %d bytes -> %d bytes", len(audioData), len(decodedData))
 					if len(decodedData) > 0 {
 						h.clientAudioQueue <- decodedData
 					}

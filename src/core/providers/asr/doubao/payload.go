@@ -53,7 +53,7 @@ func NewFullClientRequest() []byte {
 			Uid: "demo_uid",
 		},
 		Audio: AudioMeta{
-			Format:  "wav",
+			Format:  "pcm", // 改为 pcm，因为我们发送的是纯 PCM 数据
 			Codec:   "raw",
 			Rate:    16000,
 			Bits:    16,
