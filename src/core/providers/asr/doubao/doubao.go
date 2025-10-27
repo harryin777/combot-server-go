@@ -354,37 +354,37 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 			return
 		}
 
+		var text string
 		if result.PayloadMsg != nil {
-			text := result.PayloadMsg.Result.Text
-
+			text = result.PayloadMsg.Result.Text
 			log.Infof(ctx, "识别文本内容: [%s]", text)
-
-			if text != "" {
-				log.Infof(ctx, "流式识别: 识别文本=%s", text)
-
-				p.connMutex.Lock()
-				p.result = text
-				p.connMutex.Unlock()
-
-				if listener := p.BaseProvider.GetListener(); listener != nil {
-					log.Infof(ctx, "调用listener.OnAsrResult, text=%s", text)
-					p.BaseProvider.SilenceCount = 0
-					if finished := listener.OnAsrResult(ctx, text); finished {
-						log.Infof(ctx, "listener.OnAsrResult返回finished=true，结束识别")
-						// 主动发送结束信号
-						if err := p.EndStreaming(ctx); err != nil {
-							log.Errorf(ctx, "发送结束信号失败: %v", err)
-						}
-						return
-					}
-				} else {
-					log.Warn(ctx, "listener为空，无法回调识别结果")
-				}
-			} else {
-				log.Info(ctx, "识别文本为空，继续等待")
-			}
 		} else {
 			log.Warn(ctx, "响应中PayloadMsg为空")
+		}
+
+		if text != "" {
+			log.Infof(ctx, "流式识别: 识别文本=%s", text)
+
+			p.connMutex.Lock()
+			p.result = text
+			p.connMutex.Unlock()
+
+			if listener := p.BaseProvider.GetListener(); listener != nil {
+				log.Infof(ctx, "调用listener.OnAsrResult, text=%s", text)
+				p.BaseProvider.SilenceCount = 0
+				if finished := listener.OnAsrResult(ctx, text); finished {
+					log.Infof(ctx, "listener.OnAsrResult返回finished=true，结束识别")
+					// 主动发送结束信号
+					if err := p.EndStreaming(ctx); err != nil {
+						log.Errorf(ctx, "发送结束信号失败: %v", err)
+					}
+					return
+				}
+			} else {
+				log.Warn(ctx, "listener为空，无法回调识别结果")
+			}
+		} else {
+			log.Info(ctx, "识别文本为空，继续等待")
 		}
 
 		// 检查是否是最后一个包
@@ -400,6 +400,19 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 				if listener := p.BaseProvider.GetListener(); listener != nil {
 					log.Infof(ctx, "最终结果回调: text=%s", text)
 					listener.OnAsrResult(ctx, text)
+				}
+				return
+			}
+
+			// 最后一包为空文本：视为静音结束，通知上层
+			if listener := p.BaseProvider.GetListener(); listener != nil {
+				p.BaseProvider.SilenceCount++
+				log.Infof(ctx, "最终结果为空，视为静音结束（SilenceCount=%d）", p.BaseProvider.SilenceCount)
+				if finished := listener.OnAsrResult(ctx, ""); finished {
+					log.Infof(ctx, "静音回调请求结束识别，结束信号已发送")
+					if err := p.EndStreaming(ctx); err != nil {
+						log.Errorf(ctx, "发送静音结束信号失败: %v", err)
+					}
 				}
 			}
 			return

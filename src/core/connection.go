@@ -410,8 +410,18 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool
 		result = "长时间未检测到用户说话，请礼貌的结束对话"
 	}
 
+	trimmed := strings.TrimSpace(result)
+	if trimmed == "" && h.providers.asr.GetSilenceCount() > 0 {
+		log.Info(ctx, "收到静音结束事件，通知设备端停止聆听")
+		if err := h.sendListenState(ctx, "stop"); err != nil {
+			log.Errorf(ctx, "发送静音停止消息失败: %v", err)
+		}
+		h.clientVoiceStop = true
+		return true
+	}
+
 	if h.clientListenMode == "auto" {
-		if result == "" {
+		if trimmed == "" {
 			return false
 		}
 		log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
@@ -419,7 +429,7 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool
 		return true
 	} else if h.clientListenMode == "manual" {
 		h.clientAsrText += result
-		if result != "" {
+		if trimmed != "" {
 			log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, h.clientAsrText)
 		}
 		if h.clientVoiceStop {

@@ -142,6 +142,23 @@ func (h *ConnectionHandler) sendEmotionMessage(ctx context.Context, emotionType 
 	return h.conn.WriteMessage(1, jsonData)
 }
 
+// sendListenState 将当前监听状态推送给设备端，例如在判定静音后通知停止聆听
+func (h *ConnectionHandler) sendListenState(ctx context.Context, state string) error {
+	msg := map[string]interface{}{
+		"type":       "listen",
+		"state":      state,
+		"session_id": h.sessionID,
+	}
+	data, err := jsoniter.Marshal(msg)
+	if err != nil {
+		return fmt.Errorf("序列化listen消息失败: %v", err)
+	}
+	if err := h.conn.WriteMessage(1, data); err != nil {
+		return fmt.Errorf("发送listen消息失败: %v", err)
+	}
+	return nil
+}
+
 func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath string, text string, textIndex int, round int) {
 	bFinishSuccess := false
 	defer func() {
