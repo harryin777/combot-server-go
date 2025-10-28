@@ -62,7 +62,7 @@ func (f *ProviderFactory) createProvider(ctx context.Context) (interface{}, erro
 		return asr.Create(asrType, cfg, deleteAudio)
 	case llmProvider:
 		cfg := f.config.(*llm.Config)
-		return llm.Create(cfg.Type, cfg)
+		return llm.Create(ctx, cfg.Type, cfg)
 	case ttsProvider:
 		cfg := f.config.(*tts.Config)
 		params := f.params

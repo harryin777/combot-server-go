@@ -1,6 +1,7 @@
 package llm
 
 import (
+	"context"
 	"fmt"
 
 	"combot-server-go/src/core/types"
@@ -63,7 +64,7 @@ func Register(name string, factory Factory) {
 }
 
 // Create 创建LLM提供者实例
-func Create(name string, config *Config) (Provider, error) {
+func Create(ctx context.Context, name string, config *Config) (Provider, error) {
 	factory, ok := factories[name]
 	if !ok {
 		return nil, fmt.Errorf("未知的LLM提供者: %s", name)
@@ -74,7 +75,7 @@ func Create(name string, config *Config) (Provider, error) {
 		return nil, fmt.Errorf("创建LLM提供者失败: %v", err)
 	}
 
-	if err := provider.Initialize(); err != nil {
+	if err := provider.Initialize(ctx); err != nil {
 		return nil, fmt.Errorf("初始化LLM提供者失败: %v", err)
 	}
 

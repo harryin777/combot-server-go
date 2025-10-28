@@ -104,8 +104,8 @@ type Response struct {
 
 // Provider 基础提供者接口
 type Provider interface {
-	Initialize() error
-	Cleanup() error
+	Initialize(ctx context.Context) error
+	Cleanup(ctx context.Context) error
 }
 
 type FunctionRegistryInterface interface {

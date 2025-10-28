@@ -401,39 +401,24 @@ func (h *ConnectionHandler) keepAliveGoroutine(ctx context.Context) {
 
 // OnAsrResult 实现 AsrEventListener 接口
 // 返回true则停止语音识别，返回false会继续语音识别
-func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool {
-	log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
-
+func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string, isFinalResult bool) bool {
+	//h.LogInfo(fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
 	if h.providers.asr.GetSilenceCount() >= 2 {
-		log.Info(ctx, "检测到连续两次静音，结束对话")
+		log.Errorf(ctx, "[ASR] [静音检测] 连续两次，结束对话")
 		h.closeAfterChat = true // 如果连续两次静音，则结束对话
-		result = "长时间未检测到用户说话，请礼貌的结束对话"
+		result = "[SILENCE_TIMEOUT] 长时间未检测到用户说话，请礼貌的结束对话"
 	}
-
-	trimmed := strings.TrimSpace(result)
-	if trimmed == "" && h.providers.asr.GetSilenceCount() > 0 {
-		log.Info(ctx, "收到静音结束事件，通知设备端停止聆听")
-		if err := h.sendListenState(ctx, "stop"); err != nil {
-			log.Errorf(ctx, "发送静音停止消息失败: %v", err)
-		}
-		h.clientVoiceStop = true
-		return true
-	}
-
 	if h.clientListenMode == "auto" {
-		if trimmed == "" {
+		if result == "" {
 			return false
 		}
-		log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
-		h.handleChatMessage(ctx, result)
+		log.Errorf(ctx, fmt.Sprintf("[ASR] [识别结果 %s/%s]", h.clientListenMode, result))
+		h.handleChatMessage(context.Background(), result)
 		return true
 	} else if h.clientListenMode == "manual" {
 		h.clientAsrText += result
-		if trimmed != "" {
-			log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, h.clientAsrText)
-		}
-		if h.clientVoiceStop {
-			h.handleChatMessage(ctx, h.clientAsrText)
+		if isFinalResult {
+			h.handleChatMessage(context.Background(), h.clientAsrText)
 			return true
 		}
 		return false
@@ -443,8 +428,8 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string) bool
 		}
 		h.stopServerSpeak(ctx)
 		h.providers.asr.Reset(ctx) // 重置ASR状态，准备下一次识别
-		log.Infof(ctx, "[%s] ASR识别结果: %s", h.clientListenMode, result)
-		h.handleChatMessage(ctx, result)
+		log.Errorf(ctx, fmt.Sprintf("[ASR] [识别结果 %s/%s]", h.clientListenMode, result))
+		h.handleChatMessage(context.Background(), result)
 		return true
 	}
 	return false
