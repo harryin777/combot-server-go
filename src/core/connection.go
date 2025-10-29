@@ -402,7 +402,6 @@ func (h *ConnectionHandler) keepAliveGoroutine(ctx context.Context) {
 // OnAsrResult 实现 AsrEventListener 接口
 // 返回true则停止语音识别，返回false会继续语音识别
 func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string, isFinalResult bool) bool {
-	//h.LogInfo(fmt.Sprintf("[%s] ASR识别结果: %s", h.clientListenMode, result))
 	if h.providers.asr.GetSilenceCount() >= 2 {
 		log.Errorf(ctx, "[ASR] [静音检测] 连续两次，结束对话")
 		h.closeAfterChat = true // 如果连续两次静音，则结束对话
@@ -412,7 +411,7 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string, isFi
 		if result == "" {
 			return false
 		}
-		log.Errorf(ctx, fmt.Sprintf("[ASR] [识别结果 %s/%s]", h.clientListenMode, result))
+		log.Errorf(ctx, "[ASR] [识别结果 %s/%s]", h.clientListenMode, result)
 		h.handleChatMessage(context.Background(), result)
 		return true
 	} else if h.clientListenMode == "manual" {
@@ -428,7 +427,7 @@ func (h *ConnectionHandler) OnAsrResult(ctx context.Context, result string, isFi
 		}
 		h.stopServerSpeak(ctx)
 		h.providers.asr.Reset(ctx) // 重置ASR状态，准备下一次识别
-		log.Errorf(ctx, fmt.Sprintf("[ASR] [识别结果 %s/%s]", h.clientListenMode, result))
+		log.Errorf(ctx, "[ASR] [识别结果 %s/%s]", h.clientListenMode, result)
 		h.handleChatMessage(context.Background(), result)
 		return true
 	}

@@ -38,7 +38,7 @@ func NewProvider(config *llm.Config) (llm.Provider, error) {
 }
 
 // Initialize 初始化提供者
-func (p *Provider) Initialize() error {
+func (p *Provider) Initialize(ctx context.Context) error {
 	config := p.Config()
 	baseURL := config.BaseURL
 	if baseURL == "" {
@@ -65,7 +65,7 @@ func (p *Provider) Initialize() error {
 }
 
 // Cleanup 清理资源
-func (p *Provider) Cleanup() error {
+func (p *Provider) Cleanup(ctx context.Context) error {
 	return nil
 }
 

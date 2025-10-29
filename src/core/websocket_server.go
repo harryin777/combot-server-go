@@ -222,11 +222,6 @@ func (ws *WebSocketServer) handleWebSocket(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	log.Infof(r.Context(), "开始升级 WebSocket 连接 [Method=%s, Proto=%s]...", r.Method, r.Proto)
-	log.Infof(r.Context(), "请求头: Upgrade=%s, Connection=%s, Sec-WebSocket-Key=%s, Sec-WebSocket-Version=%s",
-		r.Header.Get("Upgrade"), r.Header.Get("Connection"),
-		r.Header.Get("Sec-WebSocket-Key"), r.Header.Get("Sec-WebSocket-Version"))
-
 	conn, err := ws.upgrader.Upgrade(w, r)
 	if err != nil {
 		log.Errorf(r.Context(), "WebSocket升级失败: %v", err)

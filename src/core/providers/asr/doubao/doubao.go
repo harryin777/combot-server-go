@@ -3,6 +3,7 @@ package doubao
 import (
 	"bytes"
 	"combot-server-go/src/log"
+	"combot-server-go/src/utils"
 	"compress/gzip"
 	"context"
 	"encoding/binary"
@@ -18,6 +19,7 @@ import (
 	"combot-server-go/src/core/providers/asr"
 
 	"github.com/gorilla/websocket"
+	jsoniter "github.com/json-iterator/go"
 )
 
 // Protocol constants
@@ -83,15 +85,25 @@ type Provider struct {
 func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	base := asr.NewBaseProvider(config, deleteFile)
 
+	ctx := utils.GetCtxWithReq(context.Background())
+
 	// 从config.Data中获取配置
 	appID, ok := config.Data["appid"].(string)
 	if !ok {
+		log.Errorf(ctx, "缺少appid配置")
 		return nil, fmt.Errorf("缺少appid配置")
 	}
 
 	accessToken, ok := config.Data["access_token"].(string)
 	if !ok {
+		log.Errorf(ctx, "缺少access_token配置")
 		return nil, fmt.Errorf("缺少access_token配置")
+	}
+
+	wsUrl, ok := config.Data["wsurl"].(string)
+	if ok && wsUrl != "" {
+		log.Infof(ctx, "缺少wsurl配置: %s", wsUrl)
+		return nil, fmt.Errorf("缺少wsurl配置")
 	}
 
 	// 确保输出目录存在
@@ -118,14 +130,13 @@ func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 		}
 	}
 
-	url := "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel_nostream"
 	provider := &Provider{
 		BaseProvider:  base,
 		appID:         appID,
 		accessToken:   accessToken,
 		outputDir:     outputDir,
 		host:          "openspeech.bytedance.com",
-		wsURL:         url,
+		wsURL:         wsUrl,
 		chunkDuration: 200, // 固定使用200ms分片
 		connectID:     connectID,
 
@@ -373,8 +384,8 @@ func (p *Provider) parseResponse(ctx context.Context, data []byte) (map[string]i
 }
 
 // AddAudio 添加音频数据到缓冲区
-func (p *Provider) AddAudio(data []byte) error {
-	return p.AddAudioWithContext(context.Background(), data)
+func (p *Provider) AddAudio(ctx context.Context, data []byte) error {
+	return p.AddAudioWithContext(ctx, data)
 }
 
 // AddAudioWithContext 带上下文的音频数据添加
@@ -454,8 +465,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 		if i < maxRetries {
 			backoffTime := time.Duration(500*(i+1)) * time.Millisecond
-			fmt.Printf("WebSocket连接失败(尝试%d/%d): %v, 将在%v后重试\n",
-				i+1, maxRetries+1, err, backoffTime)
+			log.Infof(ctx, "WebSocket连接失败(尝试%d/%d): %v, 将在%v后重试")
 			time.Sleep(backoffTime)
 		}
 	}
@@ -465,7 +475,8 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 		if resp != nil {
 			statusCode = resp.StatusCode
 		}
-		return fmt.Errorf("WebSocket连接失败(状态码:%d): %v", statusCode, err)
+		log.Errorf(ctx, "WebSocket连接失败(状态码:%d): %v", statusCode, err)
+		return err
 	}
 
 	p.conn = conn
@@ -473,15 +484,17 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	// 发送初始请求
 	p.reqID = fmt.Sprintf("%d", time.Now().UnixNano())
 	request := p.constructRequest()
-	requestBytes, err := json.Marshal(request)
+	requestBytes, err := jsoniter.Marshal(request)
 	if err != nil {
-		return fmt.Errorf("构造请求数据失败: %v", err)
+		log.Errorf(ctx, "序列化请求数据失败: %v", err)
+		return err
 	}
 
 	var buf bytes.Buffer
 	gzipWriter := gzip.NewWriter(&buf)
 	if _, err := gzipWriter.Write(requestBytes); err != nil {
-		return fmt.Errorf("压缩请求数据失败: %v", err)
+		log.Errorf(ctx, "压缩请求数据失败: %v", err)
+		return err
 	}
 	gzipWriter.Close()
 
@@ -496,27 +509,31 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 
 	// 发送请求
 	if err := p.conn.WriteMessage(websocket.BinaryMessage, fullRequest); err != nil {
-		return fmt.Errorf("发送请求失败: %v", err)
+		log.Errorf(ctx, "发送初始请求失败: %v", err)
+		return err
 	}
 
 	// 读取响应
 	_, response, err := p.conn.ReadMessage()
 	if err != nil {
-		return fmt.Errorf("读取响应失败: %v", err)
+		log.Errorf(ctx, "读取响应失败: %v", err)
+		return err
 	} else {
 		log.Debugf(ctx, "[DEBUG] 流式识别: 收到WebSocket消息长度=%d", len(response))
 	}
 
 	initialResult, err := p.parseResponse(ctx, response)
 	if err != nil {
-		return fmt.Errorf("解析响应失败: %v", err)
+		log.Errorf(ctx, "解析响应失败: %v", err)
+		return err
 	}
 
 	// 检查初始响应状态
 	if msg, ok := initialResult["payload_msg"].(map[string]interface{}); ok {
 		// Doubao ASR v3 uses 20000000 for success code in initial response
 		if code, ok := msg["code"].(float64); ok && int(code) != 20000000 {
-			return fmt.Errorf("ASR初始化错误: %v", msg)
+			log.Errorf(ctx, "ASR初始化错误: %v", msg)
+			return err
 		}
 	}
 
@@ -583,7 +600,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 			// 检查是否有 result 字段（正常响应）
 			if resultData, hasResult := payloadMsg["result"].(map[string]interface{}); hasResult {
 				// 提取文本结果
-				text := ""
+				var text string
 				if textData, hasText := resultData["text"].(string); hasText {
 					text = textData
 				}

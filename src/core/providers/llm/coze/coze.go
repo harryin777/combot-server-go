@@ -7,10 +7,11 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coze-dev/coze-go"
-	"github.com/sashabaranov/go-openai"
 	"io"
 	"sync"
+
+	"github.com/coze-dev/coze-go"
+	"github.com/sashabaranov/go-openai"
 )
 
 type Provider struct {
@@ -65,7 +66,7 @@ func NewProvider(config *llm.Config) (llm.Provider, error) {
 }
 
 // Initialize 初始化提供者
-func (p *Provider) Initialize() error {
+func (p *Provider) Initialize(ctx context.Context) error {
 	config := p.Config()
 	baseURL := config.BaseURL
 	if baseURL == "" {
@@ -96,6 +97,10 @@ func (p *Provider) Initialize() error {
 		authCli = coze.NewTokenAuth(p.accessToken)
 	}
 	p.client = coze.NewCozeAPI(authCli, coze.WithBaseURL(baseURL))
+	return nil
+}
+
+func (p *Provider) Cleanup(ctx context.Context) error {
 	return nil
 }
 
