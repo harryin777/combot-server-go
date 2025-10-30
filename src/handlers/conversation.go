@@ -74,8 +74,8 @@ func (h *ConversationHandler) GetUserConversations(c *gin.Context) {
 			SessionID:    session.SessionID,
 			Title:        session.Title,
 			CurrentRole:  session.CombotName,
-			StartTime:    session.StartTime.Format("2006-01-02T15:04:05Z"),
-			LastActivity: session.LastActivity.Format("2006-01-02T15:04:05Z"),
+			StartTime:    session.StartTime.Format("2006-01-02 15:04:05"),
+			LastActivity: session.LastActivity.Format("2006-01-02 15:04:05"),
 			Status:       string(rune(session.Status + 48)), // 转换枚举为字符串
 			MessageCount: session.MessageCount,
 		})
@@ -139,7 +139,7 @@ func (h *ConversationHandler) GetConversationMessages(c *gin.Context) {
 			Content:     message.Content,
 			MessageType: string(rune(message.MessageType + 48)), // 转换枚举为字符串
 			Round:       1,                                      // 使用默认值，因为模型中没有这个字段
-			CreatedAt:   message.CreatedAt.Format("2006-01-02T15:04:05Z"),
+			CreatedAt:   message.CreatedAt.Format("2006-01-02 15:04:05"),
 		})
 	}
 

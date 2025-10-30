@@ -471,17 +471,16 @@ func (h *ConnectionHandler) quickReplyWakeUpWords(ctx context.Context, text stri
 		return false
 	}
 
-	// 如果包含唤醒词，继续LLM处理（不进行快速回复）
-	if utils.IsWakeUpWord(text) {
-		log.Infof(ctx, "检测到唤醒词，继续LLM处理: %s", text)
+	// 如果不包含唤醒词，继续LLM处理
+	if !utils.IsWakeUpWord(text) {
 		return false
 	}
 
-	// 如果没有唤醒词，进行快速回复并跳过LLM处理
+	// 如果包含唤醒词，进行快速回复并跳过LLM处理（快速响应）
 	replyText := utils.RandomSelectFromArray(h.config.QuickReplyWords)
 	h.ttsLastTextIndex = 1 // 重置文本索引
 	h.SpeakAndPlay(ctx, replyText, 1, h.talkRound)
-	log.Infof(ctx, "使用快速回复（无唤醒词）: %s -> %s", text, replyText)
+	log.Infof(ctx, "检测到唤醒词，使用快速回复: %s -> %s", text, replyText)
 
 	return true
 }
@@ -1013,17 +1012,18 @@ func (h *ConnectionHandler) processTTSTask(ctx context.Context, text string, tex
 	if err != nil {
 		log.Errorf(ctx, "TTS转换失败:text(%s) %v", text, err)
 		return
-	} else {
-		log.Debugf(ctx, "TTS转换成功: text(%s), index(%d) %s", text, textIndex, filepath)
-		// 如果是快速回复词，保存到缓存
-		if utils.IsQuickReplyHit(text, h.config.QuickReplyWords) {
-			if err := h.quickReplyCache.SaveCachedAudio(text, filepath); err != nil {
-				log.Errorf(ctx, "保存快速回复音频失败: %v", err)
-			} else {
-				log.Infof(ctx, "成功缓存快速回复音频: %s", text)
-			}
+	}
+
+	log.Infof(ctx, "TTS转换成功: text(%s), index(%d) %s", text, textIndex, filepath)
+	// 如果是快速回复词，保存到缓存
+	if utils.IsQuickReplyHit(text, h.config.QuickReplyWords) {
+		if err := h.quickReplyCache.SaveCachedAudio(text, filepath); err != nil {
+			log.Errorf(ctx, "保存快速回复音频失败: %v", err)
+		} else {
+			log.Infof(ctx, "成功缓存快速回复音频: %s", text)
 		}
 	}
+
 	if atomic.LoadInt32(&h.serverVoiceStop) == 1 { // 服务端语音停止
 		log.Infof(ctx, "processTTSTask 服务端语音停止, 不再发送音频数据：%s", text)
 		// 服务端语音停止时，根据配置删除已生成的音频文件
@@ -1041,14 +1041,6 @@ func (h *ConnectionHandler) processTTSTask(ctx context.Context, text string, tex
 
 // SpeakAndPlay 合成并播放语音
 func (h *ConnectionHandler) SpeakAndPlay(ctx context.Context, text string, textIndex int, round int) error {
-	defer func() {
-		// 将任务加入队列，不阻塞当前流程
-		h.ttsQueue <- struct {
-			text      string
-			round     int
-			textIndex int
-		}{text, round, textIndex}
-	}()
 
 	originText := text // 保存原始文本用于日志
 	text = utils.RemoveAllEmoji(text)
@@ -1068,6 +1060,13 @@ func (h *ConnectionHandler) SpeakAndPlay(ctx context.Context, text string, textI
 		log.Warnf(ctx, "文本过长，超过255字符限制，截断合成语音: %s", text)
 		text = text[:255] // 截断文本
 	}
+
+	// 将任务加入队列，不阻塞当前流程
+	h.ttsQueue <- struct {
+		text      string
+		round     int
+		textIndex int
+	}{text, round, textIndex}
 
 	return nil
 }
