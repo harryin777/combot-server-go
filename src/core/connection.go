@@ -463,6 +463,45 @@ func (h *ConnectionHandler) QuitIntent(ctx context.Context, text string) bool {
 	return false
 }
 
+// detectEndConversationIntent 检测AI回复中是否包含结束对话的意图
+// 当用户说"退下吧"、"你走吧"等类似的话时，AI通常会回复表示告别的话
+// 此函数检测这些告别类的回复，判断是否应该结束对话
+func (h *ConnectionHandler) detectEndConversationIntent(ctx context.Context, aiResponse string) bool {
+	// 移除标点符号，便于匹配
+	cleanResponse := utils.RemoveAllPunctuation(aiResponse)
+	cleanResponse = strings.ToLower(cleanResponse)
+
+	// 定义结束对话的关键词和短语
+	// 这些通常是AI在用户要求其离开时会说的话
+	endPhrases := []string{
+		"再见",
+		"拜拜",
+		"好的我先退下了",
+		"那我先退下了",
+		"我先走了",
+		"先走了",
+		"好的我走了",
+		"那我走了",
+		"退下了",
+		"先告辞了",
+		"告辞了",
+		"有需要再叫我",
+		"需要再叫我",
+		"有事再叫我",
+		"随时叫我",
+	}
+
+	// 检查AI回复中是否包含这些短语
+	for _, phrase := range endPhrases {
+		if strings.Contains(cleanResponse, phrase) {
+			log.Infof(ctx, "检测到结束对话关键词: '%s' in '%s'", phrase, cleanResponse)
+			return true
+		}
+	}
+
+	return false
+}
+
 // quickReplyWakeUpWords 处理快速回复和唤醒词逻辑
 // 返回 true 表示应该跳过后续LLM处理（已处理完成），返回 false 表示需要继续LLM处理
 func (h *ConnectionHandler) quickReplyWakeUpWords(ctx context.Context, text string) bool {
@@ -811,7 +850,16 @@ func (h *ConnectionHandler) genResponseByLLM(ctx context.Context, messages []pro
 	// 获取完整响应内容，用于对话历史和情绪分析
 	content := utils.JoinStrings(responseMessage)
 
-	// ========== 步骤7: 对话历史管理 ==========
+	// ========== 步骤7: 检测对话结束意图 ==========
+	// 检测AI回复中是否包含结束对话的意图
+	if !toolCallFlag && content != "" {
+		if h.detectEndConversationIntent(ctx, content) {
+			log.Info(ctx, "检测到AI回复中包含结束对话意图，将在播放完成后断开连接")
+			h.closeAfterChat = true
+		}
+	}
+
+	// ========== 步骤8: 对话历史管理 ==========
 	// 只有非工具调用的响应才保存为assistant消息
 	if !toolCallFlag {
 		assistantMessage := chat.Message{
