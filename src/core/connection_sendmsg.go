@@ -90,7 +90,7 @@ func (h *ConnectionHandler) sendHelloMessage(ctx context.Context) error {
 }
 
 func (h *ConnectionHandler) sendTTSMessage(ctx context.Context, state string, text string, textIndex int) error {
-	// 发送TTS状态结束通知
+	// 发送TTS状态通知
 	stateMsg := map[string]interface{}{
 		"type":        "tts",
 		"state":       state,
@@ -168,10 +168,16 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		log.Infof(ctx, "TTS音频发送任务结束(%t): %s, 索引: %d/%d", bFinishSuccess, text, textIndex, h.ttsLastTextIndex)
 		h.providers.asr.ResetStartListenTime()
 		if textIndex == h.ttsLastTextIndex {
+			// 先发送 tts stop 消息
 			h.sendTTSMessage(ctx, "stop", "", textIndex)
+
 			if h.closeAfterChat {
+				// 用户说了"退下"类似的话，关闭连接让设备进入 Idle 状态
+				// 设备端逻辑: OnAudioChannelClosed 会调用 SetDeviceState(kDeviceStateIdle)
+				log.Info(ctx, "对话结束，关闭连接，设备将通过OnAudioChannelClosed进入静默状态")
 				h.Close(ctx)
 			} else {
+				// 正常对话结束，清除状态但保持连接
 				h.clearSpeakStatus(ctx)
 			}
 		}
@@ -254,7 +260,8 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	playPosition := 0 // 播放位置（毫秒）
 
 	// 预缓冲：发送前几帧，提升播放流畅度
-	preBufferFrames := 3
+	// 增加预缓冲帧数从3帧提升到5帧，约300ms的缓冲（60ms*5），减少卡顿
+	preBufferFrames := 5
 	if len(audioData) < preBufferFrames {
 		preBufferFrames = len(audioData)
 	}
@@ -295,22 +302,29 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 		currentTime := time.Now()
 		delay := expectedTime.Sub(currentTime)
 
-		// 流控延迟处理
+		// 流控延迟处理 - 优化：减少延迟检查开销，提升播放流畅度
 		if delay > 0 {
-			// 使用简单的可中断睡眠
-			ticker := time.NewTicker(10 * time.Millisecond) // 固定10ms检查间隔
-			defer ticker.Stop()
-
-			endTime := time.Now().Add(delay)
-			for time.Now().Before(endTime) {
+			// 对于较小的延迟(小于5ms)，直接sleep而不是用ticker，减少系统调用开销
+			if delay < 5*time.Millisecond {
+				time.Sleep(delay)
+				// 睡眠后快速检查中断条件
+				if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
+					log.Infof(ctx, "音频发送在短延迟后被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
+					return nil
+				}
+			} else {
+				// 较长延迟使用可中断的ticker机制
+				timer := time.NewTimer(delay)
 				select {
-				case <-ticker.C:
-					// 检查中断条件
-					if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-						log.Infof(ctx, "音频发送在延迟中被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
-						return nil
-					}
+				case <-timer.C:
+					// 延迟结束，继续发送
 				case <-h.stopChan:
+					timer.Stop()
+					return nil
+				}
+				// 检查中断条件
+				if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
+					log.Infof(ctx, "音频发送在延迟后被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
 					return nil
 				}
 			}
