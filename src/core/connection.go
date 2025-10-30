@@ -505,14 +505,14 @@ func (h *ConnectionHandler) handleChatMessage(ctx context.Context, text string) 
 	log.Infof(ctx, "开始新的对话轮次: %d", currentRound)
 
 	// 判断是否需要验证
-	if h.isNeedAuth() {
-		if err := h.checkAndBroadcastAuthCode(ctx); err != nil {
-			log.Errorf(ctx, "检查认证码失败: %v", err)
-			return err
-		}
-		log.Info(ctx, "设备未认证，等待管理员认证")
-		return nil
-	}
+	//if h.isNeedAuth() {
+	//	if err := h.checkAndBroadcastAuthCode(ctx); err != nil {
+	//		log.Errorf(ctx, "检查认证码失败: %v", err)
+	//		return err
+	//	}
+	//	log.Info(ctx, "设备未认证，等待管理员认证")
+	//	return nil
+	//}
 
 	// 普通文本消息处理流程
 	// 立即发送 stt 消息，这里的消息是用户说的话经过 asr 识别后变成文字

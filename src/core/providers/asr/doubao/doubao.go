@@ -101,7 +101,7 @@ func NewProvider(config *asr.Config, deleteFile bool) (*Provider, error) {
 	}
 
 	wsUrl, ok := config.Data["wsurl"].(string)
-	if ok && wsUrl != "" {
+	if !ok {
 		log.Infof(ctx, "缺少wsurl配置: %s", wsUrl)
 		return nil, fmt.Errorf("缺少wsurl配置")
 	}
@@ -457,6 +457,7 @@ func (p *Provider) StartStreaming(ctx context.Context) error {
 	var err error
 	maxRetries := 2
 
+	ctx = context.Background()
 	for i := 0; i <= maxRetries; i++ {
 		conn, resp, err = dialer.DialContext(ctx, p.wsURL, headers)
 		if err == nil {
@@ -595,6 +596,8 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 			}
 		}
 
+		log.Infof(ctx, "正在读取流式识别响应: %+v", result)
+
 		// 处理正常响应
 		if payloadMsg, ok := result["payload_msg"].(map[string]interface{}); ok {
 			// 检查是否有 result 字段（正常响应）
@@ -605,7 +608,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 					text = textData
 				}
 
-				log.Debugf(ctx, "[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
+				log.Infof(ctx, "[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
 
 				p.connMutex.Lock()
 				p.result = text

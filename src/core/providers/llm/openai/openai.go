@@ -186,6 +186,12 @@ func (p *Provider) ResponseWithFunctions(ctx context.Context, sessionID string, 
 				Messages: chatMessages,         // 转换后的消息列表
 				Tools:    tools,                // 可用的工具函数列表
 				Stream:   true,                 // 启用流式响应
+				StreamOptions: &openai.StreamOptions{
+					IncludeUsage: true,
+				},
+				ChatTemplateKwargs: map[string]interface{}{
+					"enable_thinking": true, // 启用思考标签处理
+				},
 			},
 		)
 		if err != nil {
