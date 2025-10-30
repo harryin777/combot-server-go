@@ -208,13 +208,14 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 
 	// 使用TTS提供者的方法将音频转为Opus格式
 	if h.serverAudioFormat == "pcm" {
-		log.Info(ctx, "服务端音频格式为PCM，直接发送")
+		log.Info(ctx, "服务端音频格式为PCM")
 		audioData, duration, err = utils.AudioToPCMData(filepath)
 		if err != nil {
 			log.Errorf(ctx, "音频转PCM失败: %v", err)
 			return
 		}
 	} else if h.serverAudioFormat == "opus" {
+		log.Info(ctx, "服务端音频格式为opus")
 		audioData, duration, err = utils.AudioToOpusData(filepath)
 		if err != nil {
 			log.Errorf(ctx, "音频转Opus失败: %v", err)
@@ -233,7 +234,7 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		spentTime := now.Sub(h.roundStartTime)
 		log.Debugf(ctx, "回复首句耗时 %s 第一句话【%s】, round: %d", spentTime, text, round)
 	}
-	log.Debugf(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.ttsLastTextIndex, duration, len(audioData))
+	log.Infof(ctx, "TTS发送(%s): \"%s\" (索引:%d/%d，时长:%f，帧数:%d)", h.serverAudioFormat, text, textIndex, h.ttsLastTextIndex, duration, len(audioData))
 
 	// 分时发送音频数据
 	if err := h.sendAudioFrames(ctx, audioData, text, round); err != nil {
