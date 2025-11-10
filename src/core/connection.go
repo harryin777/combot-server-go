@@ -106,6 +106,14 @@ type ConnectionHandler struct {
 
 	opusDecoder *utils.OpusDecoder // Opus解码器
 
+	// 客户端缓冲区状态（用于动态流控）
+	clientDecodeQueueSize   int // 客户端解码队列大小
+	clientPlaybackQueueSize int // 客户端播放队列大小
+	clientDecodeQueueMax    int // 客户端解码队列最大容量
+	clientPlaybackQueueMax  int // 客户端播放队列最大容量
+	lastBufferStatusTime    time.Time
+	bufferStatusMutex       sync.RWMutex
+
 	// 对话相关
 	dialogueManager  *chat.DialogueManager
 	ttsLastTextIndex int
@@ -183,6 +191,12 @@ func NewConnectionHandler(
 		clientSupportsMCP:     false,  // 默认不支持MCP
 		clientSupportsAEC:     false,  // 默认不支持AEC
 		clientAudioFormat:     "opus", // 默认音频格式
+
+		// 初始化缓冲区状态
+		clientDecodeQueueSize:   0,
+		clientPlaybackQueueSize: 0,
+		clientDecodeQueueMax:    40, // 默认值，会被客户端实际值覆盖
+		clientPlaybackQueueMax:  10, // 默认值，会被客户端实际值覆盖
 
 		headers: make(map[string]string),
 	}

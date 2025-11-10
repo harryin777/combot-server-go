@@ -10,6 +10,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"strings"
+	"time"
 
 	jsoniter "github.com/json-iterator/go"
 )
@@ -119,6 +120,8 @@ func (h *ConnectionHandler) processClientTextMessage(ctx context.Context, text s
 		return h.handleImageMessage(ctx, msgMap)
 	case "mcp":
 		return h.mcpManager.HandleCombotMCPMessage(ctx, msgMap)
+	case "buffer_status":
+		return h.handleBufferStatusMessage(ctx, msgMap)
 	default:
 		log.Warnf(ctx, "=== 未知消息类型 ===: %s, full_message: %v", msgType, msgMap)
 		return fmt.Errorf("未知的消息类型: %s", msgType)
@@ -539,4 +542,43 @@ func (h *ConnectionHandler) parseBinaryAudioMessage(ctx context.Context, message
 		log.Debugf(ctx, "使用协议版本1或默认处理，直接返回原始音频数据")
 		return message, nil
 	}
+}
+
+// handleBufferStatusMessage 处理客户端缓冲区状态消息
+func (h *ConnectionHandler) handleBufferStatusMessage(ctx context.Context, msgMap map[string]interface{}) error {
+	h.bufferStatusMutex.Lock()
+	defer h.bufferStatusMutex.Unlock()
+
+	// 解析缓冲区状态
+	if decodeSize, ok := msgMap["decode_queue_size"].(float64); ok {
+		h.clientDecodeQueueSize = int(decodeSize)
+	}
+	if playbackSize, ok := msgMap["playback_queue_size"].(float64); ok {
+		h.clientPlaybackQueueSize = int(playbackSize)
+	}
+	if decodeMax, ok := msgMap["decode_queue_max"].(float64); ok {
+		h.clientDecodeQueueMax = int(decodeMax)
+	}
+	if playbackMax, ok := msgMap["playback_queue_max"].(float64); ok {
+		h.clientPlaybackQueueMax = int(playbackMax)
+	}
+
+	h.lastBufferStatusTime = time.Now()
+
+	// 计算缓冲区使用率
+	decodeUsage := 0.0
+	playbackUsage := 0.0
+	if h.clientDecodeQueueMax > 0 {
+		decodeUsage = float64(h.clientDecodeQueueSize) / float64(h.clientDecodeQueueMax) * 100
+	}
+	if h.clientPlaybackQueueMax > 0 {
+		playbackUsage = float64(h.clientPlaybackQueueSize) / float64(h.clientPlaybackQueueMax) * 100
+	}
+
+	// 改为Info级别日志,确保能看到
+	log.Infof(ctx, "收到客户端缓冲区状态: decode=%d/%d(%.1f%%), playback=%d/%d(%.1f%%)",
+		h.clientDecodeQueueSize, h.clientDecodeQueueMax, decodeUsage,
+		h.clientPlaybackQueueSize, h.clientPlaybackQueueMax, playbackUsage)
+
+	return nil
 }

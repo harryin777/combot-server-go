@@ -36,17 +36,50 @@ DROP TABLE IF EXISTS `users`;
 CREATE TABLE `users`
 (
     `id`         BIGINT       NOT NULL AUTO_INCREMENT COMMENT '用户ID',
+    `phone`      VARCHAR(20)           DEFAULT NULL COMMENT '手机号',
+    `email`      VARCHAR(255)          DEFAULT NULL COMMENT '邮箱',
     `username`   VARCHAR(50)  NOT NULL COMMENT '用户名',
     `password`   VARCHAR(255) NOT NULL COMMENT '密码（建议加密）',
-    `role`       VARCHAR(20)  NOT NULL DEFAULT 'user' COMMENT '用户角色（admin/user）',
+    `role`       TINYINT      NOT NULL DEFAULT 1 COMMENT '用户角色（1=用户，2=管理员）',
+    `remark`     TEXT                  DEFAULT NULL COMMENT '备注',
     `created_at` TIMESTAMP             DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at` TIMESTAMP             DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (`id`),
-    UNIQUE KEY `idx_username` (`username`)
+    UNIQUE KEY `idx_username` (`username`),
+    UNIQUE KEY `idx_phone` (`phone`),
+    UNIQUE KEY `idx_email` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';
 
 -- ==============================================
--- 3. 用户设置表 (user_settings)
+-- 3. 设备表 (devices)
+-- ==============================================
+DROP TABLE IF EXISTS `devices`;
+CREATE TABLE `devices`
+(
+    `id`                  INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '设备ID',
+    `serial_number`       VARCHAR(64)  NOT NULL COMMENT '设备序列号',
+    `device_id`           VARCHAR(17)  NOT NULL COMMENT 'MAC地址',
+    `client_id`           VARCHAR(36)  NOT NULL COMMENT 'UUID',
+    `token`               VARCHAR(256)          DEFAULT NULL COMMENT '设备Token',
+    `activation_code`     VARCHAR(32)           DEFAULT NULL COMMENT '激活码',
+    `challenge`           VARCHAR(64)           DEFAULT NULL COMMENT '挑战码',
+    `activation_version`  INT          NOT NULL DEFAULT 1 COMMENT '激活版本',
+    `activated`           TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否已激活',
+    `activated_at`        TIMESTAMP             DEFAULT NULL COMMENT '激活时间',
+    `last_seen`           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后在线时间',
+    `user_id`             INT UNSIGNED          DEFAULT NULL COMMENT '关联的用户ID',
+    `device_name`         VARCHAR(100) NOT NULL DEFAULT '' COMMENT '设备昵称',
+    `created_at`          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    `updated_at`          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `idx_serial_number` (`serial_number`),
+    KEY `idx_device_id` (`device_id`),
+    KEY `idx_client_id` (`client_id`),
+    KEY `idx_user_id` (`user_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='设备表';
+
+-- ==============================================
+-- 4. 用户设置表 (user_settings)
 -- ==============================================
 DROP TABLE IF EXISTS `user_settings`;
 CREATE TABLE `user_settings`
@@ -67,7 +100,7 @@ CREATE TABLE `user_settings`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户设置表';
 
 -- ==============================================
--- 4. 模块配置表 (module_configs)
+-- 5. 模块配置表 (module_configs)
 -- ==============================================
 DROP TABLE IF EXISTS `module_configs`;
 CREATE TABLE `module_configs`
@@ -86,7 +119,7 @@ CREATE TABLE `module_configs`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='模块配置表';
 
 -- ==============================================
--- 5. 对话会话表 (conversation_session)
+-- 6. 对话会话表 (conversation_session)
 -- ==============================================
 DROP TABLE IF EXISTS `conversation_session`;
 CREATE TABLE `conversation_session`
@@ -112,7 +145,7 @@ CREATE TABLE `conversation_session`
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='对话会话表';
 
 -- ==============================================
--- 6. 对话消息表 (conversation_messages)
+-- 7. 对话消息表 (conversation_messages)
 -- ==============================================
 DROP TABLE IF EXISTS `conversation_messages`;
 CREATE TABLE `conversation_messages`
@@ -121,7 +154,7 @@ CREATE TABLE `conversation_messages`
     `session_id`   VARCHAR(100) NOT NULL COMMENT '所属会话ID',
     `role`         TINYINT(1) NOT NULL COMMENT '消息角色（user 1;assistant 2 ）',
     `content`      TEXT         NOT NULL COMMENT '消息内容',
-    `message_type` TINYINT(1) DEFAULT 'text' COMMENT '消息类型（text 1;image 2;audio 3;video 4;file 5）',
+    `message_type` TINYINT(1) DEFAULT 1 COMMENT '消息类型（text 1;image 2;audio 3;video 4;file 5）',
     `metadata`     JSON      DEFAULT NULL COMMENT '额外元数据（如图片信息、音频时长等）',
     `created_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`   TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -195,7 +228,7 @@ VALUES ('DoubaoASR',
 
 -- 插入默认管理员用户 (密码: admin123，实际使用时请更改)
 INSERT INTO `users` (`username`, `password`, `role`)
-VALUES ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+VALUES ('admin', '$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 2);
 
 -- 为管理员用户插入默认设置
 INSERT INTO `user_settings` (`user_id`,
@@ -216,9 +249,7 @@ VALUES (1,
           "啥事啊"
         ]');
 
--- 恢复外键检查
-SET
-FOREIGN_KEY_CHECKS = 1;
+
 
 
 

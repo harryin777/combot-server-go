@@ -261,14 +261,16 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	playPosition := 0 // 播放位置（毫秒）
 
 	// 预缓冲：发送前几帧，提升播放流畅度
-	// 增加预缓冲帧数从3帧提升到5帧，约300ms的缓冲（60ms*5），减少卡顿
-	preBufferFrames := 5
+	// 增加预缓冲帧数到8帧，约480ms的缓冲（60ms*8），配合客户端10帧播放队列
+	preBufferFrames := 8
 	if len(audioData) < preBufferFrames {
 		preBufferFrames = len(audioData)
 	}
-	preBufferTime := time.Duration(h.serverAudioFrameDuration*preBufferFrames) * time.Millisecond // 预缓冲时间（毫秒）
 
-	// 发送预缓冲帧
+	log.Infof(ctx, "开始发送音频帧: 总帧数=%d, 预缓冲帧数=%d(%dms)",
+		len(audioData), preBufferFrames, h.serverAudioFrameDuration*preBufferFrames)
+
+	// 快速发送预缓冲帧,每帧之间间隔5ms,让网络有时间传输
 	for i := 0; i < preBufferFrames; i++ {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
@@ -280,7 +282,14 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 			return fmt.Errorf("发送预缓冲音频帧失败: %v", err)
 		}
 		playPosition += h.serverAudioFrameDuration
+
+		// 每帧之间间隔5ms,避免网络拥塞
+		if i < preBufferFrames-1 {
+			time.Sleep(5 * time.Millisecond)
+		}
 	}
+
+	log.Infof(ctx, "预缓冲帧发送完成,耗时: %dms", time.Since(startTime).Milliseconds())
 
 	// 发送剩余音频帧
 	remainingFrames := audioData[preBufferFrames:]
@@ -298,39 +307,6 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 		default:
 		}
 
-		// 计算预期发送时间
-		expectedTime := startTime.Add(time.Duration(playPosition)*time.Millisecond - preBufferTime)
-		currentTime := time.Now()
-		delay := expectedTime.Sub(currentTime)
-
-		// 流控延迟处理 - 优化：减少延迟检查开销，提升播放流畅度
-		if delay > 0 {
-			// 对于较小的延迟(小于5ms)，直接sleep而不是用ticker，减少系统调用开销
-			if delay < 5*time.Millisecond {
-				time.Sleep(delay)
-				// 睡眠后快速检查中断条件
-				if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-					log.Infof(ctx, "音频发送在短延迟后被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
-					return nil
-				}
-			} else {
-				// 较长延迟使用可中断的ticker机制
-				timer := time.NewTimer(delay)
-				select {
-				case <-timer.C:
-					// 延迟结束，继续发送
-				case <-h.stopChan:
-					timer.Stop()
-					return nil
-				}
-				// 检查中断条件
-				if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
-					log.Infof(ctx, "音频发送在延迟后被中断: 帧=%d/%d, 文本=%s", i+preBufferFrames+1, len(audioData), text)
-					return nil
-				}
-			}
-		}
-
 		// 发送音频帧
 		if err := h.sendAudioFrame(chunk, uint32(playPosition)); err != nil {
 			return fmt.Errorf("发送音频帧失败: %v", err)
@@ -338,7 +314,6 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 
 		playPosition += h.serverAudioFrameDuration
 	}
-	time.Sleep(preBufferTime) // 确保预缓冲时间已过，这里需要等待这么久的原因是缓冲帧是一起发送给客户端的
 	// 就是缓冲帧之间没有间隔，其他的帧都是有流控处理的
 	spentTime := time.Since(startTime).Milliseconds()
 	log.Infof(ctx, "音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text)
