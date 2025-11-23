@@ -323,7 +323,7 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 			log.Info(ctx, "收到停止信号，退出消息循环")
 			return
 		default:
-			log.Info(ctx, "阻塞等待接收客户端消息...")
+			//log.Info(ctx, "阻塞等待接收客户端消息...")
 			messageType, message, err := conn.ReadMessage()
 			if err != nil {
 				// 判断错误类型，提供更详细的诊断信息
@@ -339,13 +339,13 @@ func (h *ConnectionHandler) Handle(ctx context.Context, conn Connection) {
 				return
 			}
 
-			log.Infof(ctx, "收到消息 [类型=%d, 长度=%d字节]", messageType, len(message))
+			//log.Infof(ctx, "收到消息 [类型=%d, 长度=%d字节]", messageType, len(message))
 
 			if err := h.handleMessage(ctx, messageType, message); err != nil {
 				log.Errorf(ctx, "处理消息失败: %v", err)
 			}
 
-			log.Info(ctx, "消息处理完成，继续等待下一条消息...")
+			//log.Info(ctx, "消息处理完成，继续等待下一条消息...")
 		}
 	}
 }

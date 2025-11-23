@@ -596,8 +596,6 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 			}
 		}
 
-		log.Infof(ctx, "正在读取流式识别响应: %+v", result)
-
 		// 处理正常响应
 		if payloadMsg, ok := result["payload_msg"].(map[string]interface{}); ok {
 			// 检查是否有 result 字段（正常响应）
@@ -608,7 +606,7 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 					text = textData
 				}
 
-				log.Infof(ctx, "[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
+				//log.Infof(ctx, "[DEBUG] 流式识别: 识别成功, 文本='%s'", text)
 
 				p.connMutex.Lock()
 				p.result = text
@@ -617,7 +615,6 @@ func (p *Provider) ReadMessage(ctx context.Context) {
 				if isLast, hasLast := result["is_last_package"]; hasLast && isLast.(bool) {
 					// 如果是最后一个包，结束流式识别
 					isLastPackage = true
-					log.Infof(ctx, "检测到最后一个ASR语音包, is_last_package=%v", isLast)
 				}
 
 				if listener := p.BaseProvider.GetListener(); listener != nil {

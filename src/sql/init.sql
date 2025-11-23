@@ -56,7 +56,7 @@ CREATE TABLE `users`
 DROP TABLE IF EXISTS `devices`;
 CREATE TABLE `devices`
 (
-    `id`                  INT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '设备ID',
+    `id`                  BIGINT UNSIGNED NOT NULL AUTO_INCREMENT COMMENT '设备ID',
     `serial_number`       VARCHAR(64)  NOT NULL COMMENT '设备序列号',
     `device_id`           VARCHAR(17)  NOT NULL COMMENT 'MAC地址',
     `client_id`           VARCHAR(36)  NOT NULL COMMENT 'UUID',
@@ -65,9 +65,9 @@ CREATE TABLE `devices`
     `challenge`           VARCHAR(64)           DEFAULT NULL COMMENT '挑战码',
     `activation_version`  INT          NOT NULL DEFAULT 1 COMMENT '激活版本',
     `activated`           TINYINT(1)   NOT NULL DEFAULT 0 COMMENT '是否已激活',
-    `activated_at`        TIMESTAMP             DEFAULT NULL COMMENT '激活时间',
+    `activated_at`        DATETIME              DEFAULT NULL COMMENT '激活时间',
     `last_seen`           TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '最后在线时间',
-    `user_id`             INT UNSIGNED          DEFAULT NULL COMMENT '关联的用户ID',
+    `user_id`             BIGINT UNSIGNED       DEFAULT NULL COMMENT '关联的用户ID',
     `device_name`         VARCHAR(100) NOT NULL DEFAULT '' COMMENT '设备昵称',
     `created_at`          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     `updated_at`          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -194,8 +194,8 @@ create table agent_roles
     detailed_memory       text                       null comment '详细记忆',
     temperature           decimal(3, 2) default 0.70 null comment '温度参数',
     max_length            bigint        default 2000 null comment '最大长度',
-    created_at            datetime(3)                null comment '创建时间',
-    updated_at            datetime(3)                null comment '更新时间'
+    created_at            datetime(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) comment '创建时间',
+    updated_at            datetime(3)   NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3) comment '更新时间'
 );
 
 
@@ -253,7 +253,7 @@ VALUES (1,
 
 
 
-drop table if exists device_verification_codes
+drop table if exists device_verification_codes;
 CREATE TABLE IF NOT EXISTS device_verification_codes (
                                                          id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY COMMENT '自增主键ID',
 

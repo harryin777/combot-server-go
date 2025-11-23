@@ -242,6 +242,24 @@ func (h *ConnectionHandler) sendAudioMessage(ctx context.Context, filepath strin
 		return
 	}
 
+	// 发送完成后，等待客户端消化缓冲区数据
+	// 特别是最后一句，需要给客户端足够时间播放完
+	if textIndex == h.ttsLastTextIndex {
+		// 最后一句：根据缓冲区状态估算等待时间
+		h.bufferStatusMutex.RLock()
+		estimatedBufferMs := (h.clientDecodeQueueSize + h.clientPlaybackQueueSize) * h.serverAudioFrameDuration
+		h.bufferStatusMutex.RUnlock()
+
+		// 至少等待 500ms，最多等待缓冲区播放时间 + 500ms
+		waitTime := 500 * time.Millisecond
+		if estimatedBufferMs > 0 {
+			waitTime = time.Duration(estimatedBufferMs)*time.Millisecond + 500*time.Millisecond
+		}
+
+		log.Infof(ctx, "最后一句发送完成，等待 %dms 让客户端播放完缓冲区数据", waitTime.Milliseconds())
+		time.Sleep(waitTime)
+	}
+
 	// 发送TTS状态结束通知
 	if err := h.sendTTSMessage(ctx, "sentence_end", text, textIndex); err != nil {
 		log.Errorf(ctx, "发送TTS结束状态失败: %v", err)
@@ -261,8 +279,8 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	playPosition := 0 // 播放位置（毫秒）
 
 	// 预缓冲：发送前几帧，提升播放流畅度
-	// 增加预缓冲帧数到8帧，约480ms的缓冲（60ms*8），配合客户端10帧播放队列
-	preBufferFrames := 8
+	// 减少预缓冲到5帧（300ms），避免初期打满队列
+	preBufferFrames := 5
 	if len(audioData) < preBufferFrames {
 		preBufferFrames = len(audioData)
 	}
@@ -270,7 +288,7 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 	log.Infof(ctx, "开始发送音频帧: 总帧数=%d, 预缓冲帧数=%d(%dms)",
 		len(audioData), preBufferFrames, h.serverAudioFrameDuration*preBufferFrames)
 
-	// 快速发送预缓冲帧,每帧之间间隔5ms,让网络有时间传输
+	// 预缓冲帧也需要适当间隔，避免网络拥塞和队列打满
 	for i := 0; i < preBufferFrames; i++ {
 		// 检查是否被打断
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
@@ -283,16 +301,19 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 		}
 		playPosition += h.serverAudioFrameDuration
 
-		// 每帧之间间隔5ms,避免网络拥塞
+		// 每帧之间间隔10ms，给网络和客户端缓冲区留出空间
 		if i < preBufferFrames-1 {
-			time.Sleep(5 * time.Millisecond)
+			time.Sleep(10 * time.Millisecond)
 		}
 	}
 
 	log.Infof(ctx, "预缓冲帧发送完成,耗时: %dms", time.Since(startTime).Milliseconds())
 
-	// 发送剩余音频帧
+	// 发送剩余音频帧，采用动态流控策略
 	remainingFrames := audioData[preBufferFrames:]
+	framesSinceLastCheck := 0
+	checkInterval := 2 // 每2帧检查一次缓冲区状态（更频繁）
+
 	for i, chunk := range remainingFrames {
 		// 检查是否被打断或轮次变化
 		if atomic.LoadInt32(&h.serverVoiceStop) == 1 || round != h.talkRound {
@@ -307,6 +328,27 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 		default:
 		}
 
+		// 动态流控：根据客户端缓冲区状态调整发送延时
+		framesSinceLastCheck++
+		if framesSinceLastCheck >= checkInterval {
+			framesSinceLastCheck = 0
+			delay := h.calculateSendDelay()
+			if delay > 0 {
+				// 添加日志，确认流控是否生效
+				if i%10 == 0 { // 每10帧输出一次
+					h.bufferStatusMutex.RLock()
+					log.Infof(ctx, "流控延时: decode=%d/%d(%.0f%%), playback=%d/%d(%.0f%%), delay=%dms",
+						h.clientDecodeQueueSize, h.clientDecodeQueueMax,
+						float64(h.clientDecodeQueueSize)/float64(h.clientDecodeQueueMax)*100,
+						h.clientPlaybackQueueSize, h.clientPlaybackQueueMax,
+						float64(h.clientPlaybackQueueSize)/float64(h.clientPlaybackQueueMax)*100,
+						delay)
+					h.bufferStatusMutex.RUnlock()
+				}
+				time.Sleep(time.Duration(delay) * time.Millisecond)
+			}
+		}
+
 		// 发送音频帧
 		if err := h.sendAudioFrame(chunk, uint32(playPosition)); err != nil {
 			return fmt.Errorf("发送音频帧失败: %v", err)
@@ -314,7 +356,6 @@ func (h *ConnectionHandler) sendAudioFrames(ctx context.Context, audioData [][]b
 
 		playPosition += h.serverAudioFrameDuration
 	}
-	// 就是缓冲帧之间没有间隔，其他的帧都是有流控处理的
 	spentTime := time.Since(startTime).Milliseconds()
 	log.Infof(ctx, "音频帧发送完成: 总帧数=%d, 总时长=%dms, 总耗时:%dms 文本=%s", len(audioData), playPosition, spentTime, text)
 	return nil
@@ -357,4 +398,53 @@ func (h *ConnectionHandler) sendAudioFrame(audioData []byte, timestamp uint32) e
 	}
 
 	return h.conn.WriteMessage(2, frameData)
+}
+
+// calculateSendDelay 根据客户端缓冲区状态计算发送延时(毫秒)
+func (h *ConnectionHandler) calculateSendDelay() int {
+	h.bufferStatusMutex.RLock()
+	defer h.bufferStatusMutex.RUnlock()
+
+	// 如果没有收到过缓冲区状态，使用默认延时
+	if h.lastBufferStatusTime.IsZero() || time.Since(h.lastBufferStatusTime) > 2*time.Second {
+		return 0 // 无缓冲区信息，不延时
+	}
+
+	// 计算 playback 队列使用率
+	playbackUsage := 0.0
+	if h.clientPlaybackQueueMax > 0 {
+		playbackUsage = float64(h.clientPlaybackQueueSize) / float64(h.clientPlaybackQueueMax)
+	}
+
+	// 计算 decode 队列使用率
+	decodeUsage := 0.0
+	if h.clientDecodeQueueMax > 0 {
+		decodeUsage = float64(h.clientDecodeQueueSize) / float64(h.clientDecodeQueueMax)
+	}
+
+	// 动态延时策略（更激进的流控）：
+	// 优先考虑 decode 队列，因为满了会直接丢包
+	// 提前介入，不要等到满了才处理
+	var delay int
+
+	if decodeUsage >= 0.85 { // decode队列85%以上满 - 严重警告
+		delay = 200 // 大幅延时200ms，让客户端充分消化
+	} else if decodeUsage >= 0.75 { // decode队列75%以上满
+		delay = 120 // 延时120ms
+	} else if decodeUsage >= 0.65 { // decode队列65%以上
+		delay = 80 // 延时80ms
+	} else if decodeUsage >= 0.5 { // decode队列50%以上
+		delay = 50 // 延时50ms
+	} else if playbackUsage >= 0.6 { // playback队列60%以上
+		delay = 40 // 延时40ms
+	} else if playbackUsage >= 0.4 { // playback队列40%以上
+		delay = 25 // 延时25ms
+	} else if playbackUsage >= 0.2 || decodeUsage >= 0.35 {
+		// playback 20%以上 或 decode 35%以上
+		delay = 15 // 轻度延时15ms
+	} else {
+		delay = 0 // 正常发送
+	}
+
+	return delay
 }
