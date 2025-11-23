@@ -1,236 +1,270 @@
-小智 AI 聊天机器人作为一个语音交互入口，利用 Qwen / DeepSeek 等大模型的 AI 能力，通过 MCP 协议实现多端控制。
-![image](https://github.com/user-attachments/assets/aa1e2f26-92d3-4d16-a74a-68232f34cca3)
+# Combot Server Go
 
-小智项目最初是基于[虾哥开源的ESP32项目](https://github.com/78/xiaozhi-esp32?tab=readme-ov-file)，目前已经形成一个很好的开源生态，很多客户端都支持该协议，如ESP32客户端，Android客户端，python客户端等等。
+> 🚀 基于小智 AI go-server 的魔改版本，增加了 MCP 功能支持
 
-小智 AI 是一个语音交互机器人，结合 Qwen、DeepSeek 等强大大模型，通过 MCP 协议连接多端设备（ESP32、Android、Python 等），实现高效自然的人机对话。
-
-本项目是其后端服务，旨在提供一套 **商业级部署方案** —— 高并发、低成本、功能完整、开箱即用。
+本项目是 [小智 AI go-server](https://github.com/AnimeAIChat/xiaozhi-server-go) 的增强版本，在原有基础上进行了大量优化和功能扩展。
 
 <p align="center">
   <img src="https://github.com/user-attachments/assets/aa1e2f26-92d3-4d16-a74a-68232f34cca3" alt="Xiaozhi Architecture" width="600">
 </p>
 
-项目初始基于 [虾哥的 ESP32 开源项目](https://github.com/78/xiaozhi-esp32?tab=readme-ov-file)，目前已形成完整生态，支持多种客户端协议兼容接入。
+---
+
+## 🎯 主要特性
+
+### 🏗️ 核心架构优化
+
+* **完整的用户系统**
+  * 用户注册与设备绑定
+  * 完善的错误处理机制
+  * 统一的日志系统（基于 Logrus）
+  
+* **稳定的 WebSocket 连接**
+  * EOF 读取异常修复
+  * 退出聆听问题优化
+  * Context 管理优化
+
+* **对话管理系统**
+  * 对话历史记录
+  * 角色管理与切换
+  * 多种对话模式支持
+
+### 🎤 语音处理能力
+
+* **豆包 ASR 深度集成**
+  * 重写豆包 ASR 模块
+  * 流式语音识别
+  * ASR 结果优化处理
+  
+* **多格式音频支持**
+  * PCM 格式
+  * Opus 格式
+  * 音频播放优化
+
+### 🔧 OTA 固件管理
+
+* 固件版本管理
+* OTA 下发流程
+* 自动升级支持
+
+### 🤖 MCP 协议支持
+
+* 服务端 MCP Server
+* 本地 MCP 工具调用
+* 客户端 MCP 透传
+* 资源池管理机制
+
+### 📦 核心目录结构
+
+```
+src/
+├── core/                  # 核心功能模块
+│   ├── mcp/              # MCP 协议实现
+│   ├── auth/             # 认证模块
+│   ├── chat/             # 对话管理
+│   └── pool/             # 资源池管理
+├── dao/                  # 数据访问层
+├── handlers/             # HTTP 处理器
+├── service/              # 业务逻辑层
+├── models/               # 数据模型
+└── middleware/           # 中间件
+```
+
 
 ---
 
-## ✨ 核心优势
+## ✨ 完整功能列表
 
-| 优势         | 说明                                                   |
-| ---------- | ---------------------------------------------------- |
-| 🚀 高并发     | 单机支持 3000+ 在线，分布式可扩展至百万用户                            |
-| 👥 用户系统    | 完整的用户注册、登录、权限管理能力                                    |
-| 💰 支付集成    | 接入支付系统，助力商业闭环                                        |
-| 🛠️ 模型接入灵活 | 支持通过 API 调用多种大模型，简化部署，支持定制本地部署                       |
-| 📈 商业支持    | 提供 7×24 技术支持与运维保障                                    |
-| 🧠 模型兼容    | 支持 ASR（豆包）、TTS（EdgeTTS）、LLM（OpenAI、Ollama）、图文解说（智谱）等 |
+### 基础功能
 
----
+* [x] WebSocket 长连接支持
+* [x] PCM / Opus 格式语音对话
+* [x] 豆包流式 ASR 语音识别
+* [x] EdgeTTS / 豆包 TTS 语音合成
+* [x] OpenAI API / Ollama 大模型对接
+* [x] 智谱 API 智能识图
+* [x] auto / manual / realtime 三种对话模式
+* [x] 实时打断支持
+* [x] 对话历史记录
+* [x] 角色管理与切换
+* [x] 音乐播放控制
 
-## ✅ 功能清单
+### 系统功能
 
-* [x] 支持 websocket 连接
-* [x] 支持 PCM / Opus 格式语音对话
-* [x] 支持大模型：ASR（豆包流式）、TTS（EdgeTTS/豆包）、LLM（OpenAI API、Ollama）
-* [x] 支持语音控制调用摄像头识别图像（智谱 API）
-* [x] 支持 auto/manual/realtime 三种对话模式，支持对话实时打断
-* [x] 支持 ESP32 小智客户端、Python 客户端、Android 客户端连入，无需校验
-* [x] OTA 固件下发
-* [x] 支持 MCP 协议（客户端 / 本地 / 服务器），可接入高德地图、天气查询等
-* [x] 支持语音控制切换角色声音
-* [x] 支持语音控制切换预设角色
-* [x] 支持语音控制播放音乐
-* [x] 支持单机部署服务
-* [x] 支持本地数据库 sqlite
-* [x] 支持 MQTT 连接（商务版功能）
-* [x] 管理后台(商务版已完成)
+* [x] 用户注册与认证
+* [x] 设备绑定管理
+* [x] OTA 固件升级
+* [x] SQLite 本地数据库
+* [x] 统一错误处理
+* [x] Logrus 日志系统
+* [x] Swagger API 文档
 
+### MCP 协议
+
+* [x] 服务端 MCP Server
+* [x] 本地 MCP 工具调用
+* [x] 客户端 MCP 透传
+* [x] 资源池管理
+* [x] 天气查询工具
+* [x] 地图服务集成
+
+### 客户端支持
+
+* [x] ESP32 小智客户端
+* [x] Python 客户端
+* [x] Android 客户端
 
 ---
 
 ## 🚀 快速开始
 
-<<<<<<< HEAD
-### 1. 下载 Release 版
-=======
-* [x] 支持PCM格式的语音对话
-* [x] 支持Opus格式的语音对话
-* [x] 支持的模型 ASR(豆包流式）LLM（OpenAi API，ollama）TTS（EdgeTTS，豆包TTS）
-* [x] 识图解说（智谱)
-* [x] OTA功能
-* [x] 支持服务端mcp
-* [x] 支持小智客户端mcp调用
-* [x] 支持服务端本地mcp调用
-* [x] 支持mqtt连接【仅在商务版本实现】
-* [x] 管理后台
->>>>>>> 2cb25b5 (Update README.md)
-
-> 推荐直接下载 Release 版本，无需配置开发环境：
-
-👉 [点击前往 Releases 页面](https://github.com/AnimeAIChat/xiaozhi-server-go/releases)
-
-* 选择你平台对应的版本（如 Windows: `windows-amd64-server.exe`）
-* `.upx.exe` 是压缩版本，功能一致，体积更小，适合远程部署
-
----
-
-### 2. 设置环境变量
-
-```bash
-cp .env.example .env
-```
-
-修改 `.env` 中的变量为你自己的值
-
----
-
-### 3. 配置 `.config.yaml`
-
-* 推荐复制一份 `config.yaml` 改名为 `.config.yaml`
-* 按需求配置模型、WebSocket、OTA 地址等字段
-* 不建议自行删减字段结构
-
-#### WebSocket 地址配置（必配）
-
-```yaml
-web:
-  websocket: ws://your-server-ip:8000
-```
-
-用于 OTA 服务下发给客户端的连接地址，ESP32 客户端会自动从此地址连接 WS，不再手动配置。
-
-#### OTA 地址配置（必配）
-
-```text
-http://your-server-ip:8080/api/ota/
-```
-
-> ESP32 固件内置 OTA 地址，确保该服务地址可用。
-
-#### 配置ASR，LLM，TTS
-
-根据配置文件的格式，配置好相关模型服务，尽量不要增减字段
-
----
-
-## 💬 MCP 协议配置
-
-参考：`src/core/mcp/README.md`
-
----
-
-## 🧪 源码安装与运行
-
-### 前置条件
+### 1. 环境要求
 
 * Go 1.24.2+
-* Windows 用户需安装 CGO 和 Opus 库（见下文）
+* SQLite 3
+* （Windows 用户）CGO + Opus 库
+
+### 2. 克隆项目
 
 ```bash
-git clone https://github.com/AnimeAIChat/xiaozhi-server-go.git
-cd xiaozhi-server-go
+git clone https://github.com/harryin777/combot-server-go.git
+cd combot-server-go
+```
+
+### 3. 配置文件
+
+```bash
+# 复制配置模板
 cp config.yaml .config.yaml
+
+# 编辑配置文件，填入您的 API 密钥和服务地址
+# - ASR/TTS/LLM 模型配置
+# - WebSocket 地址
+# - MCP 服务配置（如需要）
+```
+
+### 4. 安装依赖
+
+```bash
+go mod tidy
+```
+
+### 5. 运行服务
+
+```bash
+go run ./src/main.go
+```
+
+服务将在以下端口启动：
+
+* HTTP/WebSocket: `8080`
+* Swagger 文档: `http://localhost:8080/swagger/index.html`
+
+---
+
+## 💬 MCP 配置指南
+
+MCP 功能详细配置请参考：**[src/core/mcp/README.md](src/core/mcp/README.md)**
+
+### 快速配置示例
+
+在 `.config.yaml` 中配置 MCP 服务：
+
+```yaml
+mcp:
+  enabled: true
+  servers:
+    - name: "weather"
+      type: "local"
+      command: "npx"
+      args: ["-y", "@modelcontextprotocol/server-weather"]
+  
+  client_mcp:
+    enabled: true
+    timeout: 30s
 ```
 
 ---
 
-### Windows 安装 Opus 编译环境
+## 🛠️ 开发指南
 
-安装 [MSYS2](https://www.msys2.org/)，然后：
+### Windows 开发环境配置
+
+安装 [MSYS2](https://www.msys2.org/)，然后执行：
 
 ```bash
 pacman -Syu
-pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-go mingw-w64-x86_64-opus
-pacman -S mingw-w64-x86_64-pkg-config
+pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-opus mingw-w64-x86_64-pkg-config
 ```
 
-设置环境变量（用于 PowerShell 或系统变量）：
+设置环境变量：
 
 ```bash
 set PKG_CONFIG_PATH=C:\msys64\mingw64\lib\pkgconfig
 set CGO_ENABLED=1
 ```
 
----
+### 更新 Swagger 文档
 
-### 运行项目
+修改 API 后需要更新文档：
 
 ```bash
-go mod tidy
-go run ./src/main.go
+cd src
+swag init -g main.go
 ```
 
 ### 编译发布版本
 
 ```bash
-go build -o xiaozhi-server.exe src/main.go
+go build -o combot-server ./src/main.go
 ```
 
 ---
 
-## 📚 Swagger 文档
+## 📚 技术栈
 
-* 打开浏览器访问：`http://localhost:8080/swagger/index.html`
-
-### 更新 Swagger 文档（每次修改 API 后都要运行）
-
-```bash
-cd src
-swag init -g main.go
-```
-
----
-
-## ☁️ CentOS 源码部署指南
-
-> 文档见：[Centos 8 安装指南](Centos_Guide.md)
-
-<<<<<<< HEAD
----
-=======
-<img src="https://github.com/user-attachments/assets/f93b7e94-2e1b-49dc-87f3-98ec2a020873" width="450" alt="微信群二维码">
-
->>>>>>> 2cb25b5 (Update README.md)
-
-## SW文档更新
-
-SW文档:[/swagger/index.html](http://localhost:8080/swagger/index.html)
-
-每次修改了代码，或者新增了功能，都需要更新SW文档，以保证文档和代码的一致性
-
-```
-cd src
-swag init -g main.go
-或者这样
-swag init -g main.go && cd ..
-```
-
-## Centos系统下源码部署安装指南
-
-## 💬 社区支持
-
-
-欢迎提交 Issue、PR 或新功能建议！
-
-<img src="https://github.com/user-attachments/assets/103c32db-5f39-48d0-8868-53d3d095bd3a" width="450" alt="微信群二维码">
+* **语言**: Go 1.24.2+
+* **数据库**: SQLite
+* **日志**: Logrus
+* **音频**: Opus 编解码
+* **WebSocket**: Gorilla WebSocket
+* **大模型**: OpenAI API / Ollama
+* **语音**: 豆包 ASR/TTS、EdgeTTS
+* **视觉**: 智谱 API
 
 ---
 
-## 🛠️ 定制开发
+## 📖 项目文档
 
-我们接受各种定制化开发项目，如果您有特定需求，欢迎通过微信联系洽谈。
+* [Swagger API 文档](http://localhost:8080/swagger/index.html)
+* [MCP 配置指南](src/core/mcp/README.md)
+* [CentOS 部署指南](Centos_Guide.md)
 
-<img src="https://github.com/user-attachments/assets/e2639bc3-a58a-472f-9e72-b9363f9e79a3" width="450" alt="群主二维码">
-<<<<<<< HEAD
 ---
 
-## 📄 License
+## 🤝 贡献者
 
-本仓库遵循 `Xiaozhi-server-go Open Source License`（基于 Apache 2.0 增强版）
-=======
-<img src="https://github.com/user-attachments/assets/e2639bc3-a58a-472f-9e72-b9363f9e79a3" width="450" alt="群主二维码">
+感谢所有为本项目做出贡献的开发者！
 
-# 执照
-本仓库遵循Xiaozhi-server-go Open Source License 协议开源，该许可证本质上是Apache 2.0，但有一些额外的限制。
->>>>>>> 2cb25b5 (Update README.md)
+主要贡献者：
+主要贡献者：
+
+* **玄凤科技** - MCP 功能实现、资源池管理
+* **harry** - 基础架构、语音处理、稳定性优化
+* **kalicyh** - CI/CD、构建优化
+* **zhonghuihong** - 功能增强与优化
+
+---
+
+## 📄 开源协议
+
+本项目遵循 **Apache 2.0** 协议开源。
+
+---
+
+## 🙏 致谢
+
+* 感谢 [小智 AI](https://github.com/AnimeAIChat/xiaozhi-server-go) 提供的优秀基础框架
+* 感谢 [虾哥的 ESP32 项目](https://github.com/78/xiaozhi-esp32) 开创的生态
+* 感谢所有贡献者和使用者的支持
+
